@@ -1,0 +1,300 @@
+<title>Schafland Version 1</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: Lesespalte für Stand und Tests, breite Galerie für die Screenshots in Ablauf-Reihenfolge */
+:root {
+  --bg: #f6f8f1; --surface: #ffffff; --fg: #23291f; --muted: #5d6656; --line: #dde3d3;
+  --meadow: #3f7a2c; --meadow-soft: #e3efd9; --sky: #cfe8f7; --sun: #f4c64e; --todo: #b46a12; --todo-soft: #fbefd9;
+  --code-bg: #eef2e8;
+  --f-display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --f-body: "Nunito", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161a14; --surface: #1f251c; --fg: #e7ecdf; --muted: #a3ad98; --line: #343d2f;
+    --meadow: #8cc673; --meadow-soft: #263420; --sky: #2b4556; --sun: #f4c64e; --todo: #f0b25a; --todo-soft: #3a2f1c;
+    --code-bg: #232b20; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161a14; --surface: #1f251c; --fg: #e7ecdf; --muted: #a3ad98; --line: #343d2f;
+  --meadow: #8cc673; --meadow-soft: #263420; --sky: #2b4556; --sun: #f4c64e; --todo: #f0b25a; --todo-soft: #3a2f1c;
+  --code-bg: #232b20; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 17px; line-height: 1.6; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--f-display); line-height: 1.15; text-wrap: balance; margin: 0; }
+h2 { font-size: clamp(1.6rem, 3.2vw, 2.2rem); font-weight: 800; }
+h3 { font-size: 1.2rem; font-weight: 700; }
+p { margin: 0; }
+a { color: var(--meadow); }
+code { font-family: var(--f-mono); font-size: .85em; background: var(--code-bg); padding: .1em .35em; border-radius: 4px; overflow-wrap: anywhere; }
+:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+
+.hero { background: linear-gradient(180deg, var(--sky), var(--meadow-soft)); position: relative; padding-block: 40px 64px; }
+.hero::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 26px;
+  background: radial-gradient(circle at 18px 26px, var(--bg) 18px, transparent 19px) 0 0 / 36px 26px repeat-x; }
+.hero-grid { display: grid; grid-template-columns: auto 1fr; gap: 26px; align-items: center; }
+.hero img.logo { width: 120px; height: 120px; }
+.eyebrow { font-family: var(--f-mono); font-size: .76rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.hero h1 { font-size: clamp(2.4rem, 6.5vw, 4rem); font-weight: 800; }
+.hero .lead { margin-top: 10px; max-width: 62ch; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.fact { background: var(--surface); border-radius: 99px; padding: 4px 12px; font-size: .9rem; font-weight: 700; }
+.fact b { font-family: var(--f-display); color: var(--meadow); }
+
+section { padding-block: 40px; border-top: 1px solid var(--line); }
+section:first-of-type { border-top: 0; }
+.sec-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.sec-head p { color: var(--muted); max-width: 68ch; }
+
+.status { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.stage { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.stage h3 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.stage h3 small { font-family: var(--f-mono); font-size: .72rem; color: var(--muted); font-weight: 400; }
+.items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.items li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: start; font-size: .95rem; }
+.items li::before { content: "✓"; width: 22px; height: 22px; border-radius: 50%; background: var(--meadow-soft); color: var(--meadow); font-weight: 800; display: grid; place-items: center; font-size: .78rem; margin-top: 2px; }
+.items li.todo::before { content: "–"; background: var(--todo-soft); color: var(--todo); }
+.items li.todo { color: var(--muted); }
+
+.gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px 22px; }
+figure { margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+figure button { padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); cursor: zoom-in; display: block; }
+figure img { display: block; width: 100%; height: auto; aspect-ratio: 1366 / 768; }
+figcaption { display: flex; flex-direction: column; gap: 3px; }
+figcaption .step { font-family: var(--f-mono); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+figcaption b { font-family: var(--f-display); font-size: 1.15rem; }
+figcaption span { color: var(--muted); font-size: .94rem; }
+
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.cols > * { min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+ul.clean { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 6px; }
+.tag { display: inline-block; font-family: var(--f-mono); font-size: .7rem; padding: 1px 7px; border-radius: 99px; font-weight: 600; vertical-align: 1px; }
+.tag.ok { background: var(--meadow-soft); color: var(--meadow); }
+.tag.sim { background: var(--todo-soft); color: var(--todo); }
+pre { background: var(--code-bg); border-radius: 10px; padding: 12px 14px; overflow-x: auto; font-family: var(--f-mono); font-size: .82rem; margin: 0; }
+.steps { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 10px; }
+.files { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: .94rem; }
+.files code { justify-self: start; }
+
+dialog { border: 0; padding: 0; background: transparent; max-width: 96vw; max-height: 94vh; }
+dialog::backdrop { background: rgba(10, 14, 8, .82); }
+dialog img { display: block; max-width: 96vw; max-height: 88vh; border-radius: 8px; }
+dialog p { color: #fff; text-align: center; margin-top: 8px; font-weight: 700; }
+dialog button { position: absolute; top: 8px; right: 8px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: #fff; color: #222; font-size: 18px; cursor: pointer; }
+
+footer { padding-block: 28px 48px; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line); }
+
+@media (max-width: 760px) {
+  .hero-grid { grid-template-columns: 1fr; }
+  .hero img.logo { width: 88px; height: 88px; }
+  .gallery, .cols { grid-template-columns: 1fr; }
+  .files { grid-template-columns: 1fr; gap: 2px 0; }
+  .files span { margin-bottom: 8px; }
+}
+</style>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <img class="logo" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 110 110'%3E%3Cg fill='%23fffdf7' stroke='%23d9d2bf' stroke-width='2'%3E%3Ccircle cx='38' cy='58' r='18'/%3E%3Ccircle cx='58' cy='46' r='20'/%3E%3Ccircle cx='80' cy='50' r='18'/%3E%3Ccircle cx='90' cy='68' r='16'/%3E%3Ccircle cx='70' cy='78' r='18'/%3E%3Ccircle cx='46' cy='78' r='17'/%3E%3Ccircle cx='60' cy='64' r='22' stroke='none'/%3E%3C/g%3E%3Crect x='44' y='88' width='7' height='16' rx='3' fill='%232b2b2b'/%3E%3Crect x='72' y='88' width='7' height='16' rx='3' fill='%232b2b2b'/%3E%3Cellipse cx='22' cy='44' rx='9' ry='5' fill='%232b2b2b' transform='rotate(-25 22 44)'/%3E%3Cellipse cx='30' cy='54' rx='15' ry='18' fill='%232b2b2b'/%3E%3Ccircle cx='25' cy='50' r='3.2' fill='%23fff'/%3E%3Ccircle cx='35' cy='50' r='3.2' fill='%23fff'/%3E%3Ccircle cx='25.6' cy='50.6' r='1.6' fill='%232b2b2b'/%3E%3Ccircle cx='35.6' cy='50.6' r='1.6' fill='%232b2b2b'/%3E%3Cellipse cx='30' cy='62' rx='5' ry='3' fill='%23f29bab'/%3E%3Cg fill='%23fffdf7'%3E%3Ccircle cx='24' cy='38' r='6'/%3E%3Ccircle cx='31' cy='35' r='6.5'/%3E%3Ccircle cx='38' cy='38' r='6'/%3E%3C/g%3E%3C/svg%3E">
+    <div>
+      <div class="eyebrow">Umsetzungsbericht · 30.10.2026</div>
+      <h1>Schafland Version 1</h1>
+      <p class="lead">Etappe 1 und 2 aus dem Konzept sind fertig, aus Etappe 3 der PayPal-QR-Code und der Musik-Player. Die App läuft offline im Browser und startet per Skript im Vollbild. Alle Screenshots unten stammen aus der gebauten App in 1366×768, der Bildschirmgröße des Notebooks.</p>
+      <div class="facts">
+        <span class="fact"><b>51</b> Produkte in 6 Kategorien</span>
+        <span class="fact"><b>1,4 MB</b> App inkl. Barcode-Leser</span>
+        <span class="fact"><b>0</b> Fehler im Testlauf</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section id="stand">
+  <div class="sec-head">
+    <h2>Was umgesetzt ist</h2>
+    <p>Abgehakt ist, was gebaut und im Browser getestet wurde. Graue Punkte gehören nicht zu diesem Auftrag.</p>
+  </div>
+  <div class="status">
+    <div class="stage">
+      <h3>Etappe 1 <small>Grundkasse</small></h3>
+      <ul class="items">
+        <li>Kacheln mit Bild und Preis, 6 Kategorien, Warenkorb mit −/+ und Summe</li>
+        <li>Spiel-QR „Danke für Ihren Einkauf bei Schafland im Wert von …“</li>
+        <li>Schaf-Design, Startbildschirm, Dankes-Animation mit laufendem Schaf</li>
+        <li>Geräusche ohne Audiodateien: Plopp, Scanner-Piep, Kassenklingel, Mäh</li>
+        <li>Kiosk-Start, Autostart-Installer, Startdatei für Windows</li>
+      </ul>
+    </div>
+    <div class="stage">
+      <h3>Etappe 2 <small>Scannen</small></h3>
+      <ul class="items">
+        <li>Webcam-Scan mit zxing-wasm im Hintergrund-Thread, 640×480, mittlerer Bildstreifen</li>
+        <li>Open Food Facts, danach Open Beauty / Products Facts, mit Foto und Spielpreis</li>
+        <li>Gefundene Produkte bleiben gespeichert und funktionieren danach offline</li>
+        <li>Etikettenbogen mit eigenen EAN-13-Codes (Präfix 21), druckbar</li>
+        <li class="todo">USB-Handscanner (wie gewünscht weggelassen)</li>
+      </ul>
+    </div>
+    <div class="stage">
+      <h3>Etappe 3 <small>Teilweise</small></h3>
+      <ul class="items">
+        <li>PayPal.me-QR mit Betrag, Name im Eltern-Bereich, Test-Code über 1,00 €</li>
+        <li>MP3-Ordner wählen, bleibt gespeichert, Unterordner werden mitgenommen</li>
+        <li>Player: Zufall, Lautstärke, Autostart, Musik wird bei Geräuschen leiser</li>
+        <li class="todo">PIN für den Eltern-Bereich (jetzt: 2 s auf das Schaf drücken)</li>
+        <li class="todo">Produktverwaltung mit Foto, GiroCode</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="screens">
+  <div class="sec-head">
+    <h2>Die App in Bildern</h2>
+    <p>In der Reihenfolge eines Einkaufs. Zum Vergrößern auf ein Bild tippen.</p>
+  </div>
+  <div class="gallery">
+    <figure><button data-full="screenshots/01-start.png"><img src="screenshots/01-start.png" alt="Startbildschirm mit Schaf und Knopf Laden öffnen" loading="lazy"></button>
+      <figcaption><span class="step">Start</span><b>Laden öffnen</b><span>Der erste Tipp schaltet Ton und Musik frei. Browser erlauben Ton erst nach einer Berührung.</span></figcaption></figure>
+    <figure><button data-full="screenshots/02-kasse-leer.png"><img src="screenshots/02-kasse-leer.png" alt="Kasse mit Obst-Regal und leerem Korb" loading="lazy"></button>
+      <figcaption><span class="step">Kasse</span><b>Regal links, Korb rechts</b><span>Kacheln sind mindestens 8 rem breit und gut für Kinderfinger zu treffen. Oben rechts läuft die Musik.</span></figcaption></figure>
+    <figure><button data-full="screenshots/03-kasse.png"><img src="screenshots/03-kasse.png" alt="Kasse mit sechs Produkten im Korb, Summe 5,00 Euro" loading="lazy"></button>
+      <figcaption><span class="step">Einkaufen</span><b>Antippen, hüpfen, „+1“</b><span>Das zuletzt gewählte Produkt ist in Regal und Korb gelb markiert und rutscht im Korb nach oben.</span></figcaption></figure>
+    <figure><button data-full="screenshots/04-scan-gefunden.png"><img src="screenshots/04-scan-gefunden.png" alt="Scan-Ansicht: Kamerabild mit Barcode in der Wollwolke, rechts gefundene Schokolade für 0,99 Euro" loading="lazy"></button>
+      <figcaption><span class="step">Scannen</span><b>Strichcode in die Wolke halten</b><span>Code erkannt, in der Datenbank nachgeschaut, mit Foto und Spielpreis angezeigt. Der Korb bleibt sichtbar.</span></figcaption></figure>
+    <figure><button data-full="screenshots/05-scan-im-korb.png"><img src="screenshots/05-scan-im-korb.png" alt="Scan-Ansicht mit Hinweis Im Korb" loading="lazy"></button>
+      <figcaption><span class="step">Scannen</span><b>Nach 1 Sekunde im Korb</b><span>Ohne extra Tippen. Derselbe Code zählt innerhalb von 1,5 s nur einmal.</span></figcaption></figure>
+    <figure><button data-full="screenshots/06-kasse-gescannt.png"><img src="screenshots/06-kasse-gescannt.png" alt="Reiter Gescannt mit der Schokolade" loading="lazy"></button>
+      <figcaption><span class="step">Kasse</span><b>Reiter „Gescannt“</b><span>Erscheint, sobald etwas gefunden wurde. Diese Produkte lassen sich danach auch antippen.</span></figcaption></figure>
+    <figure><button data-full="screenshots/07a-bezahlen-spiel.png"><img src="screenshots/07a-bezahlen-spiel.png" alt="Bezahlen mit Schaf-Code: QR-Code und Dankestext" loading="lazy"></button>
+      <figcaption><span class="step">Bezahlen</span><b>Schaf-Code</b><span>Ein QR-Code mit dem Dankestext und einem Schaf in der Mitte. Das Handy zeigt den Text an.</span></figcaption></figure>
+    <figure><button data-full="screenshots/07b-bezahlen-paypal.png"><img src="screenshots/07b-bezahlen-paypal.png" alt="Bezahlen mit PayPal: QR-Code mit paypal.me Link über 5,99 Euro" loading="lazy"></button>
+      <figcaption><span class="step">Bezahlen</span><b>PayPal</b><span>Nur sichtbar, wenn im Eltern-Bereich eingeschaltet. Mit Hinweis auf „Freunde und Familie“.</span></figcaption></figure>
+    <figure><button data-full="screenshots/07c-danke.png"><img src="screenshots/07c-danke.png" alt="Dankesbildschirm mit laufendem Schaf über der Wiese" loading="lazy"></button>
+      <figcaption><span class="step">Fertig</span><b>Kling, Mäh, Danke</b><span>Das Schaf läuft über die Wiese, der Einkauf wird als Kassenbon gespeichert, der Korb ist wieder leer.</span></figcaption></figure>
+    <figure><button data-full="screenshots/08-eltern-bezahlen.png"><img src="screenshots/08-eltern-bezahlen.png" alt="Eltern-Bereich Bezahlen mit PayPal-Name und Test-QR" loading="lazy"></button>
+      <figcaption><span class="step">Eltern-Bereich</span><b>PayPal einrichten</b><span>Name eintragen, mit dem Test-Code über 1,00 € den Empfänger prüfen.</span></figcaption></figure>
+    <figure><button data-full="screenshots/09-eltern-musik.png"><img src="screenshots/09-eltern-musik.png" alt="Eltern-Bereich Musik mit Ordner, Player und Titelliste" loading="lazy"></button>
+      <figcaption><span class="step">Eltern-Bereich</span><b>Musik-Ordner und Player</b><span>Titel kommen aus den Dateinamen, Nummern davor werden weggelassen.</span></figcaption></figure>
+    <figure><button data-full="screenshots/10-etiketten.png"><img src="screenshots/10-etiketten.png" alt="Etikettenbogen mit Barcodes für Obst" loading="lazy"></button>
+      <figcaption><span class="step">Eltern-Bereich</span><b>Etiketten drucken</b><span>Kategorien auswählen, Preis auf Wunsch mitdrucken. Im Druck stehen 3 Etiketten pro Zeile auf A4.</span></figcaption></figure>
+    <figure><button data-full="screenshots/11-eltern-gescannt.png"><img src="screenshots/11-eltern-gescannt.png" alt="Liste gescannter Produkte mit änderbarem Preis" loading="lazy"></button>
+      <figcaption><span class="step">Eltern-Bereich</span><b>Gescannte Produkte</b><span>Spielpreis ändern oder Produkt löschen.</span></figcaption></figure>
+    <figure><button data-full="screenshots/12-eltern-kassenbons.png"><img src="screenshots/12-eltern-kassenbons.png" alt="Liste der Kassenbons" loading="lazy"></button>
+      <figcaption><span class="step">Eltern-Bereich</span><b>Kassenbons</b><span>Die letzten 30 Einkäufe, gut zum gemeinsamen Nachrechnen.</span></figcaption></figure>
+  </div>
+</section>
+
+<section id="tests">
+  <div class="sec-head">
+    <h2>Wie getestet wurde</h2>
+    <p>Alles lief automatisch in Chromium gegen den fertigen Build. Einiges musste simuliert werden. Das ist hier markiert.</p>
+  </div>
+  <div class="cols">
+    <div class="card">
+      <h3>Geprüft</h3>
+      <ul class="clean">
+        <li><span class="tag ok">echt</span> Kompletter Einkauf: 6 Kacheln, 1 Scan, Bezahlen, Dankesbildschirm, Kassenbon gespeichert. Summe 5,99 € stimmt.</li>
+        <li><span class="tag ok">echt</span> Barcode-Erkennung: Chromium bekam ein Kamerabild mit einem gedrehten EAN-13-Code. zxing-wasm hat ihn im Browser erkannt.</li>
+        <li><span class="tag ok">echt</span> QR-Codes aus den Screenshots zurückgelesen: Dankestext und <code>https://paypal.me/familieMueller/5.99EUR</code> kommen korrekt heraus, trotz Schaf in der Mitte.</li>
+        <li><span class="tag ok">echt</span> Etiketten aus dem Screenshot zurückgelesen: <code>2101001000001</code> usw. passen zu Apfel, Banane, Birne …</li>
+        <li><span class="tag ok">echt</span> Musik: 4 MP3s werden gelistet und abgespielt. Keine Fehler in der Browser-Konsole.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Simuliert oder noch offen</h3>
+      <ul class="clean">
+        <li><span class="tag sim">simuliert</span> <b>Open Food Facts:</b> Die Testumgebung kommt nicht ins Internet. Die Antwort für „Vollmilch-Schokolade, Beispielmarke“ und das Packungsbild waren gestellt, im echten Format der API.</li>
+        <li><span class="tag sim">simuliert</span> <b>Webcam:</b> Statt einer echten Kamera ein Standbild, daher „0 Bilder/s“ in der Anzeige. Wie gut die alte Notebook-Kamera scharf stellt, zeigt erst der Test am Gerät.</li>
+        <li><span class="tag sim">simuliert</span> <b>Ordnerauswahl:</b> Den Systemdialog kann der Test nicht bedienen. Er wurde durch einen Ordner mit 4 Test-MP3s ersetzt.</li>
+        <li><span class="tag sim">offen</span> Touchscreen, Leistung auf dem i5-4200U, echter PayPal-Zahlungsvorgang.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="installieren">
+  <div class="sec-head">
+    <h2>Auf das Notebook bringen</h2>
+    <p>Der fertige Build liegt in <code>dist/</code>. Auf dem Notebook braucht es nur Chromium und Python 3, beides ist bei Linux Mint dabei oder schnell installiert.</p>
+  </div>
+  <div class="cols">
+    <div class="card">
+      <h3>Linux Mint / Ubuntu</h3>
+      <ol class="steps">
+        <li><code>schafland-v1.zip</code> nach <code>~/</code> entpacken</li>
+        <li><pre>sudo apt install chromium fonts-noto-color-emoji</pre></li>
+        <li>Probestart, beenden mit Alt+F4:<pre>~/schafland/kiosk/start-schafland.sh</pre></li>
+        <li>Autostart nach dem Anmelden:<pre>~/schafland/kiosk/install-autostart.sh</pre></li>
+      </ol>
+    </div>
+    <div class="card">
+      <h3>Bedienung für Eltern</h3>
+      <ul class="clean">
+        <li><b>2 Sekunden auf das Schaf oben links drücken</b> öffnet den Eltern-Bereich, ebenso <code>Strg</code> + <code>,</code>.</li>
+        <li>Beim ersten Scannen fragt Chromium nach der Kamera. Die Antwort bleibt gespeichert.</li>
+        <li>Musik-Ordner einmal wählen. Nach einem Neustart fragt Chromium beim Tippen auf „Laden öffnen“ evtl. einmal nach dem Zugriff.</li>
+        <li>Preise der eigenen Produkte stehen in <code>src/lib/catalog.js</code>, danach <code>npm run build</code>.</li>
+        <li>Windows: <code>kiosk/start-schafland-windows.bat</code> startet die App mit Edge.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="dateien">
+  <div class="sec-head"><h2>Was im Paket steckt</h2></div>
+  <div class="files">
+    <code>dist/</code><span>Fertige App, wird vom Startskript ausgeliefert</span>
+    <code>src/</code><span>Quellcode: Svelte 5 + Vite, Dexie, zxing-wasm, qrcode, JsBarcode</span>
+    <code>kiosk/</code><span>Startskript, kleiner Webserver, Autostart-Installer, Windows-Start</span>
+    <code>docs/etiketten-beispiel.pdf</code><span>Alle 51 Etiketten als A4-PDF zum direkten Ausdrucken</span>
+    <code>docs/screenshots/</code><span>Die Bilder dieser Seite</span>
+    <code>README.md</code><span>Einrichtung, Bedienung, Aufbau des Codes</span>
+  </div>
+</section>
+
+<section id="weiter">
+  <div class="sec-head">
+    <h2>Mögliche nächste Schritte</h2>
+  </div>
+  <ul class="clean" style="max-width:68ch">
+    <li>PIN für den Eltern-Bereich, sobald das Kind das lange Drücken entdeckt hat</li>
+    <li>Produktverwaltung: eigene Kacheln mit Webcam-Foto anlegen, ohne Code zu ändern</li>
+    <li>Spielgeld mit Rückgeld-Rechner zum Rechnenlernen</li>
+    <li>Unbekannte Codes im Eltern-Modus direkt mit Name und Preis anlegen</li>
+  </ul>
+</section>
+</main>
+
+<footer><div class="wrap">Schafland · Hier bin ich Schaf, hier kauf ich ein · Version 1</div></footer>
+
+<dialog id="zoom" aria-label="Screenshot vergrößert">
+  <button type="button" aria-label="Schließen">✕</button>
+  <img alt="">
+  <p></p>
+</dialog>
+
+<script>
+(function () {
+  var dlg = document.getElementById("zoom");
+  var img = dlg.querySelector("img");
+  var cap = dlg.querySelector("p");
+  document.querySelectorAll("figure button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      img.src = b.dataset.full;
+      img.alt = b.querySelector("img").alt;
+      cap.textContent = b.parentElement.querySelector("figcaption b").textContent;
+      if (dlg.showModal) dlg.showModal();
+    });
+  });
+  dlg.querySelector("button").addEventListener("click", function () { dlg.close(); });
+  dlg.addEventListener("click", function (e) { if (e.target === dlg) dlg.close(); });
+})();
+</script>

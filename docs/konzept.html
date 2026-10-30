@@ -1,0 +1,834 @@
+<title>Schafland Kassenkonzept</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: eine Lesespalte (Konzepttext) mit breiten "Bildschirm"-Bühnen für die Mockups; Wollwolken-Kante als einziges Ornament */
+:root {
+  --bg: #f6f8f1;          /* heller Wiesen-Morgen */
+  --surface: #ffffff;
+  --fg: #23291f;          /* Schafsgesicht, grünstichig */
+  --muted: #5d6656;
+  --line: #dde3d3;
+  --meadow: #4f8a3a;      /* Wiese */
+  --meadow-soft: #e3efd9;
+  --sky: #9cc9e6;
+  --nose: #e88a9a;        /* Schafsnase / Ohren-Innen */
+  --sun: #f4c64e;
+  --code-bg: #eef2e8;
+  --f-display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --f-body: "Nunito", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+
+  /* App-Farben der Mockups: die Kassen-App selbst ist bewusst hell, unabhängig vom Theme */
+  --app-wool: #fffdf7;
+  --app-wool-2: #f3efe4;
+  --app-grass: #6cae4f;
+  --app-grass-dark: #3f7a2c;
+  --app-sky: #cfe8f7;
+  --app-face: #2b2b2b;
+  --app-nose: #f29bab;
+  --app-sun: #ffd25e;
+  --app-ink: #2a2f26;
+  --app-ink-soft: #6b7264;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161a14; --surface: #1f251c; --fg: #e7ecdf; --muted: #a3ad98; --line: #343d2f;
+    --meadow: #8cc673; --meadow-soft: #263420; --sky: #6aa3c8; --nose: #f0a0ae; --sun: #f4c64e;
+    --code-bg: #232b20; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161a14; --surface: #1f251c; --fg: #e7ecdf; --muted: #a3ad98; --line: #343d2f;
+  --meadow: #8cc673; --meadow-soft: #263420; --sky: #6aa3c8; --nose: #f0a0ae; --sun: #f4c64e;
+  --code-bg: #232b20; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--f-body); font-size: 17px; line-height: 1.6;
+}
+.wrap {
+  max-width: 1080px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.prose { max-width: 68ch; }
+h1, h2, h3 { font-family: var(--f-display); line-height: 1.15; text-wrap: balance; margin: 0; }
+h2 { font-size: clamp(1.7rem, 3.4vw, 2.3rem); font-weight: 800; }
+h3 { font-size: 1.25rem; font-weight: 700; }
+p { margin: 0; }
+a { color: var(--meadow); }
+code, .mono { font-family: var(--f-mono); font-size: .86em; }
+code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+
+/* ---------- Hero ---------- */
+.hero {
+  background: linear-gradient(180deg, var(--sky) 0%, var(--meadow-soft) 100%);
+  position: relative; padding-block: 48px 72px;
+}
+.hero::after { /* Wollkante */
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 28px;
+  background: radial-gradient(circle at 20px 28px, var(--bg) 20px, transparent 21px) 0 0 / 40px 28px repeat-x;
+}
+.hero-grid { display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: center; }
+.hero svg.logo { width: 150px; height: auto; }
+.eyebrow { font-family: var(--f-mono); font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.hero h1 { font-size: clamp(2.6rem, 7vw, 4.4rem); font-weight: 800; letter-spacing: -.01em; color: var(--fg); }
+.slogan { font-family: var(--f-display); font-size: clamp(1.2rem, 2.6vw, 1.6rem); font-weight: 500; color: var(--fg); }
+.hero .lead { margin-top: 14px; max-width: 60ch; color: var(--fg); }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 18px; font-size: .9rem; color: var(--muted); }
+
+/* ---------- Sections ---------- */
+section { padding-block: 44px; border-top: 1px solid var(--line); }
+section:first-of-type { border-top: 0; }
+.sec-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px; }
+.sec-head p { color: var(--muted); max-width: 68ch; }
+.stack { display: flex; flex-direction: column; gap: 14px; }
+
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.sum { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.sum b { font-family: var(--f-display); font-size: 1.1rem; }
+.sum span { color: var(--muted); font-size: .95rem; }
+
+.answer { background: var(--meadow-soft); border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; }
+.answer .q { font-family: var(--f-display); font-weight: 700; font-size: 1.1rem; }
+
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: .95rem; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--f-mono); font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+td.pick { font-weight: 700; color: var(--meadow); }
+
+.pill { display: inline-block; font-family: var(--f-mono); font-size: .72rem; padding: 2px 8px; border-radius: 99px; background: var(--meadow-soft); color: var(--meadow); font-weight: 600; white-space: nowrap; }
+.pill.warn { background: color-mix(in srgb, var(--sun) 25%, transparent); color: var(--fg); }
+
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.two > * { min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; }
+ul.clean { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 6px; }
+
+pre.code { background: var(--code-bg); border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-family: var(--f-mono); font-size: .82rem; line-height: 1.55; margin: 0; }
+
+/* Architektur */
+.arch-wrap { overflow-x: auto; }
+.arch { display: grid; grid-template-columns: repeat(3, minmax(200px, 1fr)); gap: 14px; min-width: 660px; }
+.arch .col { display: flex; flex-direction: column; gap: 10px; }
+.arch .col h4 { margin: 0; font-family: var(--f-mono); font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.box { border: 1.5px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px 12px; font-size: .9rem; }
+.box b { display: block; font-family: var(--f-display); font-size: 1rem; }
+.box.core { border-color: var(--meadow); }
+.box.ext { border-style: dashed; }
+
+/* Design-Tokens */
+.swatches { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.sw { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--surface); }
+.sw i { display: block; height: 64px; }
+.sw div { padding: 8px 10px; font-size: .85rem; display: flex; flex-direction: column; }
+.sw div b { font-family: var(--f-display); }
+.sw div span { font-family: var(--f-mono); font-size: .74rem; color: var(--muted); }
+.typo { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.typo .card .big { font-size: 2.2rem; line-height: 1.1; }
+
+/* ---------- Mockups ---------- */
+.stage-wrap { overflow-x: auto; padding-bottom: 6px; }
+.stage-cap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; align-items: baseline; margin-bottom: 10px; }
+.stage-cap .mono { color: var(--muted); font-size: .78rem; }
+.laptop { width: 920px; margin: 0 auto; }
+.screen {
+  width: 920px; height: 518px; /* 16:9, wie 1366×768 */
+  border: 12px solid #2c2f2a; border-radius: 16px 16px 4px 4px;
+  overflow: hidden; position: relative;
+  background: var(--app-wool); color: var(--app-ink);
+  font-family: var(--f-body); font-size: 14px; line-height: 1.35;
+}
+.base { height: 14px; background: linear-gradient(#3a3d37, #22241f); border-radius: 0 0 14px 14px; width: 1000px; margin-left: -40px; }
+.notes { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 22px; font-size: .93rem; color: var(--muted); }
+.notes b { color: var(--fg); }
+
+/* App: Kopfleiste */
+.a-top { height: 62px; display: flex; align-items: center; gap: 14px; padding: 0 16px; background: var(--app-sky); }
+.a-top .brand { display: flex; align-items: center; gap: 10px; }
+.a-top .brand svg { width: 46px; height: 46px; }
+.a-top .brand b { font-family: var(--f-display); font-size: 26px; font-weight: 800; color: var(--app-ink); line-height: 1; }
+.a-top .brand small { display: block; font-family: var(--f-display); font-size: 12.5px; color: var(--app-ink-soft); font-weight: 500; }
+.a-top .spacer { flex: 1; }
+.chip { display: inline-flex; align-items: center; gap: 6px; background: var(--app-wool); border-radius: 99px; padding: 6px 12px; font-weight: 700; font-size: 13px; color: var(--app-ink); }
+.chip .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--app-grass); }
+.iconbtn { width: 40px; height: 40px; border-radius: 50%; background: var(--app-wool); display: grid; place-items: center; font-size: 18px; color: var(--app-ink); }
+
+.a-body { display: grid; grid-template-columns: 1fr 300px; height: calc(100% - 62px); }
+.a-shop { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; background: linear-gradient(180deg, var(--app-wool), var(--app-wool-2)); min-width: 0; }
+.cats { display: flex; gap: 8px; }
+.cat { padding: 8px 14px; border-radius: 99px; background: #fff; border: 2px solid #e6e0d0; font-weight: 700; font-size: 14px; display: flex; gap: 6px; align-items: center; color: var(--app-ink); }
+.cat.on { background: var(--app-grass); border-color: var(--app-grass); color: #fff; }
+.grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+.tile {
+  background: #fff; border-radius: 22px; padding: 10px 6px 8px; text-align: center;
+  box-shadow: 0 3px 0 #e2dccb; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  position: relative;
+}
+.tile .em { font-size: 42px; line-height: 1.1; }
+.tile .nm { font-weight: 700; font-size: 13.5px; color: var(--app-ink); }
+.tile .pr { font-family: var(--f-display); font-weight: 800; font-size: 17px; color: var(--app-grass-dark); }
+.tile.hit { outline: 4px solid var(--app-sun); }
+.tile.hit::after { content: "+1"; position: absolute; top: -8px; right: -6px; background: var(--app-sun); color: var(--app-ink); font-family: var(--f-display); font-weight: 800; border-radius: 99px; padding: 0 8px; font-size: 14px; }
+
+.scanbar { margin-top: auto; display: flex; align-items: center; gap: 12px; background: #fff; border: 2px dashed #cfc8b5; border-radius: 18px; padding: 8px 12px; }
+.scanbar .cam { width: 92px; height: 54px; border-radius: 10px; background: #3a3f36; position: relative; overflow: hidden; flex: none; }
+.scanbar .cam::before { content: ""; position: absolute; left: 10px; right: 10px; top: 50%; height: 2px; background: #ff5b6e; box-shadow: 0 0 8px #ff5b6e; }
+.scanbar .cam::after { content: ""; position: absolute; inset: 14px 18px; background: repeating-linear-gradient(90deg, #eee 0 2px, transparent 2px 4px, #eee 4px 5px, transparent 5px 8px); opacity: .7; }
+.scanbar b { font-family: var(--f-display); font-size: 16px; }
+.scanbar small { display: block; color: var(--app-ink-soft); font-size: 12.5px; }
+
+.a-cart { background: #fff; border-left: 2px solid #ece6d6; display: flex; flex-direction: column; }
+.a-cart h5 { margin: 0; padding: 12px 14px 6px; font-family: var(--f-display); font-size: 20px; color: var(--app-ink); display: flex; justify-content: space-between; align-items: baseline; }
+.a-cart h5 span { font-family: var(--f-body); font-size: 12.5px; color: var(--app-ink-soft); font-weight: 600; }
+.lines { flex: 1; padding: 0 10px; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+.ln { display: grid; grid-template-columns: 30px 1fr auto auto; gap: 8px; align-items: center; background: var(--app-wool); border-radius: 12px; padding: 6px 8px; }
+.ln .em { font-size: 22px; }
+.ln .nm { font-weight: 700; font-size: 13.5px; }
+.ln .nm small { display: block; font-weight: 600; color: var(--app-ink-soft); font-size: 11.5px; }
+.ln .qty { display: flex; align-items: center; gap: 4px; }
+.ln .qty i { width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 2px solid #e1dac8; display: grid; place-items: center; font-style: normal; font-weight: 800; font-size: 13px; }
+.ln .qty b { min-width: 14px; text-align: center; }
+.ln .sum2 { font-family: var(--f-display); font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+.ln.new { background: #fff6d6; }
+.total { margin: 8px 10px 0; padding: 10px 12px; border-radius: 14px; background: var(--app-wool-2); display: flex; justify-content: space-between; align-items: baseline; }
+.total span { font-weight: 700; color: var(--app-ink-soft); }
+.total b { font-family: var(--f-display); font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--app-ink); }
+.paybtn { margin: 10px; padding: 12px; text-align: center; border-radius: 18px; background: var(--app-grass); color: #fff; font-family: var(--f-display); font-weight: 800; font-size: 22px; box-shadow: 0 4px 0 var(--app-grass-dark); }
+
+/* Overlay-Screens */
+.dim { position: absolute; inset: 62px 0 0 0; background: rgba(40, 50, 35, .45); display: grid; place-items: center; }
+.modal { background: var(--app-wool); border-radius: 30px; padding: 20px 24px; width: 760px; box-shadow: 0 12px 40px rgba(0,0,0,.25); display: flex; flex-direction: column; gap: 14px; }
+.modal h6 { margin: 0; font-family: var(--f-display); font-size: 26px; font-weight: 800; display: flex; justify-content: space-between; align-items: baseline; color: var(--app-ink); }
+.modal h6 span { font-size: 34px; color: var(--app-grass-dark); font-variant-numeric: tabular-nums; }
+.payopts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.po { background: #fff; border: 3px solid #ece6d6; border-radius: 20px; padding: 12px; text-align: center; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.po .em { font-size: 36px; }
+.po b { font-family: var(--f-display); font-size: 17px; }
+.po small { color: var(--app-ink-soft); font-size: 12px; }
+.po.on { border-color: var(--app-grass); background: #f0f8ea; }
+.qrrow { display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: center; background: #fff; border-radius: 20px; padding: 14px; }
+.qrbox { width: 200px; height: 200px; background: #fff; border-radius: 12px; display: grid; place-items: center; position: relative; }
+.qrbox canvas { width: 180px; height: 180px; image-rendering: pixelated; }
+.qrbox .mini-sheep { position: absolute; width: 40px; height: 40px; background: #fff; border-radius: 10px; display: grid; place-items: center; }
+.qrbox .mini-sheep svg { width: 34px; height: 34px; }
+.qrtext b { font-family: var(--f-display); font-size: 20px; display: block; }
+.qrtext p { color: var(--app-ink-soft); font-size: 13.5px; margin-top: 6px; }
+.qrtext .payload { margin-top: 10px; font-family: var(--f-mono); font-size: 11.5px; background: var(--app-wool-2); border-radius: 8px; padding: 8px 10px; color: var(--app-ink); word-break: break-all; }
+.btnrow { display: flex; gap: 10px; justify-content: flex-end; }
+.btn { padding: 10px 18px; border-radius: 14px; font-family: var(--f-display); font-weight: 700; font-size: 17px; background: #fff; border: 2px solid #e1dac8; color: var(--app-ink); }
+.btn.go { background: var(--app-grass); border-color: var(--app-grass); color: #fff; }
+
+/* Scan-Screen */
+.scanview { display: grid; grid-template-columns: 1fr 300px; height: calc(100% - 62px); }
+.camfeed { background: radial-gradient(ellipse at 40% 40%, #6d7466, #2f342b); position: relative; display: grid; place-items: center; }
+.frame { width: 360px; height: 210px; position: relative; }
+.frame .wool { position: absolute; inset: -26px; border-radius: 60px;
+  background:
+    radial-gradient(circle, #fffdf7 15px, transparent 16px) 0 0 / 34px 34px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude; padding: 26px; opacity: .95; }
+.frame .bc { position: absolute; inset: 40px 60px; background: #fff; border-radius: 6px; padding: 12px 14px 8px; display: flex; flex-direction: column; gap: 4px; transform: rotate(-4deg); }
+.frame .bc i { flex: 1; background: repeating-linear-gradient(90deg, #111 0 2px, transparent 2px 4px, #111 4px 7px, transparent 7px 8px, #111 8px 9px, transparent 9px 12px); }
+.frame .bc span { font-family: var(--f-mono); font-size: 11px; text-align: center; color: #111; letter-spacing: .15em; }
+.frame .laser { position: absolute; left: 30px; right: 30px; top: 50%; height: 3px; background: #ff5b6e; box-shadow: 0 0 12px #ff5b6e; }
+.camhint { position: absolute; bottom: 18px; left: 0; right: 0; text-align: center; color: #fff; font-family: var(--f-display); font-size: 22px; font-weight: 700; text-shadow: 0 2px 6px rgba(0,0,0,.4); }
+.camstat { position: absolute; top: 14px; left: 14px; display: flex; gap: 8px; }
+.camstat span { background: rgba(0,0,0,.45); color: #fff; font-family: var(--f-mono); font-size: 11px; padding: 4px 8px; border-radius: 6px; }
+.found { padding: 14px; display: flex; flex-direction: column; gap: 10px; background: #fff; border-left: 2px solid #ece6d6; }
+.found .pimg { height: 150px; border-radius: 18px; background: var(--app-wool-2); display: grid; place-items: center; font-size: 76px; }
+.found b.t { font-family: var(--f-display); font-size: 21px; line-height: 1.15; }
+.found small { color: var(--app-ink-soft); font-size: 12.5px; }
+.found .price { font-family: var(--f-display); font-size: 36px; font-weight: 800; color: var(--app-grass-dark); }
+.src { font-family: var(--f-mono); font-size: 11px; background: var(--app-sky); padding: 3px 8px; border-radius: 6px; align-self: flex-start; color: var(--app-ink); }
+
+/* Eltern-Bereich */
+.admin { display: grid; grid-template-columns: 190px 1fr; height: calc(100% - 62px); }
+.admin nav { background: var(--app-wool-2); padding: 12px 10px; display: flex; flex-direction: column; gap: 4px; }
+.admin nav span { padding: 9px 12px; border-radius: 12px; font-weight: 700; color: var(--app-ink); }
+.admin nav span.on { background: #fff; color: var(--app-grass-dark); }
+.admin .pane { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; background: #fff; }
+.admin .pane h6 { margin: 0; font-family: var(--f-display); font-size: 22px; color: var(--app-ink); }
+.field { display: grid; grid-template-columns: 170px 1fr; gap: 12px; align-items: center; }
+.field label { font-weight: 700; font-size: 13.5px; color: var(--app-ink); }
+.field .in { border: 2px solid #e1dac8; border-radius: 10px; padding: 7px 10px; font-family: var(--f-mono); font-size: 12.5px; background: var(--app-wool); color: var(--app-ink); display: flex; justify-content: space-between; gap: 10px; }
+.field .in em { font-style: normal; color: var(--app-ink-soft); font-family: var(--f-body); }
+.toggle { width: 42px; height: 24px; border-radius: 99px; background: var(--app-grass); position: relative; }
+.toggle::after { content: ""; position: absolute; right: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; }
+.toggle.off { background: #cfc8b5; }
+.toggle.off::after { right: auto; left: 3px; }
+.player { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; background: var(--app-wool-2); border-radius: 16px; padding: 10px 14px; }
+.player .ctl { display: flex; gap: 6px; }
+.player .ctl i { width: 34px; height: 34px; border-radius: 50%; background: #fff; display: grid; place-items: center; font-style: normal; font-size: 14px; }
+.player .ctl i.main { background: var(--app-grass); color: #fff; }
+.player .bar { height: 6px; border-radius: 99px; background: #e1dac8; position: relative; }
+.player .bar::before { content: ""; position: absolute; inset: 0 62% 0 0; border-radius: 99px; background: var(--app-grass); }
+.player b { font-weight: 700; font-size: 13.5px; }
+.player small { color: var(--app-ink-soft); font-size: 12px; }
+.tracks { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.tracks div { display: flex; justify-content: space-between; padding: 5px 10px; border-radius: 8px; }
+.tracks div.on { background: #f0f8ea; font-weight: 700; }
+.tracks span:last-child { font-family: var(--f-mono); font-size: 11.5px; color: var(--app-ink-soft); }
+.hint-pin { font-size: 12.5px; color: var(--app-ink-soft); background: #fff6d6; border-radius: 10px; padding: 8px 10px; }
+
+/* Roadmap */
+.road { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.road .card h3 { display: flex; align-items: baseline; gap: 8px; }
+.road .card h3 small { font-family: var(--f-mono); font-size: .72rem; color: var(--muted); font-weight: 400; }
+
+footer { padding-block: 30px 50px; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line); }
+
+@media (max-width: 760px) {
+  .hero-grid { grid-template-columns: 1fr; }
+  .hero svg.logo { width: 110px; }
+  .two { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero svg.logo .bob { animation: bob 3.2s ease-in-out infinite; transform-origin: 50% 80%; }
+  @keyframes bob { 50% { transform: translateY(-3px) rotate(-2deg); } }
+}
+</style>
+
+<!-- Wiederverwendbares Schaf -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="sheep">
+      <g fill="#fffdf7" stroke="#d9d2bf" stroke-width="2">
+        <circle cx="38" cy="58" r="18"/><circle cx="58" cy="46" r="20"/><circle cx="80" cy="50" r="18"/>
+        <circle cx="90" cy="68" r="16"/><circle cx="70" cy="78" r="18"/><circle cx="46" cy="78" r="17"/>
+        <circle cx="60" cy="64" r="22" stroke="none"/>
+      </g>
+      <rect x="44" y="88" width="7" height="16" rx="3" fill="#2b2b2b"/>
+      <rect x="72" y="88" width="7" height="16" rx="3" fill="#2b2b2b"/>
+      <g class="head">
+        <ellipse cx="22" cy="44" rx="9" ry="5" fill="#2b2b2b" transform="rotate(-25 22 44)"/>
+        <ellipse cx="22" cy="44" rx="5" ry="2.5" fill="#f29bab" transform="rotate(-25 22 44)"/>
+        <ellipse cx="30" cy="54" rx="15" ry="18" fill="#2b2b2b"/>
+        <circle cx="25" cy="50" r="3.2" fill="#fff"/><circle cx="35" cy="50" r="3.2" fill="#fff"/>
+        <circle cx="25.6" cy="50.6" r="1.6" fill="#2b2b2b"/><circle cx="35.6" cy="50.6" r="1.6" fill="#2b2b2b"/>
+        <ellipse cx="30" cy="62" rx="5" ry="3" fill="#f29bab"/>
+        <g fill="#fffdf7"><circle cx="24" cy="38" r="6"/><circle cx="31" cy="35" r="6.5"/><circle cx="38" cy="38" r="6"/></g>
+      </g>
+    </g>
+  </defs>
+</svg>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <svg class="logo" viewBox="0 0 110 110" role="img" aria-label="Schafland-Logo: ein Wollschaf"><g class="bob"><use href="#sheep"/></g></svg>
+    <div>
+      <div class="eyebrow">Konzept · Spiel-Kassensystem · Stand 30.10.2026</div>
+      <h1>Schafland</h1>
+      <div class="slogan">„Hier bin ich Schaf, hier kauf ich ein“</div>
+      <p class="lead">Eine Kinder-Kasse für den Spiel-Kaufladen: Produkte antippen oder scannen, Warenkorb und Summe wie an der echten Kasse, bezahlen per Spiel-QR-Code oder PayPal, dazu Hintergrundmusik aus dem eigenen MP3-Ordner. Ziel-Hardware ist ein älteres Notebook mit i5-4200U und 8 GB RAM, eventuell mit Touchscreen.</p>
+      <div class="meta"><span>Techstack</span><span>Barcode &amp; Datenbanken</span><span>Bezahlen</span><span>Musik</span><span>Design</span><span>UI-Mockups</span><span>Fahrplan</span></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ================= Kurzfassung ================= -->
+<section id="kurz">
+  <div class="sec-head">
+    <h2>Kurzfassung</h2>
+    <p>Die Empfehlung in vier Sätzen. Die Begründungen folgen in den Abschnitten darunter.</p>
+  </div>
+  <div class="summary">
+    <div class="sum"><b>Web-App im Kiosk-Modus</b><span>Svelte + Vite als Offline-PWA, gestartet in Chromium im Vollbild. Kein Server, keine Installation außer dem Browser.</span></div>
+    <div class="sum"><b>Webcam-Scan geht, Handscanner ist besser</b><span>Die Webcam liest große, ruhig gehaltene EAN-Codes. Ein USB-Handscanner für 20–30 € liest alles sofort und piept wie im echten Laden.</span></div>
+    <div class="sum"><b>Echte Produkte über Open Food Facts</b><span>Kostenlose, offene Datenbank mit Name und Foto zu fast jedem Lebensmittel. Preise gibt es dort nicht, die vergibt Schafland selbst.</span></div>
+    <div class="sum"><b>QR statt Strichcode beim Bezahlen</b><span>Spiel-QR mit Dankestext, PayPal.me-QR mit Betrag, optional ein GiroCode für Banking-Apps. PayPal-Name steht im Eltern-Bereich hinter einer PIN.</span></div>
+  </div>
+</section>
+
+<!-- ================= Techstack ================= -->
+<section id="tech">
+  <div class="sec-head">
+    <h2>Techstack</h2>
+    <p>Das Notebook ist alt, aber für eine Browser-App mehr als ausreichend. Entscheidend ist, dass Kamera, Ordnerzugriff und Vollbild ohne Umwege funktionieren. Das kann Chromium am besten.</p>
+  </div>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Option</th><th>Was es ist</th><th>Pro</th><th>Contra</th><th>Urteil</th></tr></thead>
+      <tbody>
+        <tr><td><b>A · PWA im Chromium-Kiosk</b></td><td>Statische Web-App, lokal ausgeliefert, im Browser-Vollbild gestartet</td><td>Leicht (≈ 150–250 MB RAM), Kamera &amp; Ordnerzugriff eingebaut, Updates = Dateien tauschen, am Desktop-PC entwickelbar</td><td>Ordnerzugriff (File System Access API) nur in Chrome/Edge/Chromium, nicht in Firefox</td><td class="pick">Empfohlen</td></tr>
+        <tr><td><b>B · Electron</b></td><td>Gleiche Web-App, in eigenes Programm verpackt</td><td>Volle Dateisystem-Rechte, eigenes Icon, startet als „echtes“ Programm</td><td>Installer ≈ 100 MB, mehr RAM, eigener Build pro Betriebssystem</td><td>Gute Rückfalloption, Code bleibt gleich</td></tr>
+        <tr><td><b>C · Tauri</b></td><td>Web-App mit Rust-Hülle und System-WebView</td><td>Sehr klein und sparsam</td><td>Unter Linux WebKitGTK: Kamera-Zugriff wackelig, zusätzliche Rust-Toolchain</td><td>Nur unter Windows sinnvoll</td></tr>
+        <tr><td><b>D · Python + Qt / Pygame</b></td><td>Klassische Desktop-App</td><td>Volle Kontrolle</td><td>UI für Kinder aufwendig zu bauen, Barcode/QR/Audio als einzelne Bibliotheken zusammensuchen</td><td>Mehr Arbeit, kein Vorteil</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="two" style="margin-top:18px">
+    <div class="card">
+      <h3>Bausteine der Empfehlung</h3>
+      <ul class="clean">
+        <li><b>Svelte 5 + Vite</b>: kleiner, schneller Output ohne virtuelles DOM. Gut für schwache CPUs. Alternative: Vue 3 oder Preact.</li>
+        <li><b>vite-plugin-pwa</b>: Service-Worker, damit alles offline läuft.</li>
+        <li><b>Dexie.js</b> (IndexedDB): Produkte, Bilder-Cache, Einstellungen, Verlauf.</li>
+        <li><b>zxing-wasm</b>: Barcode-Erkennung per Webcam (EAN-13, EAN-8, UPC, QR).</li>
+        <li><b>qrcode</b> (npm) für QR-Codes, <b>JsBarcode</b> für druckbare EAN-Etiketten.</li>
+        <li><b>Web Audio API</b>: Piep-, Mäh- und Kassenklingel-Sounds ohne Audiodateien, Musik leiser stellen während eines Sounds.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Betriebssystem &amp; Start</h3>
+      <ul class="clean">
+        <li><b>Linux Mint Xfce</b> oder <b>Lubuntu</b>: läuft flüssig auf dem i5-4200U, Touchscreens werden meist direkt erkannt. Windows 10 bekommt seit Oktober 2025 keine regulären Updates mehr.</li>
+        <li>Alternative: <b>ChromeOS Flex</b>. Das Gerät ist dafür alt genug, alles Nötige ist an Bord.</li>
+        <li>Autostart: Chromium mit <code>--kiosk --app=http://localhost:5173</code> bzw. die installierte PWA. Ein kleiner lokaler Webserver (z. B. <code>caddy</code> oder <code>python -m http.server</code>) liefert die Dateien aus.</li>
+        <li>Kamera braucht einen „sicheren Kontext“: <code>localhost</code> zählt dazu, Netzwerkfreigaben nicht.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 style="margin:28px 0 12px">Architektur</h3>
+  <div class="arch-wrap">
+    <div class="arch">
+      <div class="col">
+        <h4>Eingabe</h4>
+        <div class="box"><b>Touch / Maus</b>Produktkacheln, Kategorien</div>
+        <div class="box"><b>Webcam</b>zxing-wasm, 640×480, 6–10 Bilder/s</div>
+        <div class="box"><b>USB-Handscanner</b>tippt Ziffern + Enter wie eine Tastatur</div>
+      </div>
+      <div class="col">
+        <h4>Schafland-App</h4>
+        <div class="box core"><b>Produkt-Finder</b>1. eigener Katalog → 2. Cache → 3. Open Food Facts</div>
+        <div class="box core"><b>Warenkorb</b>Positionen, Menge, Summe in Cent</div>
+        <div class="box core"><b>Bezahlen</b>Spiel-QR · PayPal.me · GiroCode</div>
+        <div class="box core"><b>Musik</b>Ordner-Playlist, Zufall, Lautstärke</div>
+      </div>
+      <div class="col">
+        <h4>Speicher &amp; Außen</h4>
+        <div class="box"><b>IndexedDB</b>Produkte, Bilder, Einstellungen, Kassenbons</div>
+        <div class="box"><b>MP3-Ordner</b>Zugriffsrecht wird gespeichert</div>
+        <div class="box ext"><b>Open Food Facts API</b>nur wenn online, Ergebnis wird gecacht</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= Barcode ================= -->
+<section id="barcode">
+  <div class="sec-head">
+    <h2>Barcodes scannen</h2>
+    <p>Die zwei Fragen aus der Anforderung, direkt beantwortet.</p>
+  </div>
+  <div class="stack">
+    <div class="answer">
+      <div class="q">Geht das mit einer alten Notebook-Webcam?</div>
+      <p><b>Ja, mit Einschränkungen.</b> Typische 720p-Webcams haben einen Fixfokus, der auf ein Gesicht in 50–70 cm eingestellt ist. Normale EAN-13-Codes auf einer Packung sind nah dran unscharf und weiter weg zu klein. In der Praxis klappt es, wenn die Packung in 15–25 cm Abstand ruhig gehalten wird, der Code groß ist und gutes Licht da ist. Selbst gedruckte, große Codes (siehe unten) funktionieren sehr zuverlässig.</p>
+      <p>Für ein Kind ist ein <b>USB-Handscanner</b> (1D/2D, ab ca. 20–30 €) deutlich schöner: sofortiger Piep, kein Zielen auf die Kamera, liest auch kleine und gebogene Codes. Er meldet sich als Tastatur an. Die App erkennt „Ziffern, die in unter 50 ms getippt werden und mit Enter enden“ als Scan. Ohne Treiber, ohne Konfiguration. <b>Die App unterstützt beides</b>, die Webcam ist die kostenlose Startvariante.</p>
+    </div>
+    <div class="answer">
+      <div class="q">Kann man bestehende Barcode-Datenbanken abfragen?</div>
+      <p><b>Ja.</b> <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a> ist frei, kostenlos, ohne API-Key und hat Millionen Produkte, auch sehr viele deutsche. Die Abfrage liefert Name, Marke, Menge und Produktfoto. Für Drogerie und Haushalt gibt es die Schwesterprojekte Open Beauty Facts und Open Products Facts mit gleicher Schnittstelle.</p>
+      <p><b>Preise stehen in keiner offenen Datenbank.</b> Schafland vergibt deshalb Spielpreise: ein Standardpreis pro Kategorie (Milchprodukte 1,20 €, Süßes 0,99 € …), gerundet auf kindgerechte Beträge. Eltern können ihn beim ersten Scan anpassen. Jedes gefundene Produkt wird lokal gespeichert und ist danach auch offline sofort da.</p>
+    </div>
+  </div>
+
+  <div class="two" style="margin-top:18px">
+    <div class="card">
+      <h3>Abfrage bei Open Food Facts</h3>
+<pre class="code">GET https://world.openfoodfacts.org/api/v2/product/
+    4000417025005.json
+    ?fields=product_name,brands,quantity,
+            image_front_small_url,categories_tags
+    &amp;lc=de
+
+→ { "status": 1,
+    "product": {
+      "product_name": "Vollmilch-Schokolade",
+      "brands": "…",
+      "image_front_small_url": "https://images…jpg" } }</pre>
+      <p style="font-size:.92rem;color:var(--muted)">Bitte einen eigenen User-Agent mitschicken (z. B. <code>Schafland/1.0</code>), so wünscht es das Projekt. Ein Kinderkaufladen bleibt weit unter jedem Limit.</p>
+    </div>
+    <div class="card">
+      <h3>Eigene Barcodes für Holzobst &amp; Co.</h3>
+      <p>Spielzeug-Lebensmittel haben keinen Code. Schafland erzeugt einen <b>druckbaren Etikettenbogen</b> mit EAN-13-Codes aus dem Präfix <code>20–29</code>. Dieser Bereich ist für den internen Gebrauch reserviert und kollidiert nie mit echten Produkten.</p>
+      <ul class="clean">
+        <li>Ein Bogen pro Kategorie, groß gedruckt: ideal für die Webcam.</li>
+        <li>Mit Bild und Namen, damit das Kind weiß, was wohin gehört.</li>
+        <li>Zusätzlich kann jedes Kachel-Produkt einen eigenen Code bekommen.</li>
+      </ul>
+      <p style="font-size:.92rem;color:var(--muted)">Erkennungsreihenfolge: eigener Katalog → lokaler Cache → Open Food Facts → „Unbekanntes Produkt, Preis eingeben?“ (nur im Eltern-Modus).</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <h3>Damit die Webcam auf dem i5-4200U flüssig bleibt</h3>
+    <ul class="clean">
+      <li>Kamera nur bei geöffnetem Scan-Bereich aktiv. Das spart CPU und das Licht an der Kamera geht aus.</li>
+      <li>Auflösung 640×480 anfordern und nur einen mittleren Streifen auswerten, nicht das ganze Bild.</li>
+      <li>Erkennung in einem Web Worker, max. 8–10 Durchläufe pro Sekunde, nur EAN-13/EAN-8/UPC/QR aktivieren.</li>
+      <li>Gleicher Code innerhalb von 1,5 s zählt nur einmal. Sonst landen 12 Joghurts im Korb.</li>
+      <li>Die native <code>BarcodeDetector</code>-API wäre schneller, fehlt aber in Chrome unter Windows und Linux. Daher zxing-wasm.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= Bezahlen ================= -->
+<section id="bezahlen">
+  <div class="sec-head">
+    <h2>Bezahlen</h2>
+    <p>Ein „Barcode“ zum Bezahlen ist technisch ein QR-Code: Er kann Text und Links tragen, ein Strichcode nur Ziffern. Jedes Handy liest QR-Codes mit der normalen Kamera-App.</p>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Art</th><th>Inhalt des QR-Codes</th><th>Was beim Scannen passiert</th><th>Hinweis</th></tr></thead>
+      <tbody>
+        <tr><td><b>Spiel-QR</b></td><td class="mono">Danke für Ihren Einkauf bei Schafland im Wert von 7,40 €</td><td>Das Handy zeigt den Text an</td><td><span class="pill">Standard</span></td></tr>
+        <tr><td><b>PayPal</b></td><td class="mono">https://paypal.me/NAME/7.40EUR</td><td>PayPal öffnet sich mit Empfänger und Betrag</td><td><span class="pill warn">echtes Geld</span></td></tr>
+        <tr><td><b>GiroCode</b> <small>(Vorschlag)</small></td><td class="mono">BCD · 002 · 1 · SCT · Name · IBAN · EUR7.40 · Schafland</td><td>Banking-App füllt eine Überweisung aus</td><td><span class="pill warn">echtes Geld</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="two" style="margin-top:18px">
+    <div class="card">
+      <h3>PayPal Freunde &amp; Familie</h3>
+      <p>Im Eltern-Bereich wird der PayPal.me-Name hinterlegt (z. B. <code>familieMueller</code>). Schafland baut daraus den Link mit Betrag und zeigt ihn als QR-Code an.</p>
+      <p><b>Wichtig:</b> Ob „Freunde und Familie“ gewählt wird, entscheidet die zahlende Person in PayPal. Per Link lässt sich das nicht erzwingen. Bei privaten Konten schlägt PayPal.me es meist vor. Die App weist am Bildschirm darauf hin („Bitte <i>Freunde &amp; Familie</i> wählen“).</p>
+    </div>
+    <div class="card">
+      <h3>Schutz vor echtem Geld aus Versehen</h3>
+      <ul class="clean">
+        <li>PayPal- und GiroCode-Option sind ausgeblendet, bis sie im Eltern-Bereich eingeschaltet werden.</li>
+        <li>Eltern-Bereich mit 4-stelliger PIN, geöffnet durch 3 s langes Drücken auf das Logo.</li>
+        <li>Optional: Höchstbetrag für Echtgeld-QR (z. B. 5 €).</li>
+        <li>Spielgeld-Option zusätzlich: „Bar bezahlt“ mit Rückgeld-Rechner. Das Kind tippt die gegebenen Scheine und Münzen an.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= Musik ================= -->
+<section id="musik">
+  <div class="sec-head">
+    <h2>Hintergrundmusik</h2>
+    <p>Ein MP3-Ordner wird einmal ausgewählt und bleibt gespeichert.</p>
+  </div>
+  <div class="two">
+    <div class="card">
+      <h3>So funktioniert es</h3>
+      <ul class="clean">
+        <li><code>window.showDirectoryPicker()</code> öffnet die Ordnerauswahl. Das Zugriffsrecht wird in IndexedDB gespeichert und beim nächsten Start mit einem Tipp bestätigt.</li>
+        <li>Alle <code>.mp3</code>, <code>.m4a</code> und <code>.ogg</code> im Ordner (optional mit Unterordnern) werden zur Playlist. Titel aus den ID3-Tags, sonst aus dem Dateinamen.</li>
+        <li>Wiedergabe über ein <code>&lt;audio&gt;</code>-Element: Zufall, Wiederholen, Lautstärke. Bei Scan-Piep und „Mäh“ wird die Musik kurz leiser.</li>
+        <li>Browser spielen Ton erst nach der ersten Berührung ab. Der Startbildschirm „Laden öffnen“ erledigt das ganz natürlich.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Für das Kind</h3>
+      <ul class="clean">
+        <li>Im Kassenbildschirm nur ein großer Musik-Knopf: an / aus / nächstes Lied.</li>
+        <li>Ordnerwahl und Höchstlautstärke liegen im Eltern-Bereich.</li>
+        <li>Mehrere Ordner als „Sender“ möglich, z. B. „Ruhig“ und „Party“.</li>
+        <li>Rückfall ohne Chromium: Ordner über <code>&lt;input webkitdirectory&gt;</code> wählen. Funktioniert überall, muss aber bei jedem Start neu gewählt werden.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= Design ================= -->
+<section id="design">
+  <div class="sec-head">
+    <h2>Design</h2>
+    <p>Schafland ist eine Wiese mit Wollschafen: Wolle als weiche Fläche, Gras als Aktionsfarbe, Himmel als Kopfzeile, das schwarze Schafsgesicht als Schrift. Jede Zahl, die das Kind lesen muss, ist groß und rund.</p>
+  </div>
+
+  <div class="swatches">
+    <div class="sw"><i style="background:var(--app-wool)"></i><div><b>Wolle</b><span>#FFFDF7 · Flächen</span></div></div>
+    <div class="sw"><i style="background:var(--app-grass)"></i><div><b>Wiese</b><span>#6CAE4F · Aktionen</span></div></div>
+    <div class="sw"><i style="background:var(--app-sky)"></i><div><b>Himmel</b><span>#CFE8F7 · Kopfzeile</span></div></div>
+    <div class="sw"><i style="background:var(--app-face)"></i><div><b>Schafsgesicht</b><span>#2B2B2B · Schrift</span></div></div>
+    <div class="sw"><i style="background:var(--app-nose)"></i><div><b>Schafsnase</b><span>#F29BAB · Akzent</span></div></div>
+    <div class="sw"><i style="background:var(--app-sun)"></i><div><b>Sonne</b><span>#FFD25E · „Neu im Korb“</span></div></div>
+  </div>
+
+  <div class="typo" style="margin-top:16px">
+    <div class="card"><span class="eyebrow">Anzeige &amp; Preise</span><div class="big" style="font-family:var(--f-display);font-weight:800">Baloo 2 · 7,40 €</div><p style="color:var(--muted);font-size:.92rem">Rund, dick, gut lesbare Ziffern. Für Logo, Überschriften, Preise, Summe.</p></div>
+    <div class="card"><span class="eyebrow">Text</span><div class="big" style="font-family:var(--f-body);font-weight:700;font-size:1.6rem">Nunito · Apfel, Milch</div><p style="color:var(--muted);font-size:.92rem">Freundlich und klar für Produktnamen und Hinweise. Beide Schriften werden lokal mitgeliefert, nicht aus dem Netz geladen.</p></div>
+  </div>
+
+  <div class="two" style="margin-top:16px">
+    <div class="card">
+      <h3>Gestaltungsregeln</h3>
+      <ul class="clean">
+        <li><b>Bilder vor Wörtern:</b> Jedes Produkt hat ein großes Bild oder Emoji, das Kind muss nicht lesen können.</li>
+        <li><b>Touch-Ziele ≥ 72 px</b>, Abstände ≥ 10 px. Kinderfinger treffen ungenau.</li>
+        <li><b>Wollwolken-Formen</b> für Rahmen (Scan-Fenster, QR-Rand), sonst ruhige, runde Flächen.</li>
+        <li><b>Rückmeldung bei jeder Aktion:</b> Kachel hüpft, „+1“-Wolke, Piep. Beim Bezahlen läuft ein Schaf über den Bildschirm und sagt „Mäh“.</li>
+        <li>Keine Fehlermeldungen im Kindermodus. Unbekannter Code: das Schaf zuckt mit den Schultern, „Das kenne ich nicht“.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Für langsame Hardware</h3>
+      <ul class="clean">
+        <li>Animationen nur über <code>transform</code> und <code>opacity</code>, keine Schatten- oder Blur-Animationen.</li>
+        <li>Grafiken als SVG, Produktbilder auf 256 px verkleinert gespeichert.</li>
+        <li>Bildschirm 1366×768 als Zielgröße, alles skaliert mit <code>rem</code>.</li>
+        <li>„Leise-Modus“ in den Einstellungen schaltet alle Animationen ab.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= Mockups ================= -->
+<section id="mockups">
+  <div class="sec-head">
+    <h2>UI-Mockups</h2>
+    <p>Vier Bildschirme in der Zielgröße 1366×768, verkleinert dargestellt. Auf schmalen Geräten seitlich scrollen. Die QR-Codes sind echt und lassen sich mit dem Handy testen.</p>
+  </div>
+
+  <!-- 1 Kasse -->
+  <div class="stack" style="gap:36px">
+  <div>
+    <div class="stage-cap"><h3>1 · Kasse</h3><span class="mono">Startansicht nach „Laden öffnen“</span></div>
+    <div class="stage-wrap"><div class="laptop">
+      <div class="screen">
+        <div class="a-top">
+          <div class="brand"><svg viewBox="0 0 110 110" aria-hidden="true"><use href="#sheep"/></svg><div><b>Schafland</b><small>Hier bin ich Schaf, hier kauf ich ein</small></div></div>
+          <div class="spacer"></div>
+          <span class="chip"><span class="dot"></span>Scanner bereit</span>
+          <span class="chip">♪ Bauernhof-Lied</span>
+          <span class="iconbtn">⏭</span>
+        </div>
+        <div class="a-body">
+          <div class="a-shop">
+            <div class="cats">
+              <span class="cat on">🍎 Obst</span><span class="cat">🥕 Gemüse</span><span class="cat">🥛 Milch</span><span class="cat">🍞 Backwaren</span><span class="cat">🍬 Süßes</span>
+            </div>
+            <div class="grid">
+              <div class="tile"><span class="em">🍎</span><span class="nm">Apfel</span><span class="pr">0,50 €</span></div>
+              <div class="tile hit"><span class="em">🍌</span><span class="nm">Banane</span><span class="pr">0,30 €</span></div>
+              <div class="tile"><span class="em">🍐</span><span class="nm">Birne</span><span class="pr">0,60 €</span></div>
+              <div class="tile"><span class="em">🍇</span><span class="nm">Trauben</span><span class="pr">2,00 €</span></div>
+              <div class="tile"><span class="em">🍓</span><span class="nm">Erdbeeren</span><span class="pr">2,50 €</span></div>
+              <div class="tile"><span class="em">🍊</span><span class="nm">Orange</span><span class="pr">0,40 €</span></div>
+              <div class="tile"><span class="em">🍉</span><span class="nm">Melone</span><span class="pr">3,00 €</span></div>
+              <div class="tile"><span class="em">🍋</span><span class="nm">Zitrone</span><span class="pr">0,30 €</span></div>
+              <div class="tile"><span class="em">🍑</span><span class="nm">Pfirsich</span><span class="pr">0,70 €</span></div>
+              <div class="tile"><span class="em">🥝</span><span class="nm">Kiwi</span><span class="pr">0,40 €</span></div>
+            </div>
+            <div class="scanbar"><span class="cam"></span><div><b>Oder scannen!</b><small>Halte den Strichcode vor die Kamera, oder benutze den Scanner.</small></div></div>
+          </div>
+          <div class="a-cart">
+            <h5>Einkaufskorb <span>5 Sachen</span></h5>
+            <div class="lines">
+              <div class="ln"><span class="em">🥛</span><span class="nm">Milch<small>1,10 €</small></span><span class="qty"><i>−</i><b>1</b><i>+</i></span><span class="sum2">1,10</span></div>
+              <div class="ln"><span class="em">🍫</span><span class="nm">Schokolade<small>gescannt · 0,99 €</small></span><span class="qty"><i>−</i><b>2</b><i>+</i></span><span class="sum2">1,98</span></div>
+              <div class="ln"><span class="em">🥨</span><span class="nm">Brezel<small>0,80 €</small></span><span class="qty"><i>−</i><b>1</b><i>+</i></span><span class="sum2">0,80</span></div>
+              <div class="ln new"><span class="em">🍌</span><span class="nm">Banane<small>0,30 €</small></span><span class="qty"><i>−</i><b>1</b><i>+</i></span><span class="sum2">0,30</span></div>
+            </div>
+            <div class="total"><span>Zusammen</span><b>4,18 €</b></div>
+            <div class="paybtn">Bezahlen</div>
+          </div>
+        </div>
+      </div>
+      <div class="base"></div>
+    </div></div>
+    <div class="notes">
+      <p><b>Links Regal, rechts Korb.</b> Das entspricht dem echten Ablauf: Ware nehmen, auf das Band legen.</p>
+      <p><b>Gelb markiert</b> ist immer das zuletzt hinzugefügte Produkt, in Kachel und Korb.</p>
+      <p><b>Wischen nach links</b> auf einer Korbzeile entfernt sie. Plus/Minus bleibt für kleine Finger groß.</p>
+    </div>
+  </div>
+
+  <!-- 2 Scannen -->
+  <div>
+    <div class="stage-cap"><h3>2 · Scannen mit der Webcam</h3><span class="mono">öffnet sich durch Tippen auf „Oder scannen!“</span></div>
+    <div class="stage-wrap"><div class="laptop">
+      <div class="screen">
+        <div class="a-top">
+          <div class="brand"><svg viewBox="0 0 110 110" aria-hidden="true"><use href="#sheep"/></svg><div><b>Schafland</b><small>Hier bin ich Schaf, hier kauf ich ein</small></div></div>
+          <div class="spacer"></div>
+          <span class="chip">✕ Fertig gescannt</span>
+        </div>
+        <div class="scanview">
+          <div class="camfeed">
+            <div class="camstat"><span>640×480</span><span>8 fps</span><span>EAN-13</span></div>
+            <div class="frame"><div class="wool"></div><div class="bc"><i></i><span>4 000417 025005</span></div><div class="laser"></div></div>
+            <div class="camhint">Halte den Strichcode in die Wolke</div>
+          </div>
+          <div class="found">
+            <span class="src">gefunden · Open Food Facts</span>
+            <div class="pimg">🍫</div>
+            <b class="t">Vollmilch-Schokolade</b>
+            <small>100 g · Kategorie: Süßes · Spielpreis automatisch</small>
+            <div class="price">0,99 €</div>
+            <div class="paybtn" style="margin:0;font-size:19px">In den Korb ✓</div>
+          </div>
+        </div>
+      </div>
+      <div class="base"></div>
+    </div></div>
+    <div class="notes">
+      <p><b>Wollwolke als Zielrahmen</b> zeigt dem Kind, wohin der Code muss. Der rote Strich zeigt, dass gesucht wird.</p>
+      <p><b>Automatisch in den Korb</b> nach 1 s, wenn das Produkt bekannt ist. Der Knopf ist für unbekannte Codes da.</p>
+      <p><b>Handscanner</b> braucht diesen Bildschirm nicht. Ein Scan landet direkt im Korb, egal welche Ansicht offen ist.</p>
+    </div>
+  </div>
+
+  <!-- 3 Bezahlen -->
+  <div>
+    <div class="stage-cap"><h3>3 · Bezahlen</h3><span class="mono">nach Tippen auf „Bezahlen“</span></div>
+    <div class="stage-wrap"><div class="laptop">
+      <div class="screen">
+        <div class="a-top">
+          <div class="brand"><svg viewBox="0 0 110 110" aria-hidden="true"><use href="#sheep"/></svg><div><b>Schafland</b><small>Hier bin ich Schaf, hier kauf ich ein</small></div></div>
+        </div>
+        <div class="dim" style="inset:62px 0 0 0">
+          <div class="modal">
+            <h6>Wie möchtest du bezahlen? <span>4,18 €</span></h6>
+            <div class="payopts">
+              <div class="po"><span class="em">🪙</span><b>Spielgeld</b><small>Bar mit Rückgeld</small></div>
+              <div class="po on"><span class="em">🐑</span><b>Schaf-Code</b><small>Spiel-QR zum Scannen</small></div>
+              <div class="po"><span class="em">💙</span><b>PayPal</b><small>echtes Geld · nur Eltern</small></div>
+            </div>
+            <div class="qrrow">
+              <div class="qrbox"><canvas id="qr-play" width="180" height="180" aria-label="QR-Code mit Dankestext"></canvas><span class="mini-sheep"><svg viewBox="0 0 110 110" aria-hidden="true"><use href="#sheep"/></svg></span></div>
+              <div class="qrtext">
+                <b>Halte dein Handy an den Code!</b>
+                <p>Mit der Kamera-App scannen. Beim PayPal-Code öffnet sich PayPal mit dem Betrag. Dort „Freunde &amp; Familie“ wählen.</p>
+                <div class="payload" id="qr-play-text">Danke für Ihren Einkauf bei Schafland im Wert von 4,18 €</div>
+              </div>
+            </div>
+            <div class="btnrow"><span class="btn">Zurück</span><span class="btn go">Bezahlt! Neuer Einkauf</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="base"></div>
+    </div></div>
+    <div class="notes">
+      <p><b>Drei große Wahlknöpfe</b>, PayPal erscheint nur, wenn im Eltern-Bereich eingeschaltet.</p>
+      <p><b>„Bezahlt!“</b> startet die Schaf-Animation, speichert den Kassenbon im Verlauf und leert den Korb.</p>
+      <p><b>Schaf im QR-Code</b> ist möglich, weil QR-Codes bis zu 30 % Verdeckung verkraften (Fehlerkorrektur „H“).</p>
+    </div>
+  </div>
+
+  <!-- 4 Eltern-Bereich -->
+  <div>
+    <div class="stage-cap"><h3>4 · Eltern-Bereich</h3><span class="mono">3 s auf das Logo drücken, dann PIN</span></div>
+    <div class="stage-wrap"><div class="laptop">
+      <div class="screen">
+        <div class="a-top" style="background:var(--app-wool-2)">
+          <div class="brand"><svg viewBox="0 0 110 110" aria-hidden="true"><use href="#sheep"/></svg><div><b>Schafland</b><small>Eltern-Bereich</small></div></div>
+          <div class="spacer"></div>
+          <span class="chip">🔒 Zurück zum Laden</span>
+        </div>
+        <div class="admin">
+          <nav>
+            <span>Produkte</span><span>Kategorien</span><span>Etiketten drucken</span><span class="on">Bezahlen &amp; Musik</span><span>Kassenbons</span><span>PIN &amp; Sicherheit</span>
+          </nav>
+          <div class="pane">
+            <h6>Bezahlen</h6>
+            <div class="field"><label>PayPal-Code anbieten</label><span class="toggle"></span></div>
+            <div class="field"><label>PayPal.me-Name</label><span class="in">paypal.me/familieMueller <em>Test-QR anzeigen</em></span></div>
+            <div class="field"><label>Höchstbetrag Echtgeld</label><span class="in">5,00 € <em>darüber nur Spiel-QR</em></span></div>
+            <div class="field"><label>GiroCode anbieten</label><span class="toggle off"></span></div>
+            <h6 style="margin-top:4px">Musik</h6>
+            <div class="field"><label>Musik-Ordner</label><span class="in">/home/kasse/Musik/Kaufladen <em>Ordner wählen …</em></span></div>
+            <div class="player">
+              <div class="ctl"><i>⏮</i><i class="main">❚❚</i><i>⏭</i></div>
+              <div><b>Bauernhof-Lied</b> <small>· 14 Titel · Zufall an · max. Lautstärke 60 %</small><div class="bar" style="margin-top:6px"></div></div>
+              <small>1:12 / 3:05</small>
+            </div>
+            <div class="tracks">
+              <div class="on"><span>▶ Bauernhof-Lied.mp3</span><span>3:05</span></div>
+              <div><span>Alle meine Entchen.mp3</span><span>1:48</span></div>
+              <div><span>Schafe-Walzer.mp3</span><span>2:31</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="base"></div>
+    </div></div>
+    <div class="notes">
+      <p><b>Produkte</b>: Kacheln anlegen mit Name, Preis, Emoji oder Foto (Webcam-Schnappschuss) und optionalem Barcode.</p>
+      <p><b>Etiketten drucken</b>: erzeugt den Bogen mit eigenen EAN-13-Codes für Spielzeug-Lebensmittel.</p>
+      <p><b>Kassenbons</b>: Verlauf aller Einkäufe, praktisch zum gemeinsamen Nachrechnen.</p>
+    </div>
+  </div>
+  </div>
+</section>
+
+<!-- ================= Datenmodell ================= -->
+<section id="daten">
+  <div class="sec-head">
+    <h2>Datenmodell</h2>
+    <p>Alle Beträge werden in Cent als ganze Zahl gespeichert. So entstehen keine Rundungsfehler wie 0,1 + 0,2 = 0,30000000000000004.</p>
+  </div>
+<pre class="code">// IndexedDB über Dexie
+products   { id, name, emoji?, imageBlob?, priceCents, categoryId, ean?, source: "eigen" | "off" }
+categories { id, name, emoji, defaultPriceCents, order }
+receipts   { id, createdAt, lines: [{ productId, name, qty, priceCents }], totalCents, payment: "spielgeld" | "spiel-qr" | "paypal" | "girocode" }
+settings   { pinHash, paypalName?, paypalEnabled, maxRealCents, giroIban?, giroName?, musicDirHandle?, maxVolume, quietMode }
+
+// QR-Inhalte
+spielQr  = `Danke für Ihren Einkauf bei Schafland im Wert von ${euro(total)}`
+paypalQr = `https://paypal.me/${paypalName}/${(total / 100).toFixed(2)}EUR`
+giroQr   = ["BCD","002","1","SCT","",giroName,giroIban,`EUR${(total/100).toFixed(2)}`,"","","Schafland Einkauf"].join("\n")</pre>
+</section>
+
+<!-- ================= Fahrplan ================= -->
+<section id="fahrplan">
+  <div class="sec-head">
+    <h2>Fahrplan</h2>
+    <p>In Etappen, damit nach dem ersten Wochenende schon gespielt werden kann.</p>
+  </div>
+  <div class="road">
+    <div class="card"><h3>Etappe 1 <small>Grundkasse</small></h3><ul class="clean"><li>Kacheln, Kategorien, Warenkorb, Summe</li><li>Spiel-QR beim Bezahlen</li><li>Schaf-Design, Sounds</li><li>Kiosk-Start auf dem Notebook</li></ul></div>
+    <div class="card"><h3>Etappe 2 <small>Scannen</small></h3><ul class="clean"><li>USB-Handscanner-Erkennung</li><li>Webcam-Scan mit zxing-wasm</li><li>Open-Food-Facts-Abfrage + Cache</li><li>Etikettenbogen drucken</li></ul></div>
+    <div class="card"><h3>Etappe 3 <small>Eltern &amp; Musik</small></h3><ul class="clean"><li>Eltern-Bereich mit PIN</li><li>Produktverwaltung mit Foto</li><li>MP3-Ordner und Player</li><li>PayPal- und GiroCode-QR</li></ul></div>
+    <div class="card"><h3>Später <small>Ideen</small></h3><ul class="clean"><li>Spielgeld mit Rückgeld-Rechner</li><li>Kassenbon auf Bondrucker (58 mm, USB)</li><li>Angebote der Woche („Wolle-Wochen“)</li><li>Einkaufszettel-Spiel: finde alles auf der Liste</li></ul></div>
+  </div>
+</section>
+
+<section id="offen">
+  <div class="sec-head"><h2>Offene Fragen</h2></div>
+  <ul class="clean prose">
+    <li>Hat das Notebook schon ein Betriebssystem, das bleiben soll, oder darf es neu aufgesetzt werden?</li>
+    <li>Wie alt ist das Kind? Davon hängt ab, ob Preise mit Cent oder nur in ganzen Euro angezeigt werden.</li>
+    <li>Ist ein Handscanner für 20–30 € eine Option, oder soll es bewusst nur die Webcam sein?</li>
+    <li>Soll die Kasse ohne Internet funktionieren müssen? Dann braucht es vorab eine Runde Scannen aller Spielprodukte mit Netz.</li>
+  </ul>
+</section>
+</main>
+
+<footer><div class="wrap">Schafland · Konzeptdokument · Mockups sind Entwürfe, Farben und Texte sind Vorschläge.</div></footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+(function () {
+  function drawQR(canvas, text) {
+    var ctx = canvas.getContext("2d");
+    var size = canvas.width;
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, size, size);
+    var n, dark;
+    if (typeof qrcode === "function") {
+      try {
+        qrcode.stringToBytes = qrcode.stringToBytesFuncs["UTF-8"];
+        var qr = qrcode(0, "H"); qr.addData(text, "Byte"); qr.make();
+        n = qr.getModuleCount(); dark = function (r, c) { return qr.isDark(r, c); };
+      } catch (e) { n = 0; }
+    }
+    if (!n) { // Platzhalter, falls die Bibliothek nicht lädt
+      n = 29; var seed = 7;
+      dark = function () { seed = (seed * 9301 + 49297) % 233280; return seed / 233280 > 0.5; };
+    }
+    var q = 2, cell = Math.floor(size / (n + q * 2)), off = Math.floor((size - cell * n) / 2);
+    ctx.fillStyle = "#2a2f26";
+    for (var r = 0; r < n; r++) for (var c = 0; c < n; c++) if (dark(r, c)) ctx.fillRect(off + c * cell, off + r * cell, cell, cell);
+  }
+  var c = document.getElementById("qr-play");
+  if (c) drawQR(c, document.getElementById("qr-play-text").textContent);
+})();
+</script>
