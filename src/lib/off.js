@@ -34,7 +34,7 @@ async function fetchImage(url) {
 }
 
 /** Sucht einen Code in den offenen Datenbanken. Gibt ein fertiges Produkt oder null zurück. */
-export async function lookupOpenFacts(ean, { timeoutMs = 6000 } = {}) {
+export async function lookupOpenFacts(ean, { timeoutMs = 5000 } = {}) {
   for (const host of HOSTS) {
     let data;
     try {
@@ -44,7 +44,8 @@ export async function lookupOpenFacts(ean, { timeoutMs = 6000 } = {}) {
       if (!res.ok) continue;
       data = await res.json();
     } catch {
-      continue;
+      // Kein Internet oder Zeitüberschreitung: die anderen Server sind dann auch nicht erreichbar
+      return null;
     }
     const p = data?.product;
     if (data?.status !== 1 || !p) continue;

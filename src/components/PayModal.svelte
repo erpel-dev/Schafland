@@ -1,7 +1,7 @@
 <script>
   import { cart } from "../lib/shop.svelte.js";
   import { settings } from "../lib/settings.svelte.js";
-  import { euro, plain } from "../lib/money.js";
+  import { euro, euroText, plain } from "../lib/money.js";
   import QrCode from "./QrCode.svelte";
 
   let { onClose, onPaid } = $props();
@@ -12,7 +12,7 @@
   let payload = $derived(
     method === "paypal"
       ? `https://paypal.me/${settings.value.paypalName}/${plain(total)}EUR`
-      : `Danke für Ihren Einkauf bei Schafland im Wert von ${euro(total)}`,
+      : `Danke für Ihren Einkauf bei Schafland im Wert von ${euroText(total)}`,
   );
 </script>
 

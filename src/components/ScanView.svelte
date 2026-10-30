@@ -17,18 +17,26 @@
   let lastCode = $state("");
   let fps = $state(0);
 
-  const SAME_CODE_PAUSE = 1500;
+  // Derselbe Code zählt erst wieder, wenn er so lange nicht mehr im Bild war
+  const SAME_CODE_GONE_MS = 1500;
   const AUTO_ADD_MS = 1000;
+  // Nach so langer Startzeit wartet der Browser vermutlich auf die Kamera-Erlaubnis
+  const PERMISSION_HINT_MS = 2500;
+
+  let addTimer;
+  let slowStart = $state(false);
 
   onMount(() => {
     let stream;
     let stopped = false;
     let busy = false;
     let loopTimer;
-    let addTimer;
-    let lastHit = { code: "", at: 0 };
+    let lastSeen = { code: "", at: 0 };
+    let lookup = 0; // verwirft Antworten älterer Suchen
+    let frameNo = 0;
     let frames = 0;
     const fpsTimer = setInterval(() => ((fps = frames), (frames = 0)), 1000);
+    const slowTimer = setTimeout(() => (slowStart = true), PERMISSION_HINT_MS);
 
     const worker = new Worker(new URL("../lib/scanner.worker.js", import.meta.url), { type: "module" });
     const canvas = document.createElement("canvas");
@@ -40,13 +48,14 @@
       if (stopped || !Array.isArray(data) || !data.length) return;
       const code = data[0].text.trim();
       const now = Date.now();
-      if (code === lastHit.code && now - lastHit.at < SAME_CODE_PAUSE) return;
-      lastHit = { code, at: now };
-      await handleCode(code);
+      const same = code === lastSeen.code && now - lastSeen.at < SAME_CODE_GONE_MS;
+      lastSeen = { code, at: now };
+      if (!same) await handleCode(code);
     };
 
     async function handleCode(code) {
       clearTimeout(addTimer);
+      const my = ++lookup;
       lastCode = code;
       // UPC-A (12 Stellen) ist eine EAN-13 mit führender 0
       const ean = /^\d{12}$/.test(code) ? "0" + code : code;
@@ -60,7 +69,7 @@
       status = "looking";
       found = null;
       const result = await findByEan(ean);
-      if (stopped) return;
+      if (stopped || my !== lookup) return;
       if (!result) {
         status = "unknown";
         nope();
@@ -68,23 +77,26 @@
       }
       found = result;
       status = "found";
-      addTimer = setTimeout(() => addFound(), AUTO_ADD_MS);
+      addTimer = setTimeout(addFound, AUTO_ADD_MS);
     }
 
     function tick() {
       if (stopped) return;
       if (!busy && video.readyState >= 2 && video.videoWidth) {
-        // Nur einen mittleren Streifen auswerten: spart Rechenzeit auf langsamer CPU
         const w = video.videoWidth;
         const h = video.videoHeight;
         const sh = Math.round(h * 0.6);
-        const sy = Math.round((h - sh) / 2);
         canvas.width = w;
         canvas.height = sh;
-        ctx2d.drawImage(video, 0, sy, w, sh, 0, 0, w, sh);
+        // Abwechselnd: mittlerer Streifen, dann die Bildmitte 2× vergrößert (für kleine
+        // oder unscharfe Codes, die alte Webcams mit Fixfokus liefern), einmal davon nachgeschärft.
+        const mode = frameNo++ % 3;
+        ctx2d.imageSmoothingQuality = "high";
+        if (mode === 0) ctx2d.drawImage(video, 0, (h - sh) / 2, w, sh, 0, 0, w, sh);
+        else ctx2d.drawImage(video, w / 4, (h - sh / 2) / 2, w / 2, sh / 2, 0, 0, w, sh);
         const img = ctx2d.getImageData(0, 0, w, sh);
         busy = true;
-        worker.postMessage(img, [img.data.buffer]);
+        worker.postMessage({ img, sharpen: mode === 2 }, [img.data.buffer]);
       }
       loopTimer = setTimeout(tick, 110); // höchstens ca. 9 Bilder pro Sekunde
     }
@@ -115,6 +127,7 @@
       stopped = true;
       clearTimeout(loopTimer);
       clearTimeout(addTimer);
+      clearTimeout(slowTimer);
       clearInterval(fpsTimer);
       worker.terminate();
       stream?.getTracks().forEach((t) => t.stop());
@@ -122,7 +135,8 @@
   });
 
   function addFound() {
-    if (!found) return;
+    clearTimeout(addTimer);
+    if (!found || status !== "found") return;
     cart.add(found.product);
     status = "added";
   }
@@ -144,7 +158,7 @@
       {#if camState === "error"}
         {camError}
       {:else if camState === "start"}
-        Kamera startet …
+        {slowStart ? "Bitte die Kamera erlauben" : "Kamera startet …"}
       {:else}
         Halte den Strichcode in die Wolke
       {/if}

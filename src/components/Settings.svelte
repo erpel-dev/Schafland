@@ -47,9 +47,15 @@
   }
 
   // --- Gescannt
-  function setPrice(p, value) {
-    const cents = Math.round(parseFloat(String(value).replace(",", ".")) * 100);
-    if (Number.isFinite(cents) && cents >= 0 && cents <= 99999) scanned.update(p.id, { priceCents: cents });
+  const priceText = (cents) => (cents / 100).toFixed(2).replace(".", ",");
+  function setPrice(p, input) {
+    const cents = Math.round(parseFloat(input.value.trim().replace(",", ".")) * 100);
+    if (Number.isFinite(cents) && cents >= 0 && cents <= 99999) {
+      scanned.update(p.id, { priceCents: cents });
+      input.value = priceText(cents);
+    } else {
+      input.value = priceText(p.priceCents);
+    }
   }
 
   // --- Kassenbons
@@ -171,7 +177,7 @@
             <ProductImage product={p} size="3rem" />
             <div class="info"><b>{p.name}</b><small>{p.ean} · {categoryById(p.categoryId).name} · {p.source}</small></div>
             <label class="price">
-              <input id={`price-${p.id}`} inputmode="decimal" value={(p.priceCents / 100).toFixed(2).replace(".", ",")} onchange={(e) => setPrice(p, e.currentTarget.value)} /> €
+              <input id={`price-${p.id}`} inputmode="decimal" value={priceText(p.priceCents)} onchange={(e) => setPrice(p, e.currentTarget)} /> €
             </label>
             <button class="del" onclick={() => scanned.remove(p.id)} aria-label="Entfernen">✕</button>
           </div>

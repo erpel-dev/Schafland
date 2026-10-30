@@ -1,6 +1,6 @@
 <script>
   import { cart } from "../lib/shop.svelte.js";
-  import { euro } from "../lib/money.js";
+  import { euro, amount } from "../lib/money.js";
   import { pop } from "../lib/sounds.js";
   import ProductImage from "./ProductImage.svelte";
   import Sheep from "./Sheep.svelte";
@@ -43,7 +43,7 @@
           <b>{l.qty}</b>
           <button onclick={() => change(l.product.id, 1)} aria-label="Eins mehr">+</button>
         </span>
-        <span class="sum">{euro(l.qty * l.product.priceCents).replace(" €", "")}</span>
+        <span class="sum">{amount(l.qty * l.product.priceCents)}</span>
       </div>
     {:else}
       <div class="empty">

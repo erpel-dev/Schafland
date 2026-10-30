@@ -18,9 +18,23 @@
   let celebrate = $state(null); // Betrag in Cent
   let showSettings = $state(false);
 
+  // Bildschirm soll beim Spielen nicht dunkel werden
+  let wakeLock = null;
+  async function keepAwake() {
+    try {
+      if (!wakeLock && document.visibilityState === "visible") {
+        wakeLock = await navigator.wakeLock?.request("screen");
+        wakeLock?.addEventListener("release", () => (wakeLock = null));
+      }
+    } catch {
+      // nicht unterstützt oder abgelehnt: dann greifen die Energieeinstellungen
+    }
+  }
+
   async function open() {
     unlockAudio();
     opened = true;
+    keepAwake();
     document.documentElement.requestFullscreen?.().catch(() => {});
     await music.regainPermission();
     if (settings.value.musicAutoplay && music.tracks.length) music.play();
@@ -46,7 +60,11 @@
   }
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window
+  onkeydown={onKey}
+  oncontextmenu={(e) => !e.target.closest?.("input, textarea") && e.preventDefault()}
+/>
+<svelte:document onvisibilitychange={() => opened && keepAwake()} />
 
 {#if !opened}
   <StartScreen onOpen={open} />

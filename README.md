@@ -23,7 +23,7 @@ Gebaut für ein älteres Notebook (i5-4200U, 8 GB RAM) mit Chromium im Vollbild.
    ~/schafland/kiosk/install-autostart.sh
    ```
 
-Beim ersten Scannen fragt Chromium einmal nach der Kamera. Die Erlaubnis bleibt im eigenen Profil `~/.config/schafland-kiosk` gespeichert.
+Beim ersten Scannen fragt Chromium oben links nach der Kamera. Dort **„Beim Besuch der Website zulassen“** (englisch: „Allow while visiting the site“) wählen, nicht „Nur dieses Mal“. Dann bleibt die Erlaubnis im eigenen Profil `~/.config/schafland-kiosk` gespeichert und die Frage kommt nicht wieder. Bis dahin zeigt die App „Bitte die Kamera erlauben“.
 
 **Windows:** `kiosk/start-schafland-windows.bat` startet die App mit Microsoft Edge im Vollbild (braucht Python 3).
 
@@ -53,7 +53,9 @@ Beim ersten Scannen fragt Chromium einmal nach der Kamera. Die Erlaubnis bleibt 
 
 Gefundene Produkte bekommen Name und Foto aus der Datenbank und einen Spielpreis aus ihrer Kategorie (Süßes 0,99 €, Milch 1,20 € …). Danach sind sie im Reiter „Gescannt“ auch ohne Internet da.
 
-Die Erkennung läuft mit [zxing-wasm](https://github.com/Sec-Ant/zxing-wasm) in einem Web Worker. Die Kamera liefert 640×480, ausgewertet wird nur der mittlere Streifen, höchstens ca. 9-mal pro Sekunde. Derselbe Code zählt innerhalb von 1,5 s nur einmal.
+Die Erkennung läuft mit [zxing-wasm](https://github.com/Sec-Ant/zxing-wasm) in einem Web Worker. Die Kamera liefert 640×480, höchstens ca. 9 Bilder pro Sekunde werden ausgewertet. Abwechselnd wird der mittlere Bildstreifen gelesen und die Bildmitte 2× vergrößert, einmal davon quer nachgeschärft. So werden auch kleine und leicht unscharfe Codes alter Fixfokus-Kameras erkannt.
+
+Ein Produkt, das ruhig vor der Kamera gehalten wird, kommt nur einmal in den Korb. Derselbe Code zählt erst wieder, wenn er 1,5 s nicht mehr im Bild war. Codes, die in keiner Datenbank stehen, werden 10 Minuten lang nicht erneut abgefragt.
 
 **Tipps für alte Webcams:** Packung 15–25 cm vor die Kamera halten, gutes Licht, ruhig halten. Gedruckte Etiketten funktionieren am besten.
 

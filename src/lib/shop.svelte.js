@@ -28,6 +28,10 @@ class Scanned {
 }
 export const scanned = new Scanned();
 
+// Codes, die online in keiner Datenbank standen. Werden eine Weile nicht erneut abgefragt.
+const misses = new Map();
+const MISS_TTL_MS = 10 * 60 * 1000;
+
 /**
  * Reihenfolge: eigener Katalog → lokal gespeichert → Open Food Facts (nur online).
  * Gibt { product, source } oder null zurück.
@@ -40,8 +44,12 @@ export async function findByEan(ean) {
   if (cached) return { product: cached, source: "gespeichert" };
 
   if (!navigator.onLine) return null;
+  if (Date.now() - (misses.get(ean) ?? 0) < MISS_TTL_MS) return null;
   const found = await lookupOpenFacts(ean);
-  if (!found) return null;
+  if (!found) {
+    misses.set(ean, Date.now());
+    return null;
+  }
   await scanned.save(found);
   return { product: found, source: found.source };
 }

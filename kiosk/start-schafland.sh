@@ -19,9 +19,16 @@ if [ -z "$BROWSER" ]; then
 fi
 
 # Eigenes Profil: Kamera-Erlaubnis und Musik-Ordner bleiben gespeichert, das normale Surf-Profil bleibt unberührt.
+# Snap-Chromium (Ubuntu) darf nicht in ~/.config schreiben, daher dort ein eigener Ort.
+PROFILE="$HOME/.config/schafland-kiosk"
+if [[ "$(readlink -f "$(command -v "$BROWSER")")" == /snap/* ]]; then
+  PROFILE="$HOME/snap/chromium/common/schafland-kiosk"
+fi
+
 "$BROWSER" \
   --kiosk --app="http://localhost:$PORT/" \
-  --user-data-dir="$HOME/.config/schafland-kiosk" \
+  --user-data-dir="$PROFILE" \
+  --no-first-run --no-default-browser-check \
   --noerrdialogs --disable-infobars --disable-session-crashed-bubble \
   --disable-features=Translate,TouchpadOverscrollHistoryNavigation \
   --overscroll-history-navigation=0 --disable-pinch \
