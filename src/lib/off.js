@@ -1,5 +1,5 @@
 import { categories, SCANNED } from "./catalog.js";
-import { getJson, fetchImage } from "./net.js";
+import { getJson, fetchImage, ServiceError } from "./net.js";
 
 // Open Food Facts und die Schwesterprojekte haben dieselbe Schnittstelle.
 const HOSTS = [
@@ -24,19 +24,34 @@ function mapCategory(tags = []) {
   return SCANNED.id;
 }
 
+const hostName = (host) => new URL(host).hostname.replace("world.", "");
+
 /**
  * Sucht einen Code in den offenen Datenbanken. Gibt ein fertiges Produkt oder null zurück.
- * Wirft NetworkError, wenn keine Verbindung besteht.
+ * Wirft NetworkError ohne Verbindung und ServiceError, wenn ein Server gestört war
+ * und das Produkt deshalb nicht sicher als "unbekannt" gelten kann.
+ * Jeder Schritt wird in trace notiert (für das Scan-Protokoll im Eltern-Bereich).
  */
-export async function lookupOpenFacts(ean, { timeoutMs = 5000 } = {}) {
+export async function lookupOpenFacts(ean, { timeoutMs = 8000, trace = [] } = {}) {
+  let disturbed = null;
   for (const host of HOSTS) {
-    // NetworkError wird nicht abgefangen: ohne Internet sind die anderen Server auch nicht erreichbar
-    const data = await getJson(`${host}/api/v2/product/${ean}.json?fields=${FIELDS}&lc=de`, timeoutMs);
+    let data;
+    try {
+      data = await getJson(`${host}/api/v2/product/${ean}.json?fields=${FIELDS}&lc=de`, { timeoutMs });
+    } catch (err) {
+      trace.push(`${hostName(host)}: ${err.message}`);
+      // Ohne Verbindung sind die anderen Server auch nicht erreichbar; bei Störung den nächsten fragen
+      if (!(err instanceof ServiceError)) throw err;
+      disturbed = err;
+      continue;
+    }
     const p = data?.product;
-    if (data?.status !== 1 || !p) continue;
-
-    const name = (p.product_name_de || p.product_name || p.brands || "").trim();
-    if (!name) continue;
+    const name = (p?.product_name_de || p?.product_name || p?.brands || "").trim();
+    if (data?.status !== 1 || !p || !name) {
+      trace.push(`${hostName(host)}: nicht gefunden`);
+      continue;
+    }
+    trace.push(`${hostName(host)}: gefunden`);
     const categoryId = mapCategory(p.categories_tags);
     const cat = categories.find((c) => c.id === categoryId) ?? SCANNED;
     const imageUrl = p.image_front_small_url || null;
@@ -52,9 +67,10 @@ export async function lookupOpenFacts(ean, { timeoutMs = 5000 } = {}) {
       priceCents: cat.defaultPrice,
       imageUrl,
       imageBlob: imageUrl ? await fetchImage(imageUrl) : null,
-      source: new URL(host).hostname.replace("world.", ""),
+      source: hostName(host),
       createdAt: Date.now(),
     };
   }
+  if (disturbed) throw disturbed;
   return null;
 }

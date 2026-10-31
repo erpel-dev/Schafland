@@ -1,7 +1,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { lookupOpenFacts } from "../../src/lib/off.js";
-import { NetworkError } from "../../src/lib/net.js";
+import { NetworkError, ServiceError } from "../../src/lib/net.js";
 
 const realFetch = globalThis.fetch;
 let calls;
@@ -68,10 +68,52 @@ test("überall unbekannt → null", async () => {
   assert.equal(calls.length, 3);
 });
 
-test("Netzwerkfehler: sofort aufgeben statt drei Server abzuwarten", async () => {
+test("Netzwerkfehler: einmal wiederholen, dann aufgeben statt drei Server abzuwarten", async () => {
   mockFetch(() => { throw new TypeError("Failed to fetch"); });
-  await assert.rejects(lookupOpenFacts("1"), NetworkError);
-  assert.equal(calls.length, 1);
+  const trace = [];
+  await assert.rejects(lookupOpenFacts("1", { trace }), NetworkError);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(trace, ["openfoodfacts.org: keine Verbindung"]);
+});
+
+for (const [name, response] of [
+  ["überlastet (503)", () => new Response("Service Unavailable", { status: 503 })],
+  ["zu viele Anfragen (429)", () => new Response("Too Many Requests", { status: 429 })],
+  ["Wartungsseite statt JSON", () => new Response("<html>Wartung</html>", { status: 200, headers: { "content-type": "text/html" } })],
+]) {
+  test(`Open Food Facts ${name}: nicht als „unbekannt“ werten`, async () => {
+    mockFetch(() => response());
+    const trace = [];
+    await assert.rejects(lookupOpenFacts("1", { trace }), ServiceError);
+    assert.equal(calls.length, 6, "jeder der drei Server mit einem Wiederholversuch");
+    assert.equal(trace.length, 3);
+  });
+}
+
+test("Störung nur kurz: der Wiederholversuch findet das Produkt", async () => {
+  let n = 0;
+  mockFetch(() => (n++ === 0 ? new Response("", { status: 503 }) : product({ product_name: "Milch", categories_tags: ["en:milks"] })));
+  const trace = [];
+  const p = await lookupOpenFacts("1", { trace });
+  assert.equal(p.name, "Milch");
+  assert.deepEqual(trace, ["openfoodfacts.org: gefunden"]);
+});
+
+test("Food Facts gestört, Products Facts findet es trotzdem", async () => {
+  mockFetch((url) => (url.includes("openfoodfacts") ? new Response("", { status: 503 }) : url.includes("openproductsfacts") ? product({ product_name: "Bürste" }) : json({ status: 0 }, 404)));
+  const trace = [];
+  assert.equal((await lookupOpenFacts("1", { trace })).name, "Bürste");
+  assert.deepEqual(trace, ["openfoodfacts.org: Serverfehler 503", "openbeautyfacts.org: nicht gefunden", "openproductsfacts.org: gefunden"]);
+});
+
+test("zu langsam: Störung (nicht „offline“), kein Wiederholversuch, nächster Server", async () => {
+  globalThis.fetch = (url, { signal }) => new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason)));
+  const trace = [];
+  // AbortSignal.timeout hält Node nicht am Leben; ein laufender Timer schon
+  const keepAlive = setInterval(() => {}, 10);
+  await assert.rejects(lookupOpenFacts("1", { timeoutMs: 50, trace }), ServiceError).finally(() => clearInterval(keepAlive));
+  assert.equal(trace.length, 3);
+  assert.equal(trace[0], "openfoodfacts.org: keine Antwort nach 0.05 s");
 });
 
 test("HTTP 404 (so meldet Open Food Facts unbekannte Codes) zählt als nicht gefunden", async () => {

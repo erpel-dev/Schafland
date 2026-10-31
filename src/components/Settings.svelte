@@ -2,6 +2,7 @@
   import { settings } from "../lib/settings.svelte.js";
   import { music, mmss, canPickFolder } from "../lib/music.svelte.js";
   import { scanned } from "../lib/shop.svelte.js";
+  import { scanLog } from "../lib/scanlog.svelte.js";
   import { categoryById } from "../lib/catalog.js";
   import { db } from "../lib/db.js";
   import { euro } from "../lib/money.js";
@@ -19,6 +20,7 @@
     ["etiketten", "Etiketten drucken"],
     ["gescannt", "Gescannte Produkte"],
     ["bons", "Kassenbons"],
+    ["protokoll", "Scan-Protokoll"],
   ];
   let tab = $state(initialTab);
 
@@ -185,6 +187,21 @@
           <p class="muted">Noch nichts gescannt.</p>
         {/each}
 
+      {:else if tab === "protokoll"}
+        <h2>Scan-Protokoll</h2>
+        <p class="muted">Die letzten {scanLog.entries.length} Scans mit den Antworten der Datenbanken. Hilft herauszufinden, warum etwas nicht erkannt wurde.</p>
+        {#each scanLog.entries as e (e.at + e.code)}
+          <div class="log" class:ok={e.result.startsWith("gefunden")}>
+            <div class="loghead"><code>{e.code}</code><b>{e.result}</b><small>{when(e.at)}</small></div>
+            <small>{e.trace.join(" · ")}</small>
+          </div>
+        {:else}
+          <p class="muted">Noch nichts gescannt.</p>
+        {/each}
+        {#if scanLog.entries.length}
+          <button class="big-btn light small" style:align-self="flex-start" onclick={() => scanLog.clear()}>Protokoll leeren</button>
+        {/if}
+
       {:else if tab === "bons"}
         <h2>Kassenbons</h2>
         {#each receipts as r (r.id)}
@@ -247,6 +264,11 @@
   .info small { color: var(--ink-soft); font-family: monospace; }
   .price input { width: 5rem; text-align: right; border: 2px solid var(--wool-line); border-radius: 0.6rem; padding: 0.3rem 0.5rem; font-weight: 800; }
   .del { width: 2.2rem; height: 2.2rem; border-radius: 50%; background: var(--wool-2); font-weight: 800; }
+  .log { padding: 0.5rem 0.8rem; border-radius: 0.8rem; background: #fff6d6; display: flex; flex-direction: column; gap: 0.15rem; }
+  .log.ok { background: #f0f8ea; }
+  .loghead { display: flex; gap: 0.8rem; align-items: baseline; flex-wrap: wrap; }
+  .loghead code { font-size: 0.9rem; }
+  .log small { color: var(--ink-soft); }
   .bon { padding: 0.6rem 0.8rem; background: var(--wool); border-radius: 0.8rem; display: flex; flex-direction: column; gap: 0.2rem; }
   .bonhead { display: flex; gap: 0.8rem; align-items: baseline; }
   .bonhead b { font-family: var(--f-display); font-size: 1.3rem; }

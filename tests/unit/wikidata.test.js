@@ -1,7 +1,7 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { issnFromEan, lookupWikidata, commonsThumb } from "../../src/lib/wikidata.js";
-import { NetworkError } from "../../src/lib/net.js";
+import { NetworkError, ServiceError } from "../../src/lib/net.js";
 import { checkDigit } from "../../src/lib/ean.js";
 
 const ean977 = (issn7, extra = "00") => {
@@ -102,6 +102,13 @@ test("nicht in Wikidata → null, ohne zweite Anfrage", async () => {
 test("Eintrag ohne Namen → null", async () => {
   mockFetch((url) => (url.includes("list=search") ? searchHit("Q9") : entity("Q9", {})));
   assert.equal(await lookupWikidata("4001234567891"), null);
+});
+
+test("Wikidata gestört → ServiceError mit Hinweis im Protokoll", async () => {
+  mockFetch(() => new Response("", { status: 503 }));
+  const trace = [];
+  await assert.rejects(lookupWikidata("4001234567891", { trace }), ServiceError);
+  assert.deepEqual(trace, ["wikidata.org: Serverfehler 503"]);
 });
 
 test("kein Internet → NetworkError", async () => {

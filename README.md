@@ -44,6 +44,7 @@ Beim ersten Scannen fragt Chromium oben links nach der Kamera. Dort **„Beim Be
 - **Etiketten drucken:** Bogen mit eigenen EAN-13-Codes (Präfix 21) für Holzobst und Spielzeug-Lebensmittel. Die Codes kollidieren nie mit echten Produkten.
 - **Gescannte Produkte:** Alles, was über Open Food Facts gefunden wurde. Preis ändern oder löschen.
 - **Kassenbons:** Die letzten 30 Einkäufe.
+- **Scan-Protokoll:** Die letzten 50 Scans mit Code und den Antworten der Datenbanken. Hilft, wenn etwas nicht erkannt wird.
 
 ## Scannen: so funktioniert es
 
@@ -58,7 +59,18 @@ Gefundene Produkte bekommen Name und Foto aus der Datenbank und einen Spielpreis
 
 Die Erkennung läuft mit [zxing-wasm](https://github.com/Sec-Ant/zxing-wasm) in einem Web Worker. Die Kamera liefert 640×480, höchstens ca. 9 Bilder pro Sekunde werden ausgewertet. Abwechselnd wird der mittlere Bildstreifen gelesen und die Bildmitte 2× vergrößert, einmal davon quer nachgeschärft. So werden auch kleine und leicht unscharfe Codes alter Fixfokus-Kameras erkannt.
 
-Ein Produkt, das ruhig vor der Kamera gehalten wird, kommt nur einmal in den Korb. Derselbe Code zählt erst wieder, wenn er 1,5 s nicht mehr im Bild war. Codes, die in keiner Datenbank stehen, werden 10 Minuten lang nicht erneut abgefragt.
+Ein Produkt, das ruhig vor der Kamera gehalten wird, kommt nur einmal in den Korb. Derselbe Code zählt erst wieder, wenn er 1,5 s nicht mehr im Bild war. Codes, die sicher in keiner Datenbank stehen, werden 2 Minuten lang nicht erneut abgefragt.
+
+**Wenn eine Datenbank hakt:** Open Food Facts ist ein freies Projekt, dessen Server manchmal langsam oder überlastet sind. Schafland unterscheidet deshalb:
+
+| Antwort | Was die App macht | Was das Kind sieht |
+| --- | --- | --- |
+| nicht gefunden | nächste Datenbank fragen, am Ende 2 Minuten merken | „Das kenne ich nicht.“ |
+| Serverfehler, zu viele Anfragen, Wartungsseite | einmal wiederholen, dann nächste Datenbank, **nicht** merken | „Ich kann gerade nicht nachschauen.“ |
+| keine Antwort nach 8 s | nächste Datenbank, **nicht** merken | „Ich kann gerade nicht nachschauen.“ |
+| keine Verbindung | einmal wiederholen, dann aufhören | „Kein Internet.“ |
+
+Im Eltern-Bereich unter **Scan-Protokoll** stehen die letzten 50 Scans mit Code, Ergebnis und der Antwort jeder Datenbank, z. B. `openfoodfacts.org: Serverfehler 503 · wikidata.org: nicht gefunden · 0.7 s`. Steht dort gar kein Eintrag, hat die Kamera den Code nicht gelesen.
 
 **Tipps für alte Webcams:** Packung 15–25 cm vor die Kamera halten, gutes Licht, ruhig halten. Gedruckte Etiketten funktionieren am besten.
 

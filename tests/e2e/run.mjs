@@ -31,7 +31,7 @@ const section = (name) => !ONLY || ONLY.split(",").includes(name);
 const PRODUCT = { status: 1, product: { product_name_de: "Vollmilch-Schokolade", brands: "Beispielmarke", quantity: "100 g",
   image_front_small_url: "https://images.openfoodfacts.org/x/front.jpg", categories_tags: ["en:sweet-snacks", "en:chocolates"] } };
 
-async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, touch = false, camera = true, fakeDir = true, noPicker = false, offFail = false } = {}) {
+async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, touch = false, camera = true, fakeDir = true, noPicker = false, offFail = false, offMode = null } = {}) {
   const args = ["--use-fake-device-for-media-stream", `--use-file-for-fake-video-capture=${Q}/${cam}.y4m`, "--autoplay-policy=no-user-gesture-required"];
   args.push(camera ? "--use-fake-ui-for-media-stream" : "--deny-permission-prompts");
   const browser = await chromium.launch({ args });
@@ -41,6 +41,7 @@ async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, 
     const url = route.request().url();
     offRequests.push(url);
     if (offFail) return route.abort("internetdisconnected");
+    if (offMode?.() === "503") return route.fulfill({ status: 503, headers: { "access-control-allow-origin": "*" }, body: "Service Unavailable" });
     const hit = url.includes("openfoodfacts") && url.includes("4001234567891");
     route.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(hit ? PRODUCT : { status: 0, status_verbose: "product not found" }) });
   });
@@ -202,10 +203,35 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await openShop(page);
       await page.click("text=Scannen!");
       const t0 = Date.now();
-      await page.waitForSelector("text=Das kenne ich nicht", { timeout: 25000 });
+      await page.waitForSelector("text=Kein Internet.", { timeout: 25000 });
       const dt = Date.now() - t0;
       check("WLAN da, aber kein Internet: schnelle Antwort", dt < 8000, `${dt} ms, ${offRequests.length} Anfragen`);
       check("Kein Internet: Wikidata wird gar nicht erst gefragt", wikidataRequests.length === 0, `${wikidataRequests.length} Anfragen`);
+      await browser.close();
+    }
+    if (section("scan")) {
+      // Gefunden durch einen Fehlerbericht: eine Störung bei Open Food Facts wurde als "unbekannt"
+      // gewertet und 10 Minuten gemerkt. Danach kam das Produkt auch nicht, als der Server wieder lief.
+      offRequests = [];
+      let mode = "503";
+      const { browser, page, errors } = await launch("off", { offMode: () => mode });
+      await openShop(page);
+      await page.click("text=Scannen!");
+      await page.waitForSelector("text=Ich kann gerade nicht nachschauen", { timeout: 25000 });
+      check("Open Food Facts gestört (503): „Ich kann gerade nicht nachschauen“ statt „unbekannt“", true, `${offRequests.length} Anfragen`);
+      mode = null;
+      await page.click("text=✓ Fertig gescannt");
+      await page.click("text=Scannen!");
+      let ok = true;
+      try { await page.waitForSelector(".found .t:has-text('Vollmilch')", { timeout: 15000 }); } catch { ok = false; }
+      check("Server wieder da: nächster Scan findet das Produkt", ok);
+      await page.click("text=✓ Fertig gescannt");
+      await openSettings(page);
+      await page.click("nav >> text=Scan-Protokoll");
+      const log = (await page.textContent(".pane")).replace(/\s+/g, " ");
+      check("Scan-Protokoll zeigt Störung und Fund", log.includes("Serverfehler 503") && log.includes("gefunden: Vollmilch"), log.slice(0, 160));
+      await page.screenshot({ path: `${SHOTS}/scan-protokoll.png` });
+      check("Keine Konsolenfehler (Störung)", !errors.filter((e) => !/503|Failed to load resource/.test(e)).length, errors.join(" | "));
       await browser.close();
     }
     if (section("scan")) {

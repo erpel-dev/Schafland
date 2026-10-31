@@ -1,6 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import { cart, findByEan } from "../lib/shop.svelte.js";
+  import { scanLog } from "../lib/scanlog.svelte.js";
   import { isValidEan } from "../lib/ean.js";
   import { euro } from "../lib/money.js";
   import { beep, nope } from "../lib/sounds.js";
@@ -12,10 +13,13 @@
   let video = $state();
   let camState = $state("start"); // start | live | error
   let camError = $state("");
-  let status = $state("idle"); // idle | looking | found | unknown
+  let status = $state("idle"); // idle | looking | found | added | unknown | unavailable | offline
   let found = $state(null); // { product, source }
   let lastCode = $state("");
   let fps = $state(0);
+
+  const RESULT_TEXT = { unknown: "unbekannt", unavailable: "Datenbank gestört", offline: "kein Internet" };
+  const data_format = (code) => (/^https?:/.test(code) ? "Link" : /^\d+$/.test(code) ? `${code.length} Ziffern` : "Text");
 
   // Derselbe Code zählt erst wieder, wenn er so lange nicht mehr im Bild war
   const SAME_CODE_GONE_MS = 1500;
@@ -62,16 +66,29 @@
       if (!isValidEan(ean)) {
         status = "unknown";
         found = null;
+        scanLog.add({ code, result: "kein Produktcode", trace: [`${data_format(code)}, keine gültige EAN`] });
         nope();
         return;
       }
       beep();
       status = "looking";
       found = null;
-      const result = await findByEan(ean);
+      const t0 = Date.now();
+      let result;
+      try {
+        result = await findByEan(ean);
+      } catch (err) {
+        result = { error: "unavailable", trace: [`Fehler: ${err?.message ?? err}`] };
+      }
+      const ms = Date.now() - t0;
+      scanLog.add({
+        code: ean,
+        result: result.product ? `gefunden: ${result.product.name}` : RESULT_TEXT[result.error],
+        trace: [...(result.trace ?? []), `${(ms / 1000).toFixed(1)} s`],
+      });
       if (stopped || my !== lookup) return;
-      if (!result) {
-        status = "unknown";
+      if (result.error) {
+        status = result.error;
         nope();
         return;
       }
@@ -187,7 +204,15 @@
     {:else if status === "unknown"}
       <div class="pimg"><Sheep size="6rem" class="shrug" /></div>
       <b class="t">Das kenne ich nicht.</b>
-      <small>{navigator.onLine ? "Den Code gibt es in keiner Datenbank." : "Ohne Internet kann ich neue Sachen nicht nachschauen."}</small>
+      <small>Den Code gibt es in keiner Datenbank.</small>
+    {:else if status === "unavailable"}
+      <div class="pimg"><Sheep size="6rem" class="shrug" /></div>
+      <b class="t">Ich kann gerade nicht nachschauen.</b>
+      <small>Die Datenbank antwortet gerade nicht. Halte es gleich nochmal vor die Kamera.</small>
+    {:else if status === "offline"}
+      <div class="pimg"><Sheep size="6rem" class="shrug" /></div>
+      <b class="t">Kein Internet.</b>
+      <small>Neue Sachen kann ich nur mit Internet nachschauen. Bekannte Sachen gehen immer.</small>
     {:else}
       <div class="pimg"><span class="emoji">📦</span></div>
       <b class="t">Was kaufst du?</b>

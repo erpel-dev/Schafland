@@ -10,10 +10,11 @@ import App from "./App.svelte";
 import { settings } from "./lib/settings.svelte.js";
 import { scanned } from "./lib/shop.svelte.js";
 import { music } from "./lib/music.svelte.js";
+import { scanLog } from "./lib/scanlog.svelte.js";
 
 async function boot() {
   try {
-    await Promise.all([settings.load(), scanned.load()]);
+    await Promise.all([settings.load(), scanned.load(), scanLog.load()]);
     music.restore();
   } catch (err) {
     // Ohne Speicher läuft die Kasse trotzdem, nur Einstellungen gehen beim Neustart verloren

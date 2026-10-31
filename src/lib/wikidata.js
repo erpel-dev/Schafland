@@ -41,26 +41,40 @@ export const commonsThumb = (file, width = 256) =>
  * Sucht einen Strichcode in Wikidata: über die GTIN, bei Zeitschriften zusätzlich über die ISSN.
  * Gibt ein fertiges Produkt oder null zurück. Wirft NetworkError ohne Verbindung.
  */
-export async function lookupWikidata(ean, { timeoutMs = 5000 } = {}) {
+export async function lookupWikidata(ean, { timeoutMs = 8000, trace = [] } = {}) {
   const issn = issnFromEan(ean);
   // GTIN steht teils 13-, teils 14-stellig (mit führender 0) in Wikidata
   const statements = [`${P_GTIN}=${ean}`, `${P_GTIN}=0${ean}`];
   if (issn) statements.unshift(`${P_ISSN}=${issn}`);
 
-  const search = await getJson(
-    `${API}?action=query&list=search&srsearch=${encodeURIComponent(`haswbstatement:${statements.join("|")}`)}&srlimit=1&format=json&origin=*`,
-    timeoutMs,
-  );
-  const id = search?.query?.search?.[0]?.title;
-  if (!/^Q\d+$/.test(id ?? "")) return null;
-
-  const data = await getJson(
-    `${API}?action=wbgetentities&ids=${id}&props=labels|descriptions|claims&languages=de|en&format=json&origin=*`,
-    timeoutMs,
-  );
+  let search;
+  let data;
+  try {
+    search = await getJson(
+      `${API}?action=query&list=search&srsearch=${encodeURIComponent(`haswbstatement:${statements.join("|")}`)}&srlimit=1&format=json&origin=*`,
+      { timeoutMs },
+    );
+    const id = search?.query?.search?.[0]?.title;
+    if (!/^Q\d+$/.test(id ?? "")) {
+      trace.push(`wikidata.org: nicht gefunden${issn ? ` (ISSN ${issn})` : ""}`);
+      return null;
+    }
+    data = await getJson(
+      `${API}?action=wbgetentities&ids=${id}&props=labels|descriptions|claims&languages=de|en&format=json&origin=*`,
+      { timeoutMs },
+    );
+  } catch (err) {
+    trace.push(`wikidata.org: ${err.message}`);
+    throw err;
+  }
+  const id = search.query.search[0].title;
   const entity = data?.entities?.[id];
   const name = pickLang(entity?.labels).trim();
-  if (!entity || !name) return null;
+  if (!entity || !name) {
+    trace.push(`wikidata.org: ${id} ohne Namen`);
+    return null;
+  }
+  trace.push(`wikidata.org: gefunden (${id})`);
 
   const isPeriodical = !!issn || claimValues(entity, P_INSTANCE_OF).some((v) => PERIODICALS.has(v.id));
   const cat = isPeriodical ? MAGAZINE : categoryById(SCANNED.id);
