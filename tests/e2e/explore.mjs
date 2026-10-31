@@ -151,7 +151,7 @@ async function monkey(ms) {
       [1, "PayPal-Name", async () => { if (await page.locator("#pp-name").count()) { await page.fill("#pp-name", pick(["FamilieTest", "x", "", "Name mit Leerzeichen", "a".repeat(25)])); await page.press("#pp-name", "Enter"); } }],
       [1, "Ordner wählen", async () => { const b = page.locator("text=Ordner wählen …"); if (await b.count()) await b.tap(); }],
       [1, "Lied antippen", async () => { const b = page.locator(".tracks button"); const n = await b.count(); if (n) await b.nth(Math.floor(rnd() * n)).tap(); }],
-      [1, "Preis ändern", async () => { const i = page.locator(".prod input"); if (await i.count()) { await i.first().fill(pick(["0,5", "12", "abc", "-1", "999,99", "1000", ""])); await i.first().press("Tab"); } }],
+      [1, "Preis ändern", async () => { const i = page.locator(".prod .price input"); if (await i.count()) { await i.first().fill(pick(["0,5", "12", "abc", "-1", "999,99", "1000", ""])); await i.first().press("Tab"); } }],
       [3, "Zurück", async () => page.locator("text=Zurück zum Laden").tap()],
     ],
     start: [[1, "Öffnen", async () => page.click("text=Laden öffnen")]],

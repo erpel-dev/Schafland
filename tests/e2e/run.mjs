@@ -59,6 +59,7 @@ async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, 
   // Bücher: Google Books und Open Library kennen nur die Beispiel-ISBN
   await ctx.route(/www\.googleapis\.com\/books/, (route) => {
     bookRequests.push("google");
+    if (googleDown === "abort") return route.abort("connectionrefused");
     if (googleDown) return route.fulfill({ status: 503, headers: { "access-control-allow-origin": "*" }, body: "" });
     const hit = route.request().url().includes("9783161484100");
     route.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(hit
@@ -185,12 +186,12 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       // Löschen im Eltern-Bereich, während Reiter "Gescannt" aktiv war
       await openSettings(page);
       await page.click("nav >> text=Gescannte Produkte");
-      await page.fill(".prod input", "1,5"); await page.press(".prod input", "Tab");
+      await page.fill(".prod .price input", "1,5"); await page.press(".prod .price input", "Tab");
       await wait(200);
-      check("Preis „1,5“ wird zu 1,50", (await page.inputValue(".prod input")) === "1,50");
-      await page.fill(".prod input", "abc"); await page.press(".prod input", "Tab");
+      check("Preis „1,5“ wird zu 1,50", (await page.inputValue(".prod .price input")) === "1,50");
+      await page.fill(".prod .price input", "abc"); await page.press(".prod .price input", "Tab");
       await wait(200);
-      check("Ungültiger Preis wird zurückgesetzt", (await page.inputValue(".prod input")) === "1,50", await page.inputValue(".prod input"));
+      check("Ungültiger Preis wird zurückgesetzt", (await page.inputValue(".prod .price input")) === "1,50", await page.inputValue(".prod .price input"));
       await page.click(".prod .del");
       await page.click("text=Zurück zum Laden");
       const anyOn = await page.locator(".cat.on").count();
@@ -224,7 +225,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await page.waitForSelector("text=Kein Internet.", { timeout: 25000 });
       const dt = Date.now() - t0;
       check("WLAN da, aber kein Internet: schnelle Antwort", dt < 8000, `${dt} ms, ${offRequests.length} Anfragen`);
-      check("Kein Internet: Wikidata wird gar nicht erst gefragt", wikidataRequests.length === 0, `${wikidataRequests.length} Anfragen`);
+      check("Kein Internet: Meldung „Kein Internet“, nicht „unbekannt“", (await page.textContent(".found")).includes("Kein Internet"), `OFF ${offRequests.length}, Wikidata ${wikidataRequests.length} Anfragen`);
       await browser.close();
     }
     if (section("scan")) {
@@ -277,14 +278,14 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       check("Keine Konsolenfehler (Zeitschrift)", !errors.length, errors.join(" | "));
       await browser.close();
     }
-    for (const googleDown of section("scan") ? [false, true] : []) {
+    for (const googleDown of section("scan") ? [false, true, "abort"] : []) {
       offRequests = [];
       wikidataRequests = [];
       bookRequests = [];
       const { browser, page, errors } = await launch("book", { googleDown });
       await openShop(page);
       await page.click("text=Scannen!");
-      const label = googleDown ? "Google Books gestört: Buch über Open Library" : "Buch (ISBN) über Google Books";
+      const label = googleDown === "abort" ? "Google Books nicht erreichbar: Buch über Open Library" : googleDown ? "Google Books gestört: Buch über Open Library" : "Buch (ISBN) über Google Books";
       let ok = true;
       try { await page.waitForSelector(".found .t:has-text('Testbuch')", { timeout: 20000 }); } catch { ok = false; }
       check(`${label} gefunden`, ok, bookRequests.join(" → "));
@@ -296,6 +297,61 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
         if (!googleDown) await page.screenshot({ path: `${SHOTS}/scan-buch.png` });
       }
       check(`Keine Konsolenfehler (${label})`, !errors.filter((e) => !/503|Failed to load resource/.test(e)).length, errors.join(" | "));
+      await browser.close();
+    }
+    if (section("scan")) {
+      // Fehlerbericht: c't mit deutschem Pressecode 419… und Zusatzcode „23“ wurde nicht erkannt
+      offRequests = [];
+      wikidataRequests = [];
+      bookRequests = [];
+      const { browser, page, errors } = await launch("press");
+      await openShop(page);
+      await page.click("text=Scannen!");
+      let ok = true;
+      try { await page.waitForSelector(".found .src:has-text('Pressecode')", { timeout: 15000 }); } catch { ok = false; }
+      check("Zeitschrift mit Pressecode (419…) erkannt", ok);
+      if (ok) {
+        await page.waitForSelector(".found:has-text('Ausgabe 23')", { timeout: 6000 }).catch(() => {});
+        const info = (await page.textContent(".found")).replace(/\s+/g, " ");
+        check("Pressecode: Preis 7,00 € aus dem Code, Ausgabe 23 aus dem Zusatzcode", info.includes("7,00") && info.includes("Ausgabe 23"), info.slice(0, 120));
+        check("Pressecode: keine Datenbank gefragt", offRequests.length + wikidataRequests.length + bookRequests.length === 0);
+        await page.screenshot({ path: `${SHOTS}/scan-pressecode.png` });
+        await page.click("text=✓ Fertig gescannt");
+        // Eltern tragen den Namen ein, danach kennt die Kasse die Zeitschrift
+        await openSettings(page);
+        check("Eltern-Bereich zeigt die Version", /Version \d+\.\d+\.\d+ vom/.test(await page.textContent("header")), await page.textContent("header small"));
+        await page.click("nav >> text=Gescannte Produkte");
+        await page.fill(".prod input.name", "c't");
+        await page.press(".prod input.name", "Enter");
+        await wait(300);
+        await page.click("text=Zurück zum Laden");
+        await page.click("text=Scannen!");
+        let named = true;
+        try { await page.waitForSelector(".found .t:has-text(\"c't\")", { timeout: 10000 }); } catch { named = false; }
+        check("Umbenannt in „c't“: nächster Scan zeigt den Namen", named);
+        await page.click("text=✓ Fertig gescannt");
+        check("Korb: zweimal c't zu je 7,00 €", (await page.textContent(".total b")).includes("14,00"), await page.textContent(".total b"));
+      }
+      check("Keine Konsolenfehler (Pressecode)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+    if (section("scan")) {
+      // Buch hochkant gehalten, mit 5-stelligem Preis-Zusatzcode
+      bookRequests = [];
+      const { browser, page, errors } = await launch("book-rotated");
+      await openShop(page);
+      await page.click("text=Scannen!");
+      let ok = true;
+      try { await page.waitForSelector(".found .t:has-text('Testbuch')", { timeout: 15000 }); } catch { ok = false; }
+      check("Hochkant gehaltenes Buch mit Zusatzcode erkannt", ok, bookRequests.join(","));
+      if (ok) {
+        await page.click("text=✓ Fertig gescannt");
+        await openSettings(page);
+        await page.click("nav >> text=Scan-Protokoll");
+        // Der Preis-Zusatzcode US-amerikanischer Bücher spielt keine Rolle; gesucht wird mit dem Hauptcode
+        check("Scan-Protokoll: Buch mit dem Hauptcode gesucht", (await page.textContent(".log code")).trim().startsWith("9783161484100"), await page.textContent(".log code"));
+      }
+      check("Keine Konsolenfehler (Buch hochkant)", !errors.length, errors.join(" | "));
       await browser.close();
     }
     if (section("scan")) {

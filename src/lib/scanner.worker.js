@@ -1,5 +1,6 @@
 import { prepareZXingModule, readBarcodes } from "zxing-wasm/reader";
 import wasmUrl from "zxing-wasm/reader/zxing_reader.wasm?url";
+import { splitAddOn } from "./barcode.js";
 
 // Die WASM-Datei wird mit der App ausgeliefert, damit das Scannen auch offline geht.
 prepareZXingModule({
@@ -13,8 +14,12 @@ const OPTIONS = {
   formats: ["EAN13", "EAN8", "UPCA", "UPCE", "QRCode"],
   tryHarder: true,
   tryRotate: false,
-  maxNumberOfSymbols: 1,
+  // Ein Code mit Zusatzcode kommt doppelt zurück (mit und ohne); den mit Zusatzcode bevorzugen
+  maxNumberOfSymbols: 3,
+  // Kleine Zusatzcodes (Ausgabe bei Zeitschriften, Preis bei US-Büchern) mitlesen, wenn vorhanden
+  eanAddOnSymbol: "Read",
 };
+
 
 /**
  * Nachschärfen nur in Querrichtung (Unschärfemaske, Radius 3, Stärke 2).
@@ -46,8 +51,10 @@ function sharpen(img, radius = 3, amount = 2) {
 self.onmessage = async ({ data }) => {
   try {
     const img = data.sharpen ? sharpen(data.img) : data.img;
-    const results = await readBarcodes(img, OPTIONS);
-    self.postMessage(results.filter((r) => r.isValid).map((r) => ({ text: r.text, format: r.format })));
+    const results = await readBarcodes(img, { ...OPTIONS, tryRotate: !!data.rotate });
+    const codes = results.filter((r) => r.isValid).map(splitAddOn);
+    codes.sort((a, b) => (b.addOn ? 1 : 0) - (a.addOn ? 1 : 0));
+    self.postMessage(codes);
   } catch (err) {
     self.postMessage({ error: String(err) });
   }

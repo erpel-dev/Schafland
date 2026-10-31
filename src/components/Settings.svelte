@@ -60,6 +60,12 @@
     }
   }
 
+  function setName(p, input) {
+    const name = input.value.trim().slice(0, 60);
+    if (name) scanned.update(p.id, { name });
+    else input.value = p.name;
+  }
+
   // --- Kassenbons
   let receipts = $state([]);
   $effect(() => {
@@ -72,7 +78,7 @@
 <div class="settings">
   <header class="noprint">
     <Sheep size="3rem" />
-    <div><b>Schafland</b><small>Eltern-Bereich</small></div>
+    <div><b>Schafland</b><small>Eltern-Bereich · Version {__APP_VERSION__}</small></div>
     <span class="spacer"></span>
     <button class="big-btn light" onclick={onClose}>Zurück zum Laden</button>
   </header>
@@ -173,11 +179,14 @@
 
       {:else if tab === "gescannt"}
         <h2>Gescannte Produkte</h2>
-        <p class="muted">Alles, was einmal gescannt und in einer Datenbank gefunden wurde. Der Preis kommt aus der Kategorie und lässt sich hier ändern.</p>
+        <p class="muted">Alles, was schon einmal gescannt wurde. Name und Preis lassen sich hier ändern, z. B. „Zeitschrift“ in „c't“. Beim nächsten Scan zeigt die Kasse den neuen Namen.</p>
         {#each scanned.list as p (p.id)}
           <div class="prod">
             <ProductImage product={p} size="3rem" />
-            <div class="info"><b>{p.name}</b><small>{p.ean} · {categoryById(p.categoryId).name} · {p.source}</small></div>
+            <div class="info">
+              <input class="name" id={`name-${p.id}`} value={p.name} aria-label="Name" onchange={(e) => setName(p, e.currentTarget)} onkeydown={(e) => e.key === "Enter" && e.currentTarget.blur()} />
+              <small>{p.ean} · {categoryById(p.categoryId).name} · {p.source}{p.brand ? ` · ${p.brand}` : ""}</small>
+            </div>
             <label class="price">
               <input id={`price-${p.id}`} inputmode="decimal" value={priceText(p.priceCents)} onchange={(e) => setPrice(p, e.currentTarget)} /> €
             </label>
@@ -262,6 +271,8 @@
   .prod { display: grid; grid-template-columns: 3.4rem 1fr auto auto; gap: 0.8rem; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--wool-line); }
   .info { display: flex; flex-direction: column; min-width: 0; }
   .info small { color: var(--ink-soft); font-family: monospace; }
+  .info .name { font-weight: 800; border: 2px solid transparent; border-radius: 0.5rem; padding: 0.15rem 0.4rem; margin-left: -0.4rem; background: transparent; width: 100%; }
+  .info .name:hover, .info .name:focus { border-color: var(--wool-line); background: var(--wool); outline: none; }
   .price input { width: 5rem; text-align: right; border: 2px solid var(--wool-line); border-radius: 0.6rem; padding: 0.3rem 0.5rem; font-weight: 800; }
   .del { width: 2.2rem; height: 2.2rem; border-radius: 50%; background: var(--wool-2); font-weight: 800; }
   .log { padding: 0.5rem 0.8rem; border-radius: 0.8rem; background: #fff6d6; display: flex; flex-direction: column; gap: 0.15rem; }

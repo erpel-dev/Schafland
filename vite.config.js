@@ -1,6 +1,11 @@
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { VitePWA } from "vite-plugin-pwa";
+import { readFileSync } from "node:fs";
+
+// Version für den Eltern-Bereich, damit man auf dem Notebook sieht, welcher Stand läuft
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
+const APP_VERSION = `${pkg.version} vom ${new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}`;
 
 export default defineConfig({
   base: "./",
@@ -32,4 +37,5 @@ export default defineConfig({
     }),
   ],
   worker: { format: "es" },
+  define: { __APP_VERSION__: JSON.stringify(APP_VERSION) },
 });

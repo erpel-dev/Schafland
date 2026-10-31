@@ -3,6 +3,7 @@ import { productByEan } from "./catalog.js";
 import { lookupOpenFacts } from "./off.js";
 import { lookupWikidata, issnFromEan } from "./wikidata.js";
 import { isBookEan, lookupGoogleBooks, lookupOpenLibrary } from "./books.js";
+import { isPressCode, pressProduct } from "./presse.js";
 import { NetworkError, ServiceError } from "./net.js";
 
 /** Gescannte Produkte aus IndexedDB, für den Reiter "Gescannt". */
@@ -46,13 +47,29 @@ const MISS_TTL_MS = 2 * 60 * 1000;
  *   { error: "unknown", trace }        in keiner Datenbank
  *   { error: "unavailable", trace }    Datenbanken gestört, später nochmal versuchen
  *   { error: "offline", trace }        keine Internetverbindung
+ *
+ * issue: Ausgabe aus dem Zusatzcode (bei Zeitschriften), falls mitgelesen.
  */
-export async function findByEan(ean) {
+export async function findByEan(ean, { issue = "" } = {}) {
   const own = productByEan.get(ean);
   if (own) return { product: own, source: "eigen", trace: ["eigener Katalog"] };
 
   const cached = await db.products.where("ean").equals(ean).first();
-  if (cached) return { product: cached, source: "gespeichert", trace: ["schon einmal gescannt"] };
+  if (cached) {
+    // Neue Ausgabe derselben Zeitschrift: Ausgabe aktualisieren, Name und Preis bleiben
+    if (issue && isPressCode(ean) && cached.brand !== `Ausgabe ${issue}`) {
+      cached.brand = `Ausgabe ${issue}`;
+      await scanned.update(cached.id, { brand: cached.brand });
+    }
+    return { product: cached, source: "gespeichert", trace: ["schon einmal gescannt"] };
+  }
+
+  // Deutsche Pressecodes stehen in keiner Datenbank, enthalten aber den Preis: gleich anlegen
+  if (isPressCode(ean)) {
+    const product = pressProduct(ean, { issue });
+    await scanned.save(product);
+    return { product, source: "Pressecode", trace: [`Pressecode: Titel ${ean.slice(3, 8)}, Preis aus dem Code`] };
+  }
 
   if (Date.now() - (misses.get(ean) ?? 0) < MISS_TTL_MS) {
     return { error: "unknown", trace: ["vor Kurzem in keiner Datenbank gefunden"] };
@@ -65,6 +82,7 @@ export async function findByEan(ean) {
       ? [lookupWikidata, lookupOpenFacts]
       : [lookupOpenFacts, lookupWikidata];
   let disturbed = false;
+  let unreachable = 0;
   for (const lookup of sources) {
     try {
       const found = await lookup(ean, { trace });
@@ -73,12 +91,15 @@ export async function findByEan(ean) {
         return { product: found, source: found.source, trace };
       }
     } catch (err) {
-      if (err instanceof NetworkError) return { error: "offline", trace };
-      if (!(err instanceof ServiceError)) throw err;
-      disturbed = true; // nächste Datenbank trotzdem fragen
+      // Auch ohne Verbindung zu einem Server die anderen fragen: ein einzelner Dienst kann
+      // gesperrt oder weg sein. Ist wirklich kein Netz da, scheitern alle in Millisekunden.
+      if (err instanceof NetworkError) unreachable++;
+      else if (err instanceof ServiceError) disturbed = true;
+      else throw err;
     }
   }
-  if (disturbed) return { error: "unavailable", trace };
+  if (unreachable === sources.length) return { error: "offline", trace };
+  if (disturbed || unreachable) return { error: "unavailable", trace };
   misses.set(ean, Date.now());
   return { error: "unknown", trace };
 }

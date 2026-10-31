@@ -3,6 +3,7 @@
   import { cart, findByEan } from "../lib/shop.svelte.js";
   import { scanLog } from "../lib/scanlog.svelte.js";
   import { isValidEan } from "../lib/ean.js";
+  import { isPressCode } from "../lib/presse.js";
   import { euro } from "../lib/money.js";
   import { beep, nope } from "../lib/sounds.js";
   import ProductImage from "./ProductImage.svelte";
@@ -35,7 +36,7 @@
     let stopped = false;
     let busy = false;
     let loopTimer;
-    let lastSeen = { code: "", at: 0 };
+    let lastSeen = { code: "", at: 0, addOn: "" };
     let lookup = 0; // verwirft Antworten älterer Suchen
     let frameNo = 0;
     let frames = 0;
@@ -51,13 +52,16 @@
       frames++;
       if (stopped || !Array.isArray(data) || !data.length) return;
       const code = data[0].text.trim();
+      const addOn = data[0].addOn ?? "";
       const now = Date.now();
       const same = code === lastSeen.code && now - lastSeen.at < SAME_CODE_GONE_MS;
-      lastSeen = { code, at: now };
-      if (!same) await handleCode(code);
+      // Zusatzcode (Ausgabe) erst in einem späteren Bild gelesen: nachtragen statt neu zählen
+      if (same && addOn && !lastSeen.addOn) lateAddOn(code, addOn);
+      lastSeen = { code, at: now, addOn: addOn || (same ? lastSeen.addOn : "") };
+      if (!same) await handleCode(code, addOn);
     };
 
-    async function handleCode(code) {
+    async function handleCode(code, addOn = "") {
       clearTimeout(addTimer);
       const my = ++lookup;
       lastCode = code;
@@ -76,13 +80,13 @@
       const t0 = Date.now();
       let result;
       try {
-        result = await findByEan(ean);
+        result = await findByEan(ean, { issue: addOn });
       } catch (err) {
         result = { error: "unavailable", trace: [`Fehler: ${err?.message ?? err}`] };
       }
       const ms = Date.now() - t0;
       scanLog.add({
-        code: ean,
+        code: addOn ? `${ean} + ${addOn}` : ean,
         result: result.product ? `gefunden: ${result.product.name}` : RESULT_TEXT[result.error],
         trace: [...(result.trace ?? []), `${(ms / 1000).toFixed(1)} s`],
       });
@@ -97,23 +101,32 @@
       addTimer = setTimeout(addFound, AUTO_ADD_MS);
     }
 
+    async function lateAddOn(code, addOn) {
+      if (!isPressCode(code) || !found || found.product.ean !== code) return;
+      const result = await findByEan(code, { issue: addOn });
+      if (!stopped && result.product && found?.product.ean === code) found = { ...found, product: result.product };
+    }
+
     function tick() {
       if (stopped) return;
       if (!busy && video.readyState >= 2 && video.videoWidth) {
         const w = video.videoWidth;
         const h = video.videoHeight;
         const sh = Math.round(h * 0.6);
+        // Abwechselnd: mittlerer Streifen; die Bildmitte 2× vergrößert (für kleine oder unscharfe
+        // Codes alter Fixfokus-Webcams), einmal davon nachgeschärft; das ganze Bild mit Drehung
+        // (für hochkant gehaltene Bücher und Packungen).
+        const mode = frameNo++ % 4;
+        const full = mode === 3;
         canvas.width = w;
-        canvas.height = sh;
-        // Abwechselnd: mittlerer Streifen, dann die Bildmitte 2× vergrößert (für kleine
-        // oder unscharfe Codes, die alte Webcams mit Fixfokus liefern), einmal davon nachgeschärft.
-        const mode = frameNo++ % 3;
+        canvas.height = full ? h : sh;
         ctx2d.imageSmoothingQuality = "high";
         if (mode === 0) ctx2d.drawImage(video, 0, (h - sh) / 2, w, sh, 0, 0, w, sh);
+        else if (full) ctx2d.drawImage(video, 0, 0, w, h);
         else ctx2d.drawImage(video, w / 4, (h - sh / 2) / 2, w / 2, sh / 2, 0, 0, w, sh);
-        const img = ctx2d.getImageData(0, 0, w, sh);
+        const img = ctx2d.getImageData(0, 0, canvas.width, canvas.height);
         busy = true;
-        worker.postMessage({ img, sharpen: mode === 2 }, [img.data.buffer]);
+        worker.postMessage({ img, sharpen: mode === 2, rotate: full }, [img.data.buffer]);
       }
       loopTimer = setTimeout(tick, 110); // höchstens ca. 9 Bilder pro Sekunde
     }

@@ -42,9 +42,11 @@ Beim ersten Scannen fragt Chromium oben links nach der Kamera. Dort **„Beim Be
 - **Bezahlen:** PayPal einschalten und den PayPal.me-Namen eintragen. Ein Test-Code über 1,00 € zeigt, ob der Empfänger stimmt. Ob „Freunde und Familie“ gewählt wird, entscheidet die zahlende Person in PayPal. Der Link kann das nicht vorgeben.
 - **Musik:** Ordner wählen (Unterordner werden mitgenommen), Lautstärke, Zufall, Autostart. Bei Piep- und Mäh-Geräuschen wird die Musik kurz leiser.
 - **Etiketten drucken:** Bogen mit eigenen EAN-13-Codes (Präfix 21) für Holzobst und Spielzeug-Lebensmittel. Die Codes kollidieren nie mit echten Produkten.
-- **Gescannte Produkte:** Alles, was über Open Food Facts gefunden wurde. Preis ändern oder löschen.
+- **Gescannte Produkte:** Alles, was schon einmal gescannt wurde. Name und Preis ändern oder löschen.
 - **Kassenbons:** Die letzten 30 Einkäufe.
 - **Scan-Protokoll:** Die letzten 50 Scans mit Code und den Antworten der Datenbanken. Hilft, wenn etwas nicht erkannt wird.
+
+Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.5.0 vom 31.10.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
 
 ## Scannen: so funktioniert es
 
@@ -57,9 +59,17 @@ Beim ersten Scannen fragt Chromium oben links nach der Kamera. Dort **„Beim Be
 
 Gefundene Produkte bekommen Name und Foto aus der Datenbank und einen Spielpreis aus ihrer Kategorie (Süßes 0,99 €, Milch 1,20 €, Zeitschrift 3,50 €, Buch 5,00 € …). Danach sind sie im Reiter „Gescannt“ auch ohne Internet da.
 
-**Zeitschriften:** Codes, die mit **977** beginnen, enthalten die ISSN der Zeitschrift (977 + 7 ISSN-Ziffern + 2 Ziffern Ausgabe + Prüfziffer). Schafland rechnet die ISSN aus und fragt dafür zuerst Wikidata, wo die meisten Zeitschriften mit ISSN, Namen und Logo stehen. Deutsche Pressecodes, die mit **414** oder **419** beginnen, enthalten dagegen keine ISSN und stehen in keiner freien Datenbank. Welcher Code gelesen wurde, steht beim Scannen oben links im Kamerabild.
+**Zeitschriften:** Es gibt zwei Arten von Codes.
+- Beginnt der Code mit **977**, steckt die ISSN darin (977 + 7 ISSN-Ziffern + 2 Ziffern Ausgabe + Prüfziffer). Schafland rechnet die ISSN aus und sucht damit bei Wikidata, wo die meisten Zeitschriften mit Namen und Logo stehen.
+- Deutsche **Pressecodes** beginnen mit **414** oder **419** (z. B. die c't: `419 91484 0700 3`). Sie stehen in keiner freien Datenbank, enthalten aber Titelnummer und Verkaufspreis (hier 7,00 €). Schafland legt sie direkt als „Zeitschrift“ mit diesem Preis an, ohne Internet. Den kleinen Zusatzcode daneben liest die Kasse als Ausgabe („Ausgabe 23“). Im Eltern-Bereich unter **Gescannte Produkte** lässt sich der Name einmal eintragen (z. B. „c't“), danach zeigt die Kasse ihn bei jedem Scan.
 
-Die Erkennung läuft mit [zxing-wasm](https://github.com/Sec-Ant/zxing-wasm) in einem Web Worker. Die Kamera liefert 640×480, höchstens ca. 9 Bilder pro Sekunde werden ausgewertet. Abwechselnd wird der mittlere Bildstreifen gelesen und die Bildmitte 2× vergrößert, einmal davon quer nachgeschärft. So werden auch kleine und leicht unscharfe Codes alter Fixfokus-Kameras erkannt.
+Die Erkennung läuft mit [zxing-wasm](https://github.com/Sec-Ant/zxing-wasm) in einem Web Worker. Die Kamera liefert 640×480, höchstens ca. 9 Bilder pro Sekunde werden ausgewertet, reihum auf vier Arten:
+1. der mittlere Bildstreifen,
+2. die Bildmitte 2× vergrößert (für kleine Codes),
+3. dasselbe quer nachgeschärft (für unscharfe Codes alter Fixfokus-Kameras),
+4. das ganze Bild, auch gedreht (für hochkant gehaltene Bücher und Packungen).
+
+Kleine Zusatzcodes neben dem Hauptcode (Ausgabe bei Zeitschriften, Preis bei US-Büchern) werden mitgelesen; gesucht wird immer mit dem Hauptcode.
 
 Ein Produkt, das ruhig vor der Kamera gehalten wird, kommt nur einmal in den Korb. Derselbe Code zählt erst wieder, wenn er 1,5 s nicht mehr im Bild war. Codes, die sicher in keiner Datenbank stehen, werden 2 Minuten lang nicht erneut abgefragt.
 
