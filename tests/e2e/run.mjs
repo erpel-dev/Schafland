@@ -7,8 +7,16 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { makeFixtures } from "./fixtures.mjs";
+import { prepareZXingModule, readBarcodes } from "zxing-wasm/reader";
 
 const R = fileURLToPath(new URL("../..", import.meta.url));
+prepareZXingModule({ overrides: { wasmBinary: fs.readFileSync(path.join(R, "node_modules/zxing-wasm/dist/reader/zxing_reader.wasm")).buffer } });
+/** Liest den angezeigten QR-Code wieder ein, so wie es ein Handy tun würde. */
+async function readQr(page, selector) {
+  const png = await page.locator(selector).screenshot();
+  const [hit] = await readBarcodes(new Blob([png]), { formats: ["QRCode"] });
+  return hit?.text ?? null;
+}
 const Q = await makeFixtures();
 const SHOTS = path.join(R, "tests/e2e/.output");
 fs.mkdirSync(SHOTS, { recursive: true });
@@ -412,6 +420,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await page.click(".pay");
       await page.click(".opt:has-text('PayPal')");
       check("PayPal-Link mit Betrag", (await page.textContent(".txt code")) === "https://paypal.me/FamilieTest/0.60EUR");
+      check("PayPal-QR-Code mit dem Handy lesbar", (await readQr(page, ".modal .qr")) === "https://paypal.me/FamilieTest/0.60EUR");
       await page.click("text=Bezahlt! Neuer Einkauf");
       await page.waitForSelector(".party");
       await wait(3600);
@@ -442,6 +451,60 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await page.click("text=Zurück zum Laden");
       check("Eltern-Bereich schließt das Bezahlfenster", (await page.locator(".modal").count()) === 0);
       check("Keine Konsolenfehler (Bezahlen)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+
+    // ---------- GiroCode ----------
+    if (section("pay")) {
+      const { browser, page, errors } = await launch();
+      await openShop(page);
+      await page.click(".tile:has-text('Apfel')");
+      await page.click(".pay");
+      check("GiroCode ausgeblendet, solange nicht eingerichtet", (await page.locator(".opt:has-text('Überweisung')").count()) === 0);
+      await page.keyboard.press("Escape");
+      await openSettings(page);
+      await page.click("#giro-on");
+      await page.fill("#giro-name", "Familie Müller");
+      await page.fill("#giro-iban", "DE89 3704 0044 0532 0130 01");
+      await page.press("#giro-iban", "Enter");
+      check("Falsche IBAN wird erkannt", (await page.locator(".err:has-text('IBAN')").count()) === 1 && (await page.locator(".test:has-text('Empfänger')").count()) === 0);
+      await page.fill("#giro-iban", "de89370400440532013000");
+      await page.press("#giro-iban", "Enter");
+      check("Richtige IBAN: lesbar formatiert, kein Fehler", (await page.inputValue("#giro-iban")) === "DE89 3704 0044 0532 0130 00" && (await page.locator(".err").count()) === 0, await page.inputValue("#giro-iban"));
+      const testQr = await readQr(page, ".test .qr");
+      check("Test-GiroCode über 1,00 € lesbar", testQr === "BCD\n002\n1\nSCT\n\nFamilie Müller\nDE89370400440532013000\nEUR1.00\n\n\nSchafland Einkauf", JSON.stringify(testQr));
+      await page.fill("#giro-text", "Kaufladen Oma");
+      await page.press("#giro-text", "Enter");
+      await wait(300);
+      await page.reload();
+      await page.click("text=Laden öffnen");
+      await openSettings(page);
+      check("GiroCode-Einstellungen nach Neustart erhalten", (await page.inputValue("#giro-name")) === "Familie Müller" && (await page.inputValue("#giro-text")) === "Kaufladen Oma" && (await page.getAttribute("#giro-on", "aria-checked")) === "true");
+      await page.click("text=Zurück zum Laden");
+      await page.click(".tile:has-text('Apfel')");
+      await page.click(".tile:has-text('Banane')");
+      await page.click(".pay");
+      await page.click(".opt:has-text('Überweisung')");
+      await wait(300);
+      check("Bezahlen per GiroCode: ohne Schaf in der Mitte", (await page.locator(".modal .qr .badge").count()) === 0);
+      check("Bezahlen per GiroCode: Empfänger, IBAN, Betrag lesbar angezeigt", (await page.textContent(".txt code.giro")).includes("DE89 3704 0044 0532 0130 00") && (await page.textContent(".txt code.giro")).includes("0,80"));
+      const qr = await readQr(page, ".modal .qr");
+      check("Bezahlen per GiroCode: Code enthält genau die Überweisung", qr === "BCD\n002\n1\nSCT\n\nFamilie Müller\nDE89370400440532013000\nEUR0.80\n\n\nKaufladen Oma", JSON.stringify(qr));
+      await page.screenshot({ path: `${SHOTS}/bezahlen-girocode.png` });
+      await page.click("text=Bezahlt! Neuer Einkauf");
+      await wait(3600);
+      await openSettings(page);
+      await page.click("nav >> text=Kassenbons");
+      await wait(300);
+      check("Kassenbon: Bezahlart „Überweisung (GiroCode)“", (await page.textContent(".bon")).includes("Überweisung (GiroCode)"));
+      await page.click("nav >> text=Bezahlen");
+      await page.click("#giro-on");
+      await page.click("text=Zurück zum Laden");
+      await page.click(".tile:has-text('Apfel')");
+      await page.click(".pay");
+      check("GiroCode ausschalten: Option verschwindet", (await page.locator(".opt:has-text('Überweisung')").count()) === 0);
+      check("Spiel-QR weiterhin mit Schaf und lesbar", (await page.locator(".modal .qr .badge").count()) === 1 && (await readQr(page, ".modal .qr")).startsWith("Danke für Ihren Einkauf"));
+      check("Keine Konsolenfehler (GiroCode)", !errors.length, errors.join(" | "));
       await browser.close();
     }
 

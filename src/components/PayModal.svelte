@@ -3,6 +3,7 @@
   import { settings } from "../lib/settings.svelte.js";
   import { euro, euroText, plain } from "../lib/money.js";
   import QrCode from "./QrCode.svelte";
+  import { giroPayload, formatIban } from "../lib/girocode.js";
 
   let { onClose, onPaid } = $props();
 
@@ -12,7 +13,9 @@
   let payload = $derived(
     method === "paypal"
       ? `https://paypal.me/${settings.value.paypalName}/${plain(total)}EUR`
-      : `Danke für Ihren Einkauf bei Schafland im Wert von ${euroText(total)}`,
+      : method === "girocode"
+        ? giroPayload({ name: settings.value.giroName, iban: settings.value.giroIban, cents: total, text: settings.value.giroText })
+        : `Danke für Ihren Einkauf bei Schafland im Wert von ${euroText(total)}`,
   );
 </script>
 
@@ -30,18 +33,29 @@
           <span class="emoji">💙</span><b>PayPal</b><small>echtes Geld</small>
         </button>
       {/if}
+      {#if settings.giroReady}
+        <button class="opt" class:on={method === "girocode"} onclick={() => (method = "girocode")}>
+          <span class="emoji">🏦</span><b>Überweisung</b><small>GiroCode · echtes Geld</small>
+        </button>
+      {/if}
     </div>
 
     <div class="qrrow">
-      <QrCode text={payload} size="14rem" />
+      <QrCode text={payload} size="14rem" ecLevel={method === "girocode" ? "M" : "H"} badge={method !== "girocode"} />
       <div class="txt">
         <b>Halte dein Handy an den Code!</b>
         {#if method === "paypal"}
           <p>PayPal öffnet sich mit dem Betrag. Bitte <strong>„Freunde und Familie“</strong> auswählen.</p>
+        {:else if method === "girocode"}
+          <p>Mit der Banking-App scannen („Foto-Überweisung“ oder „GiroCode“). Die Überweisung ist ausgefüllt und muss in der App bestätigt werden.</p>
         {:else}
           <p>Mit der Kamera-App scannen. Das Handy zeigt dann den Kassenbon-Text.</p>
         {/if}
-        <code>{payload}</code>
+        {#if method === "girocode"}
+          <code class="giro">{settings.value.giroName} · {formatIban(settings.value.giroIban)} · {euro(total)} · {settings.value.giroText}</code>
+        {:else}
+          <code>{payload}</code>
+        {/if}
       </div>
     </div>
 
@@ -68,6 +82,7 @@
   .txt b { font-family: var(--f-display); font-size: 1.5rem; }
   .txt p { margin: 0; color: var(--ink-soft); font-size: 1.05rem; }
   .txt code { font-size: 0.8rem; background: var(--wool-2); border-radius: 0.5rem; padding: 0.5rem 0.7rem; word-break: break-all; }
+  .txt code.giro { word-break: normal; overflow-wrap: anywhere; }
   .row { display: flex; justify-content: flex-end; gap: 0.8rem; }
   @keyframes fade { from { opacity: 0; } }
   @keyframes up { from { transform: translateY(1.5rem); } }

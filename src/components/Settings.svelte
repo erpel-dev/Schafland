@@ -4,6 +4,7 @@
   import { scanned } from "../lib/shop.svelte.js";
   import { scanLog } from "../lib/scanlog.svelte.js";
   import { aktionen } from "../lib/aktionen.js";
+  import { isValidIban, normalizeIban, formatIban, giroPayload, MAX_NAME, MAX_TEXT, DEFAULT_TEXT } from "../lib/girocode.js";
   import { categoryById } from "../lib/catalog.js";
   import { db } from "../lib/db.js";
   import { euro } from "../lib/money.js";
@@ -33,6 +34,19 @@
     paypalName = paypalName.trim().replace(/^.*paypal\.me\//i, "").replace(/\/.*$/, "");
     settings.set({ paypalName });
   }
+
+  // --- GiroCode
+  let giroName = $state(settings.value.giroName);
+  let giroIban = $state(formatIban(settings.value.giroIban));
+  let giroText = $state(settings.value.giroText);
+  let ibanOk = $derived(isValidIban(giroIban));
+  function saveGiro() {
+    giroName = giroName.trim().slice(0, MAX_NAME);
+    giroText = giroText.trim().slice(0, MAX_TEXT) || DEFAULT_TEXT;
+    if (ibanOk) giroIban = formatIban(giroIban);
+    settings.set({ giroName, giroIban: normalizeIban(giroIban), giroText });
+  }
+  const onEnter = (e) => e.key === "Enter" && e.currentTarget.blur();
 
   // --- Musik
   let folderError = $state("");
@@ -74,7 +88,7 @@
     if (tab === "bons") db.receipts.orderBy("createdAt").reverse().limit(30).toArray().then((r) => (receipts = r));
   });
   const when = (t) => new Date(t).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
-  const PAY = { "spiel-qr": "Schaf-Code", paypal: "PayPal" };
+  const PAY = { "spiel-qr": "Schaf-Code", paypal: "PayPal", girocode: "Überweisung (GiroCode)" };
 </script>
 
 <div class="settings">
@@ -116,6 +130,39 @@
           <div class="test">
             <QrCode text={`https://paypal.me/${settings.value.paypalName}/1.00EUR`} size="10rem" />
             <div><b>Test-Code über 1,00 €</b><code>https://paypal.me/{settings.value.paypalName}/1.00EUR</code><span class="muted">Mit dem Handy scannen und prüfen, ob der richtige Empfänger erscheint. Dann abbrechen.</span></div>
+          </div>
+        {/if}
+
+        <h2 class="sub">Überweisung (GiroCode)</h2>
+        <div class="field">
+          <label for="giro-on">GiroCode anbieten</label>
+          <div class="row">
+            <Toggle id="giro-on" label="GiroCode anbieten" checked={settings.value.giroEnabled} onchange={(v) => settings.set({ giroEnabled: v })} />
+            <span class="muted">Beim Bezahlen erscheint „Überweisung“: ein QR-Code für Banking-Apps.</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="giro-name">Empfänger</label>
+          <input id="giro-name" class="text" bind:value={giroName} onblur={saveGiro} onkeydown={onEnter} maxlength={MAX_NAME} placeholder="Vorname Nachname" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="giro-iban">IBAN</label>
+          <div class="stack">
+            <input id="giro-iban" class="text mono" bind:value={giroIban} onblur={saveGiro} onkeydown={onEnter} placeholder="DE00 0000 0000 0000 0000 00" autocomplete="off" spellcheck="false" />
+            {#if giroIban && !ibanOk}<span class="err">Diese IBAN stimmt nicht. Bitte Ziffern prüfen.</span>{/if}
+          </div>
+        </div>
+        <div class="field">
+          <label for="giro-text">Verwendungszweck</label>
+          <input id="giro-text" class="text" bind:value={giroText} onblur={saveGiro} onkeydown={onEnter} maxlength={MAX_TEXT} autocomplete="off" />
+        </div>
+        <p class="muted">
+          Der GiroCode füllt in der Banking-App eine SEPA-Überweisung aus („Foto-Überweisung“). Geld fließt erst, wenn die zahlende Person sie in ihrer App bestätigt. Die IBAN bleibt nur auf diesem Notebook gespeichert.
+        </p>
+        {#if settings.giroReady}
+          <div class="test">
+            <QrCode text={giroPayload({ name: settings.value.giroName, iban: settings.value.giroIban, cents: 100, text: settings.value.giroText })} size="10rem" ecLevel="M" badge={false} />
+            <div><b>Test-Code über 1,00 €</b><code>{settings.value.giroName} · {formatIban(settings.value.giroIban)}</code><span class="muted">Mit der Banking-App scannen und prüfen, ob Empfänger und IBAN stimmen. Dann abbrechen.</span></div>
           </div>
         {/if}
 
@@ -262,6 +309,10 @@
   .stack { display: flex; flex-direction: column; gap: 0.4rem; align-items: flex-start; }
   .muted { color: var(--ink-soft); font-weight: 600; margin: 0; max-width: 60ch; }
   .err { color: var(--danger); font-weight: 700; }
+  h2.sub { font-size: 1.4rem; margin-top: 1rem; padding-top: 1rem; border-top: 2px solid var(--wool-line); }
+  input.text { border: 2px solid var(--wool-line); border-radius: 0.7rem; background: var(--wool); padding: 0.5rem 0.7rem; font-size: 1rem; width: min(26rem, 100%); }
+  input.text.mono { font-family: monospace; letter-spacing: 0.03em; }
+  input.text:focus { outline: none; border-color: var(--grass); }
   .prefix { display: flex; align-items: center; border: 2px solid var(--wool-line); border-radius: 0.7rem; background: var(--wool); overflow: hidden; }
   .prefix span { padding: 0.5rem 0 0.5rem 0.7rem; color: var(--ink-soft); font-family: monospace; }
   .prefix input { border: 0; background: transparent; padding: 0.5rem 0.7rem 0.5rem 0; font-family: monospace; font-size: 1rem; outline: none; width: 14rem; }

@@ -40,6 +40,7 @@ Beim ersten Scannen fragt Chromium oben links nach der Kamera. Dort **„Beim Be
 ### Eltern-Bereich
 
 - **Bezahlen:** PayPal einschalten und den PayPal.me-Namen eintragen. Ein Test-Code über 1,00 € zeigt, ob der Empfänger stimmt. Ob „Freunde und Familie“ gewählt wird, entscheidet die zahlende Person in PayPal. Der Link kann das nicht vorgeben.
+- **Überweisung (GiroCode):** Einschalten, Empfänger und IBAN eintragen (Tippfehler in der IBAN werden erkannt), optional den Verwendungszweck ändern. Beim Bezahlen erscheint dann „Überweisung“: ein QR-Code nach EPC-Standard, den Banking-Apps als „Foto-Überweisung“ einlesen. Empfänger, IBAN, Betrag und Verwendungszweck sind ausgefüllt; Geld fließt erst, wenn die zahlende Person in ihrer App bestätigt. Ein Test-Code über 1,00 € zeigt, ob alles stimmt. Der GiroCode hat kein Schaf in der Mitte und nutzt die vom Standard vorgesehene Fehlerkorrektur, damit jede Banking-App ihn sicher liest.
 - **Musik:** Ordner wählen (Unterordner werden mitgenommen), Lautstärke, Zufall, Autostart. Bei Piep- und Mäh-Geräuschen wird die Musik kurz leiser.
 - **Aktionen:** Eine Aktion ein- oder ausschalten (höchstens eine zugleich). Sie gibt der Kasse ein eigenes Aussehen und einen zusätzlichen Reiter mit 12 Aktionsprodukten; alles andere funktioniert wie immer.
   - **Halloween:** Nachthimmel mit Mond und Fledermäusen, Kürbis-Orange, Spinnennetz, Schafe mit Hexenhut, „Süßes oder Saures!“ beim Bezahlen. Etiketten-Codes `2150…`.
@@ -49,7 +50,7 @@ Beim ersten Scannen fragt Chromium oben links nach der Kamera. Dort **„Beim Be
 - **Kassenbons:** Die letzten 30 Einkäufe.
 - **Scan-Protokoll:** Die letzten 50 Scans mit Code und den Antworten der Datenbanken. Hilft, wenn etwas nicht erkannt wird.
 
-Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.7.0 vom 31.10.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
+Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.8.0 vom 31.10.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
 
 ## Scannen: so funktioniert es
 
