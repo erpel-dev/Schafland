@@ -79,3 +79,14 @@ test("Aktionen: Kategorie-ids kollidieren nicht mit dem Sortiment", () => {
   for (const a of aktionen) assert.ok(!ids.has(a.id), a.id);
   assert.equal(aktionById("gibtsnicht"), null);
 });
+
+test("Aktion Weihnachten: 12 Produkte mit eigenen Codes ab 2151…, Texte vorhanden", () => {
+  const w = aktionById("weihnachten");
+  assert.equal(w.products.length, 12);
+  for (const p of w.products) {
+    assert.match(p.ean, /^2151\d{9}$/);
+    assert.equal(productByEan.get(p.ean), p);
+  }
+  assert.equal(categoryById("weihnachten").emoji, "🎄");
+  for (const a of aktionen) assert.ok(a.startText && a.thanksText && a.ground.length, a.id);
+});

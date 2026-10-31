@@ -1,7 +1,9 @@
 <script>
   import Sheep from "./Sheep.svelte";
-  import Bats from "./Bats.svelte";
+  import Deko from "./Deko.svelte";
   import { settings } from "../lib/settings.svelte.js";
+  import { aktionById } from "../lib/aktionen.js";
+  let aktion = $derived(aktionById(settings.value.aktion));
   let { onOpen } = $props();
 </script>
 
@@ -11,14 +13,16 @@
     <h1>Schafland</h1>
     <p>Hier bin ich Schaf, hier kauf ich ein</p>
   </div>
-  {#if settings.value.aktion === "halloween"}
-    <Bats big />
-    <p class="aktion"><span class="emoji">🎃</span> Halloween in Schafland <span class="emoji">🎃</span></p>
+  {#if aktion}
+    <Deko aktion={aktion.id} big />
+    <p class="aktion"><span class="emoji">{aktion.emoji}</span> {aktion.startText} <span class="emoji">{aktion.emoji}</span></p>
   {/if}
   <button class="big-btn open" onclick={onOpen}>Laden öffnen</button>
   <div class="grass"></div>
-  {#if settings.value.aktion === "halloween"}
-    <div class="pumpkins" aria-hidden="true"><span class="emoji">🎃</span><span class="emoji">🎃</span><span class="emoji">🎃</span></div>
+  {#if aktion}
+    <div class="ground" aria-hidden="true">
+      {#each aktion.ground as g, i (i)}<span class="emoji">{g}</span>{/each}
+    </div>
   {/if}
 </div>
 
@@ -33,6 +37,6 @@
   .hero :global(.bob) { animation: bob 3s ease-in-out infinite; }
   @keyframes bob { 50% { transform: translateY(-0.5rem) rotate(-3deg); } }
   .aktion { font-size: 1.6rem; color: var(--sun); margin-top: -1rem; }
-  .pumpkins { position: absolute; bottom: 2.6rem; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 8%; font-size: 4.5rem; pointer-events: none; }
-  .pumpkins span:nth-child(2) { font-size: 3.2rem; align-self: flex-end; }
+  .ground { position: absolute; bottom: 2.6rem; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 8%; font-size: 4.5rem; pointer-events: none; }
+  .ground span:nth-child(2) { font-size: 3.2rem; align-self: flex-end; }
 </style>

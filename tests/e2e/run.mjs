@@ -446,48 +446,67 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
     }
 
     // ---------- Aktionen ----------
-    if (section("aktion")) {
+    const AKTIONEN = [
+      { id: "halloween", name: "Halloween", sky: "rgb(42, 29, 71)", hat: "path[fill='#5b2a86']", buy: ["Kürbissuppe", "Hexenhut"], total: "5,20 €", thanks: "Süßes oder Saures", label: "Zauberbesen", deko: ".bat", ink: "rgb(255, 241, 220)" },
+      { id: "weihnachten", name: "Weihnachten", sky: "rgb(27, 42, 78)", hat: "path[fill='#d42d3a']", buy: ["Geschenk", "Schlitten"], total: "7,00 €", thanks: "Frohe Weihnachten", label: "Rentier-Kekse", deko: ".flake", ink: "rgb(255, 248, 234)" },
+    ];
+    for (const A of section("aktion") ? AKTIONEN : []) {
       const { browser, page, errors } = await launch("own");
       await openShop(page);
-      check("Ohne Aktion: kein Aktionsreiter, normales Aussehen", (await page.locator(".cat:has-text('Halloween')").count()) === 0 && !(await page.evaluate(() => document.documentElement.dataset.aktion)));
+      check(`${A.name}: ohne Aktion kein Aktionsreiter, normales Aussehen`, (await page.locator(".cat.aktion").count()) === 0 && !(await page.evaluate(() => document.documentElement.dataset.aktion)));
       await openSettings(page);
       await page.click("nav >> text=Aktionen");
-      await page.click("#aktion-halloween");
-      check("Aktion einschalten: Halloween-Aussehen aktiv", (await page.evaluate(() => document.documentElement.dataset.aktion)) === "halloween");
+      await page.click(`#aktion-${A.id}`);
+      check(`${A.name}: einschalten aktiviert das Aussehen`, (await page.evaluate(() => document.documentElement.dataset.aktion)) === A.id);
       await page.click("text=Zurück zum Laden");
       const tabs = await page.locator(".cat").allTextContents();
-      check("Halloween-Reiter ganz vorne und ausgewählt", tabs[0].includes("Halloween") && (await page.locator(".cat.on").textContent()).includes("Halloween"), tabs.join(" | "));
-      check("12 Aktionsprodukte im Reiter", (await page.locator(".tile").count()) === 12);
+      check(`${A.name}: Reiter ganz vorne und ausgewählt`, tabs[0].includes(A.name) && (await page.locator(".cat.on").textContent()).includes(A.name), tabs.join(" | "));
+      check(`${A.name}: 12 Aktionsprodukte im Reiter`, (await page.locator(".tile").count()) === 12);
       const sky = await page.evaluate(() => getComputedStyle(document.querySelector("header")).backgroundColor);
-      check("Kopfzeile als Nachthimmel", sky === "rgb(42, 29, 71)", sky);
-      check("Schafe tragen Hexenhut", (await page.locator("header svg path[fill='#5b2a86']").count()) === 1);
-      await page.locator(".tile").filter({ hasText: "Kürbissuppe" }).click();
-      await page.locator(".tile").filter({ hasText: "Hexenhut" }).click();
-      check("Aktionsprodukte in den Korb, Summe stimmt", (await total(page)).replace(/\s/g, " ") === "5,20 €", await total(page));
+      check(`${A.name}: Kopfzeile als Nachthimmel`, sky === A.sky, sky);
+      check(`${A.name}: Deko in der Kopfzeile`, (await page.locator(`header ${A.deko}`).count()) > 0);
+      check(`${A.name}: Schaf mit Kostüm`, (await page.locator(`header svg ${A.hat}`).count()) === 1);
+      for (const n of A.buy) await page.locator(".tile").filter({ hasText: n }).first().click();
+      // alle Aktionsprodukte einmal in den Korb: kein Name darf abgeschnitten werden
+      const before = await total(page);
+      check(`${A.name}: Aktionsprodukte in den Korb, Summe stimmt`, (await total(page)).replace(/\s/g, " ") === A.total, await total(page));
+      for (const t of await page.locator(".tile").all()) await t.click();
+      const cut = await page.evaluate(() => [...document.querySelectorAll(".ln .name")].filter((e) => e.scrollHeight > e.clientHeight + 4).map((e) => e.textContent));
+      check(`${A.name}: Namen im Korb nicht abgeschnitten`, !cut.length, cut.join(", "));
       // Sonstige Funktionen gleich: Scannen eines normalen Etiketts, Bezahlen
       await page.click("text=Scannen!");
       await page.waitForSelector(".found .t:has-text('Apfel')", { timeout: 15000 });
       const src = await page.evaluate(() => { const s = getComputedStyle(document.querySelector(".found .src")); return [s.color, s.backgroundColor]; });
-      check("Scannen funktioniert, Quellen-Schild lesbar", src[0] !== src[1] && src[0] === "rgb(255, 241, 220)", src.join(" auf "));
+      check(`${A.name}: Scannen funktioniert, Quellen-Schild lesbar`, src[0] === A.ink && src[1] === A.sky, src.join(" auf "));
       await page.click("text=✓ Fertig gescannt");
       await page.click(".pay");
       await page.click("text=Bezahlt! Neuer Einkauf");
       await page.waitForSelector(".party");
-      check("Danke-Bildschirm mit „Süßes oder Saures!“", (await page.textContent(".party")).includes("Süßes oder Saures"));
+      check(`${A.name}: Danke-Bildschirm mit „${A.thanks}!“`, (await page.textContent(".party")).includes(A.thanks));
       await wait(3600);
       await page.reload();
-      check("Aktion bleibt nach Neustart an", (await page.textContent(".start")).includes("Halloween in Schafland"));
-      await page.screenshot({ path: `${SHOTS}/aktion-halloween-start.png` });
+      check(`${A.name}: Aktion bleibt nach Neustart an`, (await page.textContent(".start")).includes(`${A.name} in Schafland`));
+      await page.screenshot({ path: `${SHOTS}/aktion-${A.id}-start.png` });
       await page.click("text=Laden öffnen");
       await openSettings(page);
       await page.click("nav >> text=Etiketten drucken");
-      check("Etiketten für Aktionsprodukte druckbar", (await page.locator(".label:has-text('Zauberbesen')").count()) === 1);
+      check(`${A.name}: Etiketten für Aktionsprodukte druckbar`, (await page.locator(`.label:has-text('${A.label}')`).count()) === 1);
       await page.click("nav >> text=Aktionen");
-      await page.click("#aktion-halloween");
+      // Wechsel auf die jeweils andere Aktion: immer nur eine aktiv
+      const other = AKTIONEN.find((x) => x !== A);
+      await page.click(`#aktion-${other.id}`);
+      check(`${A.name} → ${other.name}: nur eine Aktion aktiv`,
+        (await page.getAttribute(`#aktion-${A.id}`, "aria-checked")) === "false" && (await page.evaluate(() => document.documentElement.dataset.aktion)) === other.id);
       await page.click("text=Zurück zum Laden");
-      check("Aktion ausschalten: Reiter weg, normales Aussehen, Obst gewählt",
-        (await page.locator(".cat:has-text('Halloween')").count()) === 0 && !(await page.evaluate(() => document.documentElement.dataset.aktion)) && (await page.locator(".cat.on").textContent()).includes("Obst"));
-      check("Keine Konsolenfehler (Aktion)", !errors.length, errors.join(" | "));
+      const tabs2 = await page.locator(".cat").allTextContents();
+      check(`${A.name} → ${other.name}: nur der neue Aktionsreiter`, tabs2[0].includes(other.name) && !tabs2.some((t) => t.includes(A.name)), tabs2.join(" | "));
+      await openSettings(page);
+      await page.click("nav >> text=Aktionen");
+      await page.click(`#aktion-${other.id}`);
+      await page.click("text=Zurück zum Laden");
+      check(`${A.name}: ausschalten → normales Aussehen, Obst gewählt`,
+        (await page.locator(".cat.aktion").count()) === 0 && !(await page.evaluate(() => document.documentElement.dataset.aktion)) && (await page.locator(".cat.on").textContent()).includes("Obst"));
+      check(`Keine Konsolenfehler (${A.name})`, !errors.length, errors.join(" | "));
       await browser.close();
     }
 

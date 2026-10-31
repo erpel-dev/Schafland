@@ -41,13 +41,15 @@ Beim ersten Scannen fragt Chromium oben links nach der Kamera. Dort **„Beim Be
 
 - **Bezahlen:** PayPal einschalten und den PayPal.me-Namen eintragen. Ein Test-Code über 1,00 € zeigt, ob der Empfänger stimmt. Ob „Freunde und Familie“ gewählt wird, entscheidet die zahlende Person in PayPal. Der Link kann das nicht vorgeben.
 - **Musik:** Ordner wählen (Unterordner werden mitgenommen), Lautstärke, Zufall, Autostart. Bei Piep- und Mäh-Geräuschen wird die Musik kurz leiser.
-- **Aktionen:** Eine Aktion ein- oder ausschalten (höchstens eine zugleich). Sie gibt der Kasse ein eigenes Aussehen und einen zusätzlichen Reiter mit Aktionsprodukten; alles andere funktioniert wie immer. Erste Aktion: **Halloween** – Nachthimmel mit Mond und Fledermäusen, Kürbis-Orange, Schafe mit Hexenhut, „Süßes oder Saures!“ beim Bezahlen und ein Reiter mit 12 Halloween-Produkten.
+- **Aktionen:** Eine Aktion ein- oder ausschalten (höchstens eine zugleich). Sie gibt der Kasse ein eigenes Aussehen und einen zusätzlichen Reiter mit 12 Aktionsprodukten; alles andere funktioniert wie immer.
+  - **Halloween:** Nachthimmel mit Mond und Fledermäusen, Kürbis-Orange, Spinnennetz, Schafe mit Hexenhut, „Süßes oder Saures!“ beim Bezahlen. Etiketten-Codes `2150…`.
+  - **Weihnachten:** Winternacht mit Stern und Schneeflocken, verschneite Wiese mit Tannen und Geschenken, Weihnachtsrot, Tannenzweig mit Kugeln, Schafe mit Weihnachtsmütze, „Frohe Weihnachten!“ beim Bezahlen. Etiketten-Codes `2151…`.
 - **Etiketten drucken:** Bogen mit eigenen EAN-13-Codes (Präfix 21) für Holzobst und Spielzeug-Lebensmittel. Die Codes kollidieren nie mit echten Produkten.
 - **Gescannte Produkte:** Alles, was schon einmal gescannt wurde. Name und Preis ändern oder löschen.
 - **Kassenbons:** Die letzten 30 Einkäufe.
 - **Scan-Protokoll:** Die letzten 50 Scans mit Code und den Antworten der Datenbanken. Hilft, wenn etwas nicht erkannt wird.
 
-Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.6.0 vom 31.10.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
+Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.7.0 vom 31.10.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
 
 ## Scannen: so funktioniert es
 
@@ -130,7 +132,7 @@ src/
 kiosk/                    Start- und Autostart-Skripte
 ```
 
-Neue Aktionen kommen in `src/lib/aktionen.js` (Produkte, Name, Emoji) und bekommen ihr Aussehen in `src/app.css` über `:root[data-aktion="…"]`. Aktionsprodukte haben Etiketten-Codes ab `2150…`.
+Neue Aktionen kommen in `src/lib/aktionen.js` (Name, Emoji, Texte für Start und Danke, Deko auf der Wiese, Produkte). Das Aussehen steht in `src/app.css` unter `:root[data-aktion="…"]`, das Kostüm der Schafe in `src/components/Sheep.svelte`, die Himmels-Deko in `src/components/Deko.svelte`. Jede Aktion bekommt eigene Etiketten-Codes (`2150…`, `2151…`, …).
 
 Eigene Produkte oder Preise ändern: `src/lib/catalog.js` bearbeiten und `npm run build` ausführen. Die EAN-Codes werden aus der Position berechnet. Neue Produkte also hinten an die Liste einer Kategorie anhängen, damit die gedruckten Etiketten gültig bleiben.
 

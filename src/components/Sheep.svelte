@@ -28,6 +28,14 @@
         <rect x="21.5" y="29" width="19" height="4.5" rx="1" fill="#ef7a1a" />
         <ellipse cx="31" cy="35.5" rx="17" ry="3.6" fill="#4a2270" />
       </g>
+    {:else if costume === "weihnachten"}
+      <!-- Weihnachtsmütze, Zipfel fällt nach hinten -->
+      <g transform="rotate(-8 31 36)">
+        <path d="M18 35C19 20 30 9 45 11c6 1 9 6 7 13-4-5-9-6-12-4 2 4 3 9 3 15z" fill="#d42d3a" />
+        <path d="M40 20c-3 2-4 7-3 15" fill="none" stroke="#a51f2b" stroke-width="1.2" />
+        <rect x="15.5" y="31" width="30" height="7" rx="3.5" fill="#fffdf7" stroke="#e6e0d0" stroke-width="0.8" />
+        <circle cx="51" cy="25" r="4.6" fill="#fffdf7" stroke="#e6e0d0" stroke-width="0.8" />
+      </g>
     {/if}
   </g>
 </svg>

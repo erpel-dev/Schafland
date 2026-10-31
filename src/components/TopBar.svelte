@@ -2,7 +2,7 @@
   import Sheep from "./Sheep.svelte";
   import { music } from "../lib/music.svelte.js";
   import { settings } from "../lib/settings.svelte.js";
-  import Bats from "./Bats.svelte";
+  import Deko from "./Deko.svelte";
 
   let { onOpenSettings } = $props();
 
@@ -42,7 +42,7 @@
     </div>
   </div>
 
-  {#if settings.value.aktion === "halloween"}<Bats />{/if}
+  <Deko aktion={settings.value.aktion} />
   <div class="spacer"></div>
 
   {#if music.tracks.length}

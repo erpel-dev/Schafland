@@ -29,4 +29,5 @@
   .big .moon { left: auto; right: 9%; top: 6%; width: 9rem; height: 9rem; }
   .bat { position: absolute; height: auto; animation: flap 2.4s ease-in-out infinite; }
   @keyframes flap { 50% { transform: translateY(-0.35rem) scaleY(0.75); } }
+  @media (prefers-reduced-motion: reduce) { .bat { animation: none; } }
 </style>

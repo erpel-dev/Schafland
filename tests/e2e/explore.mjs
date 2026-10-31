@@ -161,7 +161,7 @@ async function monkey(ms) {
       [1, "PayPal-Name", async () => { if (await page.locator("#pp-name").count()) { await page.fill("#pp-name", pick(["FamilieTest", "x", "", "Name mit Leerzeichen", "a".repeat(25)])); await page.press("#pp-name", "Enter"); } }],
       [1, "Ordner wählen", async () => { const b = page.locator("text=Ordner wählen …"); if (await b.count()) await b.tap(); }],
       [1, "Lied antippen", async () => { const b = page.locator(".tracks button"); const n = await b.count(); if (n) await b.nth(Math.floor(rnd() * n)).tap(); }],
-      [2, "Aktion an/aus", async () => { const t = page.locator("#aktion-halloween"); if (await t.count()) await t.tap(); }],
+      [2, "Aktion an/aus", async () => { const t = page.locator(pick(["#aktion-halloween", "#aktion-weihnachten"])); if (await t.count()) await t.tap(); }],
       [1, "Name ändern", async () => { const i = page.locator(".prod input.name"); if (await i.count()) { await i.first().fill(pick(["c't", "Mein Heft", "", "  ", "X".repeat(80), "Zeitschrift"])); await i.first().press("Enter"); } }],
       [1, "Protokoll leeren", async () => { const b = page.locator("text=Protokoll leeren"); if (await b.count()) await b.tap(); }],
       [1, "Preis ändern", async () => { const i = page.locator(".prod .price input"); if (await i.count()) { await i.first().fill(pick(["0,5", "12", "abc", "-1", "999,99", "1000", ""])); await i.first().press("Tab"); } }],

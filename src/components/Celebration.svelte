@@ -2,7 +2,8 @@
   import Sheep from "./Sheep.svelte";
   import { euro } from "../lib/money.js";
   import { settings } from "../lib/settings.svelte.js";
-  import Bats from "./Bats.svelte";
+  import Deko from "./Deko.svelte";
+  import { aktionById } from "../lib/aktionen.js";
 
   let { total, onDone } = $props();
 
@@ -15,11 +16,11 @@
 <button class="party" onclick={onDone} aria-label="Weiter">
   <div class="msg">
     <b>Danke für deinen Einkauf!</b>
-    <span>{euro(total)} · {settings.value.aktion === "halloween" ? "Süßes oder Saures!" : "Bis bald in Schafland"}</span>
+    <span>{euro(total)} · {aktionById(settings.value.aktion)?.thanksText ?? "Bis bald in Schafland"}</span>
   </div>
   <div class="runner"><Sheep size="9rem" class="run" /></div>
   <div class="grass"></div>
-  {#if settings.value.aktion === "halloween"}<Bats big />{/if}
+  <Deko aktion={settings.value.aktion} big />
 </button>
 
 <style>
