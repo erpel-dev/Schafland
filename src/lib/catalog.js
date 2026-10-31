@@ -11,7 +11,10 @@ export const categories = [
 
 export const SCANNED = { id: "gescannt", name: "Gescannt", emoji: "📦", defaultPrice: 100 };
 
-export const categoryById = (id) => categories.find((c) => c.id === id) ?? SCANNED;
+// Nur für gescannte Produkte (kein eigener Reiter im Regal)
+export const MAGAZINE = { id: "zeitschrift", name: "Zeitschrift", emoji: "📰", defaultPrice: 350 };
+
+export const categoryById = (id) => categories.find((c) => c.id === id) ?? (id === MAGAZINE.id ? MAGAZINE : SCANNED);
 
 // [Name, Emoji, Preis in Cent]
 const raw = {

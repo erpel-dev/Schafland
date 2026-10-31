@@ -1,6 +1,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { lookupOpenFacts } from "../../src/lib/off.js";
+import { NetworkError } from "../../src/lib/net.js";
 
 const realFetch = globalThis.fetch;
 let calls;
@@ -69,8 +70,14 @@ test("überall unbekannt → null", async () => {
 
 test("Netzwerkfehler: sofort aufgeben statt drei Server abzuwarten", async () => {
   mockFetch(() => { throw new TypeError("Failed to fetch"); });
-  assert.equal(await lookupOpenFacts("1"), null);
+  await assert.rejects(lookupOpenFacts("1"), NetworkError);
   assert.equal(calls.length, 1);
+});
+
+test("HTTP 404 (so meldet Open Food Facts unbekannte Codes) zählt als nicht gefunden", async () => {
+  mockFetch(() => json({ status: 0, status_verbose: "product not found" }, 404));
+  assert.equal(await lookupOpenFacts("1"), null);
+  assert.equal(calls.length, 3);
 });
 
 test("Produkt ohne Namen zählt als nicht gefunden", async () => {

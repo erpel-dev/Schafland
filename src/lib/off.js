@@ -1,4 +1,5 @@
 import { categories, SCANNED } from "./catalog.js";
+import { getJson, fetchImage } from "./net.js";
 
 // Open Food Facts und die Schwesterprojekte haben dieselbe Schnittstelle.
 const HOSTS = [
@@ -23,30 +24,14 @@ function mapCategory(tags = []) {
   return SCANNED.id;
 }
 
-async function fetchImage(url) {
-  try {
-    const res = await fetch(url, { mode: "cors" });
-    if (res.ok) return await res.blob();
-  } catch {
-    // Bild ohne CORS: dann bleibt nur die URL, das Bild kommt online trotzdem.
-  }
-  return null;
-}
-
-/** Sucht einen Code in den offenen Datenbanken. Gibt ein fertiges Produkt oder null zurück. */
+/**
+ * Sucht einen Code in den offenen Datenbanken. Gibt ein fertiges Produkt oder null zurück.
+ * Wirft NetworkError, wenn keine Verbindung besteht.
+ */
 export async function lookupOpenFacts(ean, { timeoutMs = 5000 } = {}) {
   for (const host of HOSTS) {
-    let data;
-    try {
-      const res = await fetch(`${host}/api/v2/product/${ean}.json?fields=${FIELDS}&lc=de`, {
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-      if (!res.ok) continue;
-      data = await res.json();
-    } catch {
-      // Kein Internet oder Zeitüberschreitung: die anderen Server sind dann auch nicht erreichbar
-      return null;
-    }
+    // NetworkError wird nicht abgefangen: ohne Internet sind die anderen Server auch nicht erreichbar
+    const data = await getJson(`${host}/api/v2/product/${ean}.json?fields=${FIELDS}&lc=de`, timeoutMs);
     const p = data?.product;
     if (data?.status !== 1 || !p) continue;
 

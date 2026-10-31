@@ -2,10 +2,11 @@
 // Braucht ffmpeg und Playwright-Chromium. Ergebnis: tests/e2e/.fixtures/
 import { chromium } from "playwright";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { checkDigit } from "../../src/lib/ean.js";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 export const FIX = path.join(ROOT, "tests/e2e/.fixtures");
@@ -15,10 +16,13 @@ export const CODES = {
   off: "4001234567891", // simuliertes Open-Food-Facts-Produkt
   own: "2101001000001", // eigenes Etikett: Apfel
   unknown: "4009998887774", // gültig, aber in keiner Datenbank
+  magazine: "977072486700" + checkDigit("977072486700"), // Zeitschrift mit ISSN 0724-8679 (c't)
 };
+// Bei Änderungen an den Fixtures erhöhen, dann werden sie neu erzeugt
+const VERSION = "2";
 
 export async function makeFixtures({ force = false } = {}) {
-  if (!force && existsSync(path.join(FIX, "done"))) return FIX;
+  if (!force && existsSync(path.join(FIX, "done")) && readFileSync(path.join(FIX, "done"), "utf8").startsWith(`${VERSION} `)) return FIX;
   try {
     execFileSync("ffmpeg", ["-version"], { stdio: "ignore" });
   } catch {
@@ -41,6 +45,7 @@ export async function makeFixtures({ force = false } = {}) {
   await cam("off", CODES.off);
   await cam("own", CODES.own, { label: "Apfel", rot: 3 });
   await cam("unknown", CODES.unknown);
+  await cam("magazine", CODES.magazine, { label: "c't 23/2026", rot: -3 });
   await cam("small", CODES.off, { barWidth: 1.1, height: 45, rot: -8 });
   await cam("empty", null);
 
@@ -51,7 +56,7 @@ export async function makeFixtures({ force = false } = {}) {
   await browser.close();
 
   const y4m = (src, out, vf) => ffmpeg("-loop", "1", "-t", "3", "-r", "15", "-i", path.join(FIX, src), ...(vf ? ["-vf", vf] : []), "-pix_fmt", "yuv420p", path.join(FIX, out));
-  for (const n of ["off", "own", "unknown", "small", "empty"]) y4m(`${n}.png`, `${n}.y4m`);
+  for (const n of ["off", "own", "unknown", "magazine", "small", "empty"]) y4m(`${n}.png`, `${n}.y4m`);
   // Wie eine alte Fixfokus-Webcam: unscharf und verrauscht
   y4m("off.png", "blur.y4m", "gblur=sigma=2.5,noise=alls=18:allf=t");
   // Absichtlich zu schwer: klein, unscharf und kontrastarm zugleich
@@ -61,7 +66,7 @@ export async function makeFixtures({ force = false } = {}) {
     ffmpeg("-f", "lavfi", "-i", `sine=frequency=${hz}:duration=2`, "-q:a", "9", path.join(FIX, "musik", `${name}.mp3`));
   }
   writeFileSync(path.join(FIX, "musik", "02b_Kaputt.mp3"), randomBytes(5000));
-  writeFileSync(path.join(FIX, "done"), new Date().toISOString());
+  writeFileSync(path.join(FIX, "done"), `${VERSION} ${new Date().toISOString()}`);
   return FIX;
 }
 

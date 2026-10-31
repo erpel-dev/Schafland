@@ -1,6 +1,8 @@
 import { db } from "./db.js";
 import { productByEan } from "./catalog.js";
 import { lookupOpenFacts } from "./off.js";
+import { lookupWikidata, issnFromEan } from "./wikidata.js";
+import { NetworkError } from "./net.js";
 
 /** Gescannte Produkte aus IndexedDB, für den Reiter "Gescannt". */
 class Scanned {
@@ -33,7 +35,8 @@ const misses = new Map();
 const MISS_TTL_MS = 10 * 60 * 1000;
 
 /**
- * Reihenfolge: eigener Katalog → lokal gespeichert → Open Food Facts (nur online).
+ * Reihenfolge: eigener Katalog → lokal gespeichert → Open Food Facts & Co. → Wikidata.
+ * Zeitschriften (Präfix 977) zuerst bei Wikidata, dort sind sie über die ISSN zu finden.
  * Gibt { product, source } oder null zurück.
  */
 export async function findByEan(ean) {
@@ -45,7 +48,14 @@ export async function findByEan(ean) {
 
   if (!navigator.onLine) return null;
   if (Date.now() - (misses.get(ean) ?? 0) < MISS_TTL_MS) return null;
-  const found = await lookupOpenFacts(ean);
+  const sources = issnFromEan(ean) ? [lookupWikidata, lookupOpenFacts] : [lookupOpenFacts, lookupWikidata];
+  let found = null;
+  try {
+    for (const lookup of sources) if ((found = await lookup(ean))) break;
+  } catch (err) {
+    if (err instanceof NetworkError) return null; // kein Internet: nicht als "unbekannt" merken
+    throw err;
+  }
   if (!found) {
     misses.set(ean, Date.now());
     return null;

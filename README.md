@@ -50,8 +50,11 @@ Beim ersten Scannen fragt Chromium oben links nach der Kamera. Dort **„Beim Be
 1. Eigener Katalog (`src/lib/catalog.js`, Codes von den gedruckten Etiketten)
 2. Bereits gescannte Produkte (IndexedDB, auch offline)
 3. Open Food Facts → Open Beauty Facts → Open Products Facts (nur online)
+4. Wikidata (nur online): über die Artikelnummer (Eigenschaft P3962) und bei Zeitschriften über die ISSN
 
-Gefundene Produkte bekommen Name und Foto aus der Datenbank und einen Spielpreis aus ihrer Kategorie (Süßes 0,99 €, Milch 1,20 € …). Danach sind sie im Reiter „Gescannt“ auch ohne Internet da.
+Gefundene Produkte bekommen Name und Foto aus der Datenbank und einen Spielpreis aus ihrer Kategorie (Süßes 0,99 €, Milch 1,20 €, Zeitschrift 3,50 € …). Danach sind sie im Reiter „Gescannt“ auch ohne Internet da.
+
+**Zeitschriften:** Codes, die mit **977** beginnen, enthalten die ISSN der Zeitschrift (977 + 7 ISSN-Ziffern + 2 Ziffern Ausgabe + Prüfziffer). Schafland rechnet die ISSN aus und fragt dafür zuerst Wikidata, wo die meisten Zeitschriften mit ISSN, Namen und Logo stehen. Deutsche Pressecodes, die mit **414** oder **419** beginnen, enthalten dagegen keine ISSN und stehen in keiner freien Datenbank. Welcher Code gelesen wurde, steht beim Scannen oben links im Kamerabild.
 
 Die Erkennung läuft mit [zxing-wasm](https://github.com/Sec-Ant/zxing-wasm) in einem Web Worker. Die Kamera liefert 640×480, höchstens ca. 9 Bilder pro Sekunde werden ausgewertet. Abwechselnd wird der mittlere Bildstreifen gelesen und die Bildmitte 2× vergrößert, einmal davon quer nachgeschärft. So werden auch kleine und leicht unscharfe Codes alter Fixfokus-Kameras erkannt.
 
@@ -83,7 +86,7 @@ Die Browser-Tests brauchen `ffmpeg` und Python 3, einmalig außerdem `npx playwr
 
 | Datei | Inhalt |
 | --- | --- |
-| `tests/unit/` | EAN-Prüfziffern, Katalog, Geldformat, Open-Food-Facts-Abfrage |
+| `tests/unit/` | EAN-Prüfziffern, Katalog, Geldformat, Open-Food-Facts- und Wikidata-Abfrage, ISSN aus dem Strichcode |
 | `tests/e2e/run.mjs` | Warenkorb, Scannen, Bezahlen, Einstellungen, Musik, Touch, Bildschirmgrößen, langsame CPU, offline |
 | `tests/e2e/explore.mjs` | Affentest mit Prüfung nach jedem Schritt, Dauerlauf Kamera und Musik, Randfälle |
 

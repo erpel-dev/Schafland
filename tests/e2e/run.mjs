@@ -18,6 +18,7 @@ const ONLY = process.argv.find((a) => a.startsWith("--only="))?.slice(7);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = [];
 let offRequests = [];
+let wikidataRequests = [];
 
 /** info: Ergebnis wird berichtet, zählt aber nicht als Fehler (bekannte Grenze). */
 function check(name, ok, detail = "", { info = false } = {}) {
@@ -43,6 +44,17 @@ async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, 
     const hit = url.includes("openfoodfacts") && url.includes("4001234567891");
     route.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(hit ? PRODUCT : { status: 0, status_verbose: "product not found" }) });
   });
+  // Wikidata: kennt nur die Zeitschrift mit ISSN 0724-8679
+  await ctx.route(/www\.wikidata\.org\/w\/api\.php/, (route) => {
+    const url = decodeURIComponent(route.request().url());
+    wikidataRequests.push(url);
+    if (offFail) return route.abort("internetdisconnected");
+    const body = url.includes("list=search")
+      ? { query: { search: url.includes("P236=0724-8679") ? [{ title: "Q1140000" }] : [] } }
+      : { entities: { Q1140000: { labels: { de: { value: "c’t" } }, descriptions: { de: { value: "Computerzeitschrift" } }, claims: { P31: [{ mainsnak: { datavalue: { value: { id: "Q41298" } } } }], P154: [{ mainsnak: { datavalue: { value: "Ct-logo.svg" } } }] } } } };
+    route.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(body) });
+  });
+  await ctx.route("https://commons.wikimedia.org/**", (r) => r.fulfill({ contentType: "image/png", headers: { "access-control-allow-origin": "*" }, body: fs.readFileSync(`${Q}/product.png`) }));
   await ctx.route("https://images.openfoodfacts.org/**", (r) => r.fulfill({ contentType: "image/png", headers: { "access-control-allow-origin": "*" }, body: fs.readFileSync(`${Q}/product.png`) }));
   await ctx.route("**/__qa/**", (r) => r.fulfill({ contentType: "audio/mpeg", body: fs.readFileSync(path.join(Q, "musik", decodeURIComponent(r.request().url().split("/__qa/")[1]))) }));
   const names = fs.readdirSync(`${Q}/musik`).sort();
@@ -169,6 +181,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
     }
     if (section("scan")) {
       offRequests = [];
+      wikidataRequests = [];
       const { browser, page } = await launch("unknown");
       await openShop(page);
       await page.click("text=Scannen!");
@@ -178,11 +191,13 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await wait(4000);
       const n = offRequests.length;
       check("Unbekannter Code vor der Kamera: keine Dauer-Abfragen", n <= 3, `${n} Anfragen in ~5 s`);
+      check("Unbekannter Code: Wikidata einmal gefragt (nach Open Food Facts)", wikidataRequests.length === 1, `${wikidataRequests.length} Anfragen`);
       await page.screenshot({ path: `${SHOTS}/scan-unbekannt.png` });
       await browser.close();
     }
     if (section("scan")) {
       offRequests = [];
+      wikidataRequests = [];
       const { browser, page } = await launch("unknown", { offFail: true });
       await openShop(page);
       await page.click("text=Scannen!");
@@ -190,6 +205,32 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await page.waitForSelector("text=Das kenne ich nicht", { timeout: 25000 });
       const dt = Date.now() - t0;
       check("WLAN da, aber kein Internet: schnelle Antwort", dt < 8000, `${dt} ms, ${offRequests.length} Anfragen`);
+      check("Kein Internet: Wikidata wird gar nicht erst gefragt", wikidataRequests.length === 0, `${wikidataRequests.length} Anfragen`);
+      await browser.close();
+    }
+    if (section("scan")) {
+      offRequests = [];
+      wikidataRequests = [];
+      const { browser, page, errors } = await launch("magazine");
+      await openShop(page);
+      await page.click("text=Scannen!");
+      let ok = true;
+      try { await page.waitForSelector(".found .t:has-text('c’t')", { timeout: 15000 }); } catch { ok = false; }
+      check("Zeitschrift (977-Code) über Wikidata gefunden", ok);
+      if (ok) {
+        check("Zeitschrift: Wikidata zuerst, Open Food Facts gar nicht gefragt", offRequests.length === 0 && wikidataRequests.length === 2, `OFF ${offRequests.length}, Wikidata ${wikidataRequests.length}`);
+        check("Zeitschrift: Suche über die ISSN aus dem Strichcode", wikidataRequests[0].includes("P236=0724-8679"));
+        const info = (await page.textContent(".found")).replace(/\s+/g, " ");
+        check("Zeitschrift: Quelle, ISSN und Preis 3,50 € angezeigt", info.includes("wikidata.org") && info.includes("ISSN 0724-8679") && info.includes("3,50"), info.slice(0, 120));
+        check("Zeitschrift: Logo geladen", (await page.locator(".found .pimg img").count()) === 1);
+        await page.waitForSelector("text=✓ Im Korb", { timeout: 4000 });
+        await page.screenshot({ path: `${SHOTS}/scan-zeitschrift.png` });
+        await page.click("text=✓ Fertig gescannt");
+        await openSettings(page);
+        await page.click("nav >> text=Gescannte Produkte");
+        check("Eltern-Bereich: Kategorie „Zeitschrift“", (await page.textContent(".prod")).includes("Zeitschrift"));
+      }
+      check("Keine Konsolenfehler (Zeitschrift)", !errors.length, errors.join(" | "));
       await browser.close();
     }
     if (section("scan")) {
