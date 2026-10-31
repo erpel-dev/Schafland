@@ -19,6 +19,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = [];
 let offRequests = [];
 let wikidataRequests = [];
+let bookRequests = [];
 
 /** info: Ergebnis wird berichtet, zählt aber nicht als Fehler (bekannte Grenze). */
 function check(name, ok, detail = "", { info = false } = {}) {
@@ -31,7 +32,7 @@ const section = (name) => !ONLY || ONLY.split(",").includes(name);
 const PRODUCT = { status: 1, product: { product_name_de: "Vollmilch-Schokolade", brands: "Beispielmarke", quantity: "100 g",
   image_front_small_url: "https://images.openfoodfacts.org/x/front.jpg", categories_tags: ["en:sweet-snacks", "en:chocolates"] } };
 
-async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, touch = false, camera = true, fakeDir = true, noPicker = false, offFail = false, offMode = null } = {}) {
+async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, touch = false, camera = true, fakeDir = true, noPicker = false, offFail = false, offMode = null, googleDown = false } = {}) {
   const args = ["--use-fake-device-for-media-stream", `--use-file-for-fake-video-capture=${Q}/${cam}.y4m`, "--autoplay-policy=no-user-gesture-required"];
   args.push(camera ? "--use-fake-ui-for-media-stream" : "--deny-permission-prompts");
   const browser = await chromium.launch({ args });
@@ -55,6 +56,23 @@ async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, 
       : { entities: { Q1140000: { labels: { de: { value: "c’t" } }, descriptions: { de: { value: "Computerzeitschrift" } }, claims: { P31: [{ mainsnak: { datavalue: { value: { id: "Q41298" } } } }], P154: [{ mainsnak: { datavalue: { value: "Ct-logo.svg" } } }] } } } };
     route.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(body) });
   });
+  // Bücher: Google Books und Open Library kennen nur die Beispiel-ISBN
+  await ctx.route(/www\.googleapis\.com\/books/, (route) => {
+    bookRequests.push("google");
+    if (googleDown) return route.fulfill({ status: 503, headers: { "access-control-allow-origin": "*" }, body: "" });
+    const hit = route.request().url().includes("9783161484100");
+    route.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(hit
+      ? { totalItems: 1, items: [{ volumeInfo: { title: "Das Testbuch vom Schaf", authors: ["Wolle Wollmann"], publisher: "Wiesenverlag", industryIdentifiers: [{ type: "ISBN_13", identifier: "9783161484100" }], imageLinks: { thumbnail: "http://books.google.com/books/content?id=t&img=1" } } }] }
+      : { totalItems: 0 }) });
+  });
+  await ctx.route(/openlibrary\.org\/api\/books/, (route) => {
+    bookRequests.push("openlibrary");
+    const hit = route.request().url().includes("9783161484100");
+    route.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(hit
+      ? { "ISBN:9783161484100": { title: "Das Testbuch vom Schaf (Open Library)", authors: [{ name: "Wolle Wollmann" }], publishers: [{ name: "Wiesenverlag" }], cover: { medium: "https://covers.openlibrary.org/b/id/1-M.jpg" } } }
+      : {}) });
+  });
+  await ctx.route(/books\.google\.com\/books\/content|covers\.openlibrary\.org/, (r) => r.fulfill({ contentType: "image/png", headers: { "access-control-allow-origin": "*" }, body: fs.readFileSync(`${Q}/product.png`) }));
   await ctx.route("https://commons.wikimedia.org/**", (r) => r.fulfill({ contentType: "image/png", headers: { "access-control-allow-origin": "*" }, body: fs.readFileSync(`${Q}/product.png`) }));
   await ctx.route("https://images.openfoodfacts.org/**", (r) => r.fulfill({ contentType: "image/png", headers: { "access-control-allow-origin": "*" }, body: fs.readFileSync(`${Q}/product.png`) }));
   await ctx.route("**/__qa/**", (r) => r.fulfill({ contentType: "audio/mpeg", body: fs.readFileSync(path.join(Q, "musik", decodeURIComponent(r.request().url().split("/__qa/")[1]))) }));
@@ -257,6 +275,27 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
         check("Eltern-Bereich: Kategorie „Zeitschrift“", (await page.textContent(".prod")).includes("Zeitschrift"));
       }
       check("Keine Konsolenfehler (Zeitschrift)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+    for (const googleDown of section("scan") ? [false, true] : []) {
+      offRequests = [];
+      wikidataRequests = [];
+      bookRequests = [];
+      const { browser, page, errors } = await launch("book", { googleDown });
+      await openShop(page);
+      await page.click("text=Scannen!");
+      const label = googleDown ? "Google Books gestört: Buch über Open Library" : "Buch (ISBN) über Google Books";
+      let ok = true;
+      try { await page.waitForSelector(".found .t:has-text('Testbuch')", { timeout: 20000 }); } catch { ok = false; }
+      check(`${label} gefunden`, ok, bookRequests.join(" → "));
+      if (ok) {
+        const info = (await page.textContent(".found")).replace(/\s+/g, " ");
+        check(`${label}: Autor, Verlag, 5,00 €`, info.includes("Wolle Wollmann") && info.includes("Wiesenverlag") && info.includes("5,00"), info.slice(0, 140));
+        check(`${label}: Lebensmittel-Datenbanken nicht gefragt`, offRequests.length === 0 && wikidataRequests.length === 0, `OFF ${offRequests.length}, Wikidata ${wikidataRequests.length}`);
+        check(`${label}: Cover angezeigt`, (await page.locator(".found .pimg img").count()) === 1);
+        if (!googleDown) await page.screenshot({ path: `${SHOTS}/scan-buch.png` });
+      }
+      check(`Keine Konsolenfehler (${label})`, !errors.filter((e) => !/503|Failed to load resource/.test(e)).length, errors.join(" | "));
       await browser.close();
     }
     if (section("scan")) {

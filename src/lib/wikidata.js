@@ -1,4 +1,5 @@
-import { categoryById, MAGAZINE, SCANNED } from "./catalog.js";
+import { categoryById, BOOK, MAGAZINE, SCANNED } from "./catalog.js";
+import { isBookEan, isbnHyphenations } from "./books.js";
 import { getJson, fetchImage } from "./net.js";
 
 // MediaWiki-API von Wikidata. origin=* erlaubt anonyme Abfragen direkt aus dem Browser.
@@ -7,6 +8,7 @@ const API = "https://www.wikidata.org/w/api.php";
 // Wikidata-Eigenschaften
 const P_GTIN = "P3962"; // Globale Artikelnummer (EAN/GTIN)
 const P_ISSN = "P236";
+const P_ISBN13 = "P212";
 const P_INSTANCE_OF = "P31";
 const P_IMAGE = "P18";
 const P_LOGO = "P154";
@@ -38,7 +40,8 @@ export const commonsThumb = (file, width = 256) =>
   `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}?width=${width}`;
 
 /**
- * Sucht einen Strichcode in Wikidata: über die GTIN, bei Zeitschriften zusätzlich über die ISSN.
+ * Sucht einen Strichcode in Wikidata: über die GTIN, bei Zeitschriften zusätzlich über die ISSN,
+ * bei Büchern über die ISBN-13 (alle möglichen Schreibweisen mit Bindestrichen in einer Anfrage).
  * Gibt ein fertiges Produkt oder null zurück. Wirft NetworkError ohne Verbindung.
  */
 export async function lookupWikidata(ean, { timeoutMs = 8000, trace = [] } = {}) {
@@ -46,6 +49,8 @@ export async function lookupWikidata(ean, { timeoutMs = 8000, trace = [] } = {})
   // GTIN steht teils 13-, teils 14-stellig (mit führender 0) in Wikidata
   const statements = [`${P_GTIN}=${ean}`, `${P_GTIN}=0${ean}`];
   if (issn) statements.unshift(`${P_ISSN}=${issn}`);
+  const isBook = isBookEan(ean);
+  if (isBook) statements.unshift(...isbnHyphenations(ean).map((isbn) => `${P_ISBN13}=${isbn}`));
 
   let search;
   let data;
@@ -56,7 +61,7 @@ export async function lookupWikidata(ean, { timeoutMs = 8000, trace = [] } = {})
     );
     const id = search?.query?.search?.[0]?.title;
     if (!/^Q\d+$/.test(id ?? "")) {
-      trace.push(`wikidata.org: nicht gefunden${issn ? ` (ISSN ${issn})` : ""}`);
+      trace.push(`wikidata.org: nicht gefunden${issn ? ` (ISSN ${issn})` : isBook ? " (ISBN)" : ""}`);
       return null;
     }
     data = await getJson(
@@ -77,7 +82,7 @@ export async function lookupWikidata(ean, { timeoutMs = 8000, trace = [] } = {})
   trace.push(`wikidata.org: gefunden (${id})`);
 
   const isPeriodical = !!issn || claimValues(entity, P_INSTANCE_OF).some((v) => PERIODICALS.has(v.id));
-  const cat = isPeriodical ? MAGAZINE : categoryById(SCANNED.id);
+  const cat = isBook ? BOOK : isPeriodical ? MAGAZINE : categoryById(SCANNED.id);
   const file = claimValues(entity, P_LOGO)[0] ?? claimValues(entity, P_IMAGE)[0];
   const imageUrl = typeof file === "string" ? commonsThumb(file) : null;
 

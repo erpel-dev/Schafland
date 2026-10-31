@@ -14,7 +14,10 @@ export const SCANNED = { id: "gescannt", name: "Gescannt", emoji: "📦", defaul
 // Nur für gescannte Produkte (kein eigener Reiter im Regal)
 export const MAGAZINE = { id: "zeitschrift", name: "Zeitschrift", emoji: "📰", defaultPrice: 350 };
 
-export const categoryById = (id) => categories.find((c) => c.id === id) ?? (id === MAGAZINE.id ? MAGAZINE : SCANNED);
+export const BOOK = { id: "buch", name: "Buch", emoji: "📚", defaultPrice: 500 };
+
+const scannedKinds = [MAGAZINE, BOOK];
+export const categoryById = (id) => categories.find((c) => c.id === id) ?? scannedKinds.find((c) => c.id === id) ?? SCANNED;
 
 // [Name, Emoji, Preis in Cent]
 const raw = {

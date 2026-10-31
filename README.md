@@ -51,9 +51,11 @@ Beim ersten Scannen fragt Chromium oben links nach der Kamera. Dort **„Beim Be
 1. Eigener Katalog (`src/lib/catalog.js`, Codes von den gedruckten Etiketten)
 2. Bereits gescannte Produkte (IndexedDB, auch offline)
 3. Open Food Facts → Open Beauty Facts → Open Products Facts (nur online)
-4. Wikidata (nur online): über die Artikelnummer (Eigenschaft P3962) und bei Zeitschriften über die ISSN
+4. Wikidata (nur online): über die Artikelnummer (Eigenschaft P3962), bei Zeitschriften über die ISSN, bei Büchern über die ISBN
 
-Gefundene Produkte bekommen Name und Foto aus der Datenbank und einen Spielpreis aus ihrer Kategorie (Süßes 0,99 €, Milch 1,20 €, Zeitschrift 3,50 € …). Danach sind sie im Reiter „Gescannt“ auch ohne Internet da.
+**Bücher:** Codes, die mit **978** oder **979** beginnen, sind die ISBN des Buchs. Sie werden bei Google Books, dann Open Library, dann Wikidata gesucht, die Lebensmittel-Datenbanken werden dabei übersprungen. Angezeigt werden Titel, Autor, Verlag und Cover; der Spielpreis für Bücher ist 5,00 € (im Eltern-Bereich änderbar). Google Books funktioniert ohne Schlüssel, hat aber ein Tageslimit; ist es erreicht, springt Open Library ein.
+
+Gefundene Produkte bekommen Name und Foto aus der Datenbank und einen Spielpreis aus ihrer Kategorie (Süßes 0,99 €, Milch 1,20 €, Zeitschrift 3,50 €, Buch 5,00 € …). Danach sind sie im Reiter „Gescannt“ auch ohne Internet da.
 
 **Zeitschriften:** Codes, die mit **977** beginnen, enthalten die ISSN der Zeitschrift (977 + 7 ISSN-Ziffern + 2 Ziffern Ausgabe + Prüfziffer). Schafland rechnet die ISSN aus und fragt dafür zuerst Wikidata, wo die meisten Zeitschriften mit ISSN, Namen und Logo stehen. Deutsche Pressecodes, die mit **414** oder **419** beginnen, enthalten dagegen keine ISSN und stehen in keiner freien Datenbank. Welcher Code gelesen wurde, steht beim Scannen oben links im Kamerabild.
 
@@ -98,7 +100,7 @@ Die Browser-Tests brauchen `ffmpeg` und Python 3, einmalig außerdem `npx playwr
 
 | Datei | Inhalt |
 | --- | --- |
-| `tests/unit/` | EAN-Prüfziffern, Katalog, Geldformat, Open-Food-Facts- und Wikidata-Abfrage, ISSN aus dem Strichcode |
+| `tests/unit/` | EAN-Prüfziffern, Katalog, Geldformat, Abfragen bei Open Food Facts, Wikidata, Google Books und Open Library, ISSN und ISBN aus dem Strichcode |
 | `tests/e2e/run.mjs` | Warenkorb, Scannen, Bezahlen, Einstellungen, Musik, Touch, Bildschirmgrößen, langsame CPU, offline |
 | `tests/e2e/explore.mjs` | Affentest mit Prüfung nach jedem Schritt, Dauerlauf Kamera und Musik, Randfälle |
 

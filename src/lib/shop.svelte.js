@@ -2,6 +2,7 @@ import { db } from "./db.js";
 import { productByEan } from "./catalog.js";
 import { lookupOpenFacts } from "./off.js";
 import { lookupWikidata, issnFromEan } from "./wikidata.js";
+import { isBookEan, lookupGoogleBooks, lookupOpenLibrary } from "./books.js";
 import { NetworkError, ServiceError } from "./net.js";
 
 /** Gescannte Produkte aus IndexedDB, für den Reiter "Gescannt". */
@@ -38,6 +39,7 @@ const MISS_TTL_MS = 2 * 60 * 1000;
 /**
  * Reihenfolge: eigener Katalog → lokal gespeichert → Open Food Facts & Co. → Wikidata.
  * Zeitschriften (Präfix 977) zuerst bei Wikidata, dort sind sie über die ISSN zu finden.
+ * Bücher (Präfix 978/979) bei Google Books → Open Library → Wikidata, nicht bei den Lebensmitteln.
  *
  * Ergebnis:
  *   { product, source }                gefunden
@@ -57,7 +59,11 @@ export async function findByEan(ean) {
   }
 
   const trace = [];
-  const sources = issnFromEan(ean) ? [lookupWikidata, lookupOpenFacts] : [lookupOpenFacts, lookupWikidata];
+  const sources = isBookEan(ean)
+    ? [lookupGoogleBooks, lookupOpenLibrary, lookupWikidata]
+    : issnFromEan(ean)
+      ? [lookupWikidata, lookupOpenFacts]
+      : [lookupOpenFacts, lookupWikidata];
   let disturbed = false;
   for (const lookup of sources) {
     try {
