@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { checkDigit, ownEan, isValidEan } from "../../src/lib/ean.js";
-import { products, productByEan } from "../../src/lib/catalog.js";
+import { products, allProducts, productByEan, categoryById } from "../../src/lib/catalog.js";
+import { aktionen, aktionById } from "../../src/lib/aktionen.js";
 
 test("Prüfziffer bekannter EAN-13-Codes", () => {
   assert.equal(checkDigit("400638133393"), "1");
@@ -28,8 +29,8 @@ test("isValidEan erkennt falsche Prüfziffern und Längen", () => {
 
 test("Katalog: jeder eigene Code ist gültig und eindeutig", () => {
   assert.ok(products.length >= 50);
-  for (const p of products) assert.ok(isValidEan(p.ean), `${p.name}: ${p.ean}`);
-  assert.equal(productByEan.size, products.length);
+  for (const p of allProducts) assert.ok(isValidEan(p.ean), `${p.name}: ${p.ean}`);
+  assert.equal(productByEan.size, allProducts.length, "kein Code doppelt, auch nicht zwischen Sortiment und Aktionen");
 });
 
 test("Katalog: Preise sind ganze Cent-Beträge, Namen eindeutig", () => {
@@ -58,4 +59,23 @@ test("Katalog: Brötchen sind hinten angehängt, alte Backwaren-Codes unverände
   const kaiser = products.find((p) => p.name.replace(/\u00ad/g, "") === "Kaiserbrötchen");
   assert.equal(kaiser.ean, "2104010000000");
   assert.equal(kaiser.categoryId, "backwaren");
+});
+
+test("Aktion Halloween: 12 Produkte mit eigenen Codes ab 2150…", () => {
+  const h = aktionById("halloween");
+  assert.ok(h);
+  assert.equal(h.products.length, 12);
+  for (const p of h.products) {
+    assert.match(p.ean, /^2150\d{9}$/);
+    assert.equal(p.categoryId, "halloween");
+    assert.equal(productByEan.get(p.ean), p);
+  }
+  assert.equal(h.products[0].name, "Kürbis");
+  assert.equal(categoryById("halloween").name, "Halloween");
+});
+
+test("Aktionen: Kategorie-ids kollidieren nicht mit dem Sortiment", () => {
+  const ids = new Set(products.map((p) => p.categoryId));
+  for (const a of aktionen) assert.ok(!ids.has(a.id), a.id);
+  assert.equal(aktionById("gibtsnicht"), null);
 });

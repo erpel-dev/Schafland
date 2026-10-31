@@ -445,6 +445,52 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await browser.close();
     }
 
+    // ---------- Aktionen ----------
+    if (section("aktion")) {
+      const { browser, page, errors } = await launch("own");
+      await openShop(page);
+      check("Ohne Aktion: kein Aktionsreiter, normales Aussehen", (await page.locator(".cat:has-text('Halloween')").count()) === 0 && !(await page.evaluate(() => document.documentElement.dataset.aktion)));
+      await openSettings(page);
+      await page.click("nav >> text=Aktionen");
+      await page.click("#aktion-halloween");
+      check("Aktion einschalten: Halloween-Aussehen aktiv", (await page.evaluate(() => document.documentElement.dataset.aktion)) === "halloween");
+      await page.click("text=Zurück zum Laden");
+      const tabs = await page.locator(".cat").allTextContents();
+      check("Halloween-Reiter ganz vorne und ausgewählt", tabs[0].includes("Halloween") && (await page.locator(".cat.on").textContent()).includes("Halloween"), tabs.join(" | "));
+      check("12 Aktionsprodukte im Reiter", (await page.locator(".tile").count()) === 12);
+      const sky = await page.evaluate(() => getComputedStyle(document.querySelector("header")).backgroundColor);
+      check("Kopfzeile als Nachthimmel", sky === "rgb(42, 29, 71)", sky);
+      check("Schafe tragen Hexenhut", (await page.locator("header svg path[fill='#5b2a86']").count()) === 1);
+      await page.locator(".tile").filter({ hasText: "Kürbissuppe" }).click();
+      await page.locator(".tile").filter({ hasText: "Hexenhut" }).click();
+      check("Aktionsprodukte in den Korb, Summe stimmt", (await total(page)).replace(/\s/g, " ") === "5,20 €", await total(page));
+      // Sonstige Funktionen gleich: Scannen eines normalen Etiketts, Bezahlen
+      await page.click("text=Scannen!");
+      await page.waitForSelector(".found .t:has-text('Apfel')", { timeout: 15000 });
+      const src = await page.evaluate(() => { const s = getComputedStyle(document.querySelector(".found .src")); return [s.color, s.backgroundColor]; });
+      check("Scannen funktioniert, Quellen-Schild lesbar", src[0] !== src[1] && src[0] === "rgb(255, 241, 220)", src.join(" auf "));
+      await page.click("text=✓ Fertig gescannt");
+      await page.click(".pay");
+      await page.click("text=Bezahlt! Neuer Einkauf");
+      await page.waitForSelector(".party");
+      check("Danke-Bildschirm mit „Süßes oder Saures!“", (await page.textContent(".party")).includes("Süßes oder Saures"));
+      await wait(3600);
+      await page.reload();
+      check("Aktion bleibt nach Neustart an", (await page.textContent(".start")).includes("Halloween in Schafland"));
+      await page.screenshot({ path: `${SHOTS}/aktion-halloween-start.png` });
+      await page.click("text=Laden öffnen");
+      await openSettings(page);
+      await page.click("nav >> text=Etiketten drucken");
+      check("Etiketten für Aktionsprodukte druckbar", (await page.locator(".label:has-text('Zauberbesen')").count()) === 1);
+      await page.click("nav >> text=Aktionen");
+      await page.click("#aktion-halloween");
+      await page.click("text=Zurück zum Laden");
+      check("Aktion ausschalten: Reiter weg, normales Aussehen, Obst gewählt",
+        (await page.locator(".cat:has-text('Halloween')").count()) === 0 && !(await page.evaluate(() => document.documentElement.dataset.aktion)) && (await page.locator(".cat.on").textContent()).includes("Obst"));
+      check("Keine Konsolenfehler (Aktion)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+
     // ---------- 4. Musik ----------
     if (section("music")) {
       const { browser, page, errors } = await launch();

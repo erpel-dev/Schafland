@@ -6,6 +6,7 @@ const DEFAULTS = {
   musicAutoplay: true,
   musicVolume: 0.5,
   musicShuffle: true,
+  aktion: null, // id der aktiven Aktion oder null
 };
 
 class Settings {

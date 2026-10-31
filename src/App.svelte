@@ -13,6 +13,13 @@
   import { unlockAudio, kaching, maeh } from "./lib/sounds.js";
 
   let opened = $state(false);
+
+  // Aktive Aktion steuert das Farbschema (siehe app.css)
+  $effect(() => {
+    const id = settings.value.aktion;
+    if (id) document.documentElement.dataset.aktion = id;
+    else delete document.documentElement.dataset.aktion;
+  });
   let view = $state("shop"); // shop | scan
   let paying = $state(false);
   let celebrate = $state(null); // Betrag in Cent

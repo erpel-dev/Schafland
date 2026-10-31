@@ -1,6 +1,8 @@
 <script>
   import Sheep from "./Sheep.svelte";
   import { music } from "../lib/music.svelte.js";
+  import { settings } from "../lib/settings.svelte.js";
+  import Bats from "./Bats.svelte";
 
   let { onOpenSettings } = $props();
 
@@ -40,6 +42,7 @@
     </div>
   </div>
 
+  {#if settings.value.aktion === "halloween"}<Bats />{/if}
   <div class="spacer"></div>
 
   {#if music.tracks.length}
@@ -69,8 +72,8 @@
   .brand { display: flex; align-items: center; gap: 0.6rem; cursor: default; touch-action: none; }
   .brand :global(.logo) { transition: transform 2s linear; }
   .brand.pressing :global(.logo) { transform: rotate(360deg) scale(1.15); }
-  b { font-family: var(--f-display); font-weight: 800; font-size: 2rem; line-height: 0.9; display: block; }
-  small { font-family: var(--f-display); font-weight: 500; font-size: 0.95rem; color: var(--ink-soft); }
+  b { font-family: var(--f-display); font-weight: 800; font-size: 2rem; line-height: 0.9; display: block; color: var(--sky-ink); }
+  small { font-family: var(--f-display); font-weight: 500; font-size: 0.95rem; color: var(--sky-ink-soft); }
   .spacer { flex: 1; }
   .music {
     display: flex; align-items: center; gap: 0.5rem;

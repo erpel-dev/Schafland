@@ -1,6 +1,8 @@
 <script>
   import Sheep from "./Sheep.svelte";
   import { euro } from "../lib/money.js";
+  import { settings } from "../lib/settings.svelte.js";
+  import Bats from "./Bats.svelte";
 
   let { total, onDone } = $props();
 
@@ -13,18 +15,19 @@
 <button class="party" onclick={onDone} aria-label="Weiter">
   <div class="msg">
     <b>Danke für deinen Einkauf!</b>
-    <span>{euro(total)} · Bis bald in Schafland</span>
+    <span>{euro(total)} · {settings.value.aktion === "halloween" ? "Süßes oder Saures!" : "Bis bald in Schafland"}</span>
   </div>
   <div class="runner"><Sheep size="9rem" class="run" /></div>
   <div class="grass"></div>
+  {#if settings.value.aktion === "halloween"}<Bats big />{/if}
 </button>
 
 <style>
-  .party { position: fixed; inset: 0; width: 100%; border: 0; z-index: 30; background: linear-gradient(var(--sky), #e9f5fc 70%); overflow: hidden; display: grid; place-items: center; }
+  .party { position: fixed; inset: 0; width: 100%; border: 0; z-index: 30; background: linear-gradient(var(--sky), var(--sky-bottom) 70%); overflow: hidden; display: grid; place-items: center; }
   .msg { text-align: center; display: flex; flex-direction: column; gap: 0.4rem; animation: pop 0.4s ease-out; }
-  .msg b { font-family: var(--f-display); font-size: 3.6rem; font-weight: 800; line-height: 1; }
-  .msg span { font-family: var(--f-display); font-size: 1.6rem; color: var(--ink-soft); }
-  .grass { position: absolute; left: 0; right: 0; bottom: 0; height: 6rem; background: var(--grass);
+  .msg b { font-family: var(--f-display); font-size: 3.6rem; font-weight: 800; line-height: 1; color: var(--sky-ink); }
+  .msg span { font-family: var(--f-display); font-size: 1.6rem; color: var(--sky-ink-soft); }
+  .grass { position: absolute; left: 0; right: 0; bottom: 0; height: 6rem; background: var(--meadow);
     -webkit-mask: radial-gradient(circle at 1rem 0, transparent 1rem, #000 1.05rem) 0 0 / 2rem 100% repeat-x; }
   .runner { position: absolute; bottom: 4.5rem; left: 0; animation: run 3s linear forwards; z-index: 1; }
   /* das Schaf schaut nach links, also läuft es von rechts nach links */

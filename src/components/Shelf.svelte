@@ -1,5 +1,7 @@
 <script>
   import { categories, products, SCANNED } from "../lib/catalog.js";
+  import { aktionById } from "../lib/aktionen.js";
+  import { settings } from "../lib/settings.svelte.js";
   import { cart, scanned } from "../lib/shop.svelte.js";
   import { euro } from "../lib/money.js";
   import { pop } from "../lib/sounds.js";
@@ -7,9 +9,17 @@
 
   let { onScan } = $props();
 
-  let tabs = $derived(scanned.list.length ? [...categories, SCANNED] : categories);
-  let active = $state(categories[0].id);
-  let shown = $derived(active === SCANNED.id ? scanned.list : products.filter((p) => p.categoryId === active));
+  let aktion = $derived(aktionById(settings.value.aktion));
+  // Aktionsreiter ganz vorne, gescannte Produkte ganz hinten
+  let tabs = $derived([...(aktion ? [aktion.category] : []), ...categories, ...(scanned.list.length ? [SCANNED] : [])]);
+  // Bei aktiver Aktion startet das Regal im Aktionsreiter
+  let active = $state(aktionById(settings.value.aktion)?.id ?? categories[0].id);
+  $effect(() => {
+    if (!tabs.some((t) => t.id === active)) active = tabs[0].id;
+  });
+  let shown = $derived(
+    active === SCANNED.id ? scanned.list : aktion?.id === active ? aktion.products : products.filter((p) => p.categoryId === active),
+  );
 
   function add(p) {
     pop();
@@ -20,7 +30,7 @@
 <section class="shelf">
   <nav class="cats">
     {#each tabs as c (c.id)}
-      <button class="cat" class:on={active === c.id} onclick={() => (active = c.id)}>
+      <button class="cat" class:on={active === c.id} class:aktion={c.aktion} onclick={() => (active = c.id)}>
         <span class="emoji">{c.emoji}</span>{c.name}
       </button>
     {/each}
@@ -50,15 +60,18 @@
     padding: 1.3rem 1.1rem 1rem;
     background: linear-gradient(180deg, var(--wool), var(--wool-2));
   }
-  .cats { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .cats { display: flex; gap: 0.4rem; flex-wrap: wrap; }
   .cat {
-    display: flex; gap: 0.4rem; align-items: center;
-    padding: 0.55rem 1rem; border-radius: 99px;
+    display: flex; gap: 0.35rem; align-items: center;
+    padding: 0.5rem 0.8rem; border-radius: 99px;
     background: #fff; border: 2px solid var(--wool-line);
-    font-weight: 800; font-size: 1.05rem;
+    font-weight: 800; font-size: 1rem;
   }
-  .cat .emoji { font-size: 1.3rem; }
+  .cat .emoji { font-size: 1.25rem; }
   .cat.on { background: var(--grass); border-color: var(--grass); color: #fff; }
+  /* Aktionsreiter fällt auf: dunkler Nachthimmel, leuchtet wenn gewählt */
+  .cat.aktion { background: var(--sky); border-color: var(--sky); color: var(--sky-ink); }
+  .cat.aktion.on { box-shadow: 0 0 0 3px var(--sun); }
 
   .grid {
     flex: 1; min-height: 0; overflow-y: auto;

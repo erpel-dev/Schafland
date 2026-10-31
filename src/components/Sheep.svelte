@@ -1,5 +1,7 @@
 <script>
+  import { settings } from "../lib/settings.svelte.js";
   let { size = "3rem", class: cls = "" } = $props();
+  let costume = $derived(settings.value.aktion);
 </script>
 
 <svg class={cls} style:width={size} style:height={size} viewBox="0 0 110 110" aria-hidden="true">
@@ -18,5 +20,14 @@
     <circle cx="25.6" cy="50.6" r="1.6" fill="#2b2b2b" /><circle cx="35.6" cy="50.6" r="1.6" fill="#2b2b2b" />
     <ellipse cx="30" cy="62" rx="5" ry="3" fill="#f29bab" />
     <g fill="#fffdf7"><circle cx="24" cy="38" r="6" /><circle cx="31" cy="35" r="6.5" /><circle cx="38" cy="38" r="6" /></g>
+    {#if costume === "halloween"}
+      <!-- Hexenhut -->
+      <g transform="rotate(-12 31 36)">
+        <path d="M21 35 L31 3 Q34 12 42 16 Q36 18 41 34 Z" fill="#5b2a86" />
+        <path d="M31 3 Q34 12 42 16 Q36 18 37 22" fill="none" stroke="#3f1c60" stroke-width="1.2" />
+        <rect x="21.5" y="29" width="19" height="4.5" rx="1" fill="#ef7a1a" />
+        <ellipse cx="31" cy="35.5" rx="17" ry="3.6" fill="#4a2270" />
+      </g>
+    {/if}
   </g>
 </svg>

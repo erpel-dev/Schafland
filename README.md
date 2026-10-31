@@ -41,12 +41,13 @@ Beim ersten Scannen fragt Chromium oben links nach der Kamera. Dort **„Beim Be
 
 - **Bezahlen:** PayPal einschalten und den PayPal.me-Namen eintragen. Ein Test-Code über 1,00 € zeigt, ob der Empfänger stimmt. Ob „Freunde und Familie“ gewählt wird, entscheidet die zahlende Person in PayPal. Der Link kann das nicht vorgeben.
 - **Musik:** Ordner wählen (Unterordner werden mitgenommen), Lautstärke, Zufall, Autostart. Bei Piep- und Mäh-Geräuschen wird die Musik kurz leiser.
+- **Aktionen:** Eine Aktion ein- oder ausschalten (höchstens eine zugleich). Sie gibt der Kasse ein eigenes Aussehen und einen zusätzlichen Reiter mit Aktionsprodukten; alles andere funktioniert wie immer. Erste Aktion: **Halloween** – Nachthimmel mit Mond und Fledermäusen, Kürbis-Orange, Schafe mit Hexenhut, „Süßes oder Saures!“ beim Bezahlen und ein Reiter mit 12 Halloween-Produkten.
 - **Etiketten drucken:** Bogen mit eigenen EAN-13-Codes (Präfix 21) für Holzobst und Spielzeug-Lebensmittel. Die Codes kollidieren nie mit echten Produkten.
 - **Gescannte Produkte:** Alles, was schon einmal gescannt wurde. Name und Preis ändern oder löschen.
 - **Kassenbons:** Die letzten 30 Einkäufe.
 - **Scan-Protokoll:** Die letzten 50 Scans mit Code und den Antworten der Datenbanken. Hilft, wenn etwas nicht erkannt wird.
 
-Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.5.0 vom 31.10.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
+Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.6.0 vom 31.10.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
 
 ## Scannen: so funktioniert es
 
@@ -128,6 +129,8 @@ src/
   lib/sounds.js           Piep, Plopp, Kassenklingel, Mäh
 kiosk/                    Start- und Autostart-Skripte
 ```
+
+Neue Aktionen kommen in `src/lib/aktionen.js` (Produkte, Name, Emoji) und bekommen ihr Aussehen in `src/app.css` über `:root[data-aktion="…"]`. Aktionsprodukte haben Etiketten-Codes ab `2150…`.
 
 Eigene Produkte oder Preise ändern: `src/lib/catalog.js` bearbeiten und `npm run build` ausführen. Die EAN-Codes werden aus der Position berechnet. Neue Produkte also hinten an die Liste einer Kategorie anhängen, damit die gedruckten Etiketten gültig bleiben.
 

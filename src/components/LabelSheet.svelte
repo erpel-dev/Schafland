@@ -1,12 +1,15 @@
 <script>
-  import { categories, products } from "../lib/catalog.js";
+  import { categories as baseCategories, allProducts } from "../lib/catalog.js";
+  import { aktionen } from "../lib/aktionen.js";
   import { euro } from "../lib/money.js";
   import Barcode from "./Barcode.svelte";
   import ProductImage from "./ProductImage.svelte";
 
+  // Aktions-Etiketten lassen sich immer drucken, z. B. vor der Aktion
+  const categories = [...baseCategories, ...aktionen.map((a) => a.category)];
   let picked = $state(new Set(categories.map((c) => c.id)));
   let withPrice = $state(true);
-  let shown = $derived(products.filter((p) => picked.has(p.categoryId)));
+  let shown = $derived(allProducts.filter((p) => picked.has(p.categoryId)));
 
   function toggle(id) {
     const next = new Set(picked);

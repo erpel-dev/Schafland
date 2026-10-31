@@ -3,6 +3,7 @@
   import { music, mmss, canPickFolder } from "../lib/music.svelte.js";
   import { scanned } from "../lib/shop.svelte.js";
   import { scanLog } from "../lib/scanlog.svelte.js";
+  import { aktionen } from "../lib/aktionen.js";
   import { categoryById } from "../lib/catalog.js";
   import { db } from "../lib/db.js";
   import { euro } from "../lib/money.js";
@@ -17,6 +18,7 @@
   const TABS = [
     ["bezahlen", "Bezahlen"],
     ["musik", "Musik"],
+    ["aktionen", "Aktionen"],
     ["etiketten", "Etiketten drucken"],
     ["gescannt", "Gescannte Produkte"],
     ["bons", "Kassenbons"],
@@ -173,6 +175,22 @@
           </div>
         {/if}
 
+      {:else if tab === "aktionen"}
+        <h2>Aktionen</h2>
+        <p class="muted">Eine Aktion gibt der Kasse ein eigenes Aussehen und einen zusätzlichen Reiter mit Aktionsprodukten. Alles andere funktioniert wie immer. Es ist höchstens eine Aktion aktiv.</p>
+        {#each aktionen as a (a.id)}
+          <div class="aktion" class:on={settings.value.aktion === a.id}>
+            <span class="emoji big">{a.emoji}</span>
+            <div class="text">
+              <b>{a.name}</b>
+              <span class="muted">{a.description}</span>
+              <span class="items"><span class="emoji">{a.products.map((p) => p.emoji).join(" ")}</span> · {a.products.length} Produkte</span>
+            </div>
+            <Toggle id={`aktion-${a.id}`} label={`Aktion ${a.name}`} checked={settings.value.aktion === a.id} onchange={(v) => settings.set({ aktion: v ? a.id : null })} />
+          </div>
+        {/each}
+        <p class="muted">Etiketten für die Aktionsprodukte gibt es unter „Etiketten drucken“. Sie lassen sich auch scannen, wenn die Aktion aus ist.</p>
+
       {:else if tab === "etiketten"}
         <h2 class="noprint">Etiketten drucken</h2>
         <LabelSheet />
@@ -265,7 +283,7 @@
   .bar i { position: absolute; inset: 0 auto 0 0; background: var(--grass); border-radius: 99px; }
   .tracks { display: flex; flex-direction: column; gap: 0.1rem; }
   .tracks button { display: flex; justify-content: space-between; gap: 1rem; text-align: left; padding: 0.4rem 0.7rem; border-radius: 0.6rem; }
-  .tracks button.on { background: #f0f8ea; font-weight: 800; }
+  .tracks button.on { background: var(--ok-bg); font-weight: 800; }
   .tracks small { color: var(--ink-soft); font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .prod { display: grid; grid-template-columns: 3.4rem 1fr auto auto; gap: 0.8rem; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--wool-line); }
@@ -275,8 +293,14 @@
   .info .name:hover, .info .name:focus { border-color: var(--wool-line); background: var(--wool); outline: none; }
   .price input { width: 5rem; text-align: right; border: 2px solid var(--wool-line); border-radius: 0.6rem; padding: 0.3rem 0.5rem; font-weight: 800; }
   .del { width: 2.2rem; height: 2.2rem; border-radius: 50%; background: var(--wool-2); font-weight: 800; }
+  .aktion { display: grid; grid-template-columns: auto 1fr auto; gap: 1rem; align-items: center; padding: 0.9rem 1rem; border-radius: 1rem; background: var(--wool); border: 2px solid var(--wool-line); }
+  .aktion.on { border-color: var(--grass); background: #fff3e4; }
+  .aktion .big { font-size: 2.6rem; }
+  .aktion .text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+  .aktion b { font-family: var(--f-display); font-size: 1.3rem; }
+  .aktion .items { font-size: 0.95rem; color: var(--ink-soft); }
   .log { padding: 0.5rem 0.8rem; border-radius: 0.8rem; background: #fff6d6; display: flex; flex-direction: column; gap: 0.15rem; }
-  .log.ok { background: #f0f8ea; }
+  .log.ok { background: var(--ok-bg); }
   .loghead { display: flex; gap: 0.8rem; align-items: baseline; flex-wrap: wrap; }
   .loghead code { font-size: 0.9rem; }
   .log small { color: var(--ink-soft); }

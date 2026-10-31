@@ -260,8 +260,8 @@
   .t { font-family: var(--f-display); font-size: 1.5rem; line-height: 1.15; overflow-wrap: anywhere; }
   small { color: var(--ink-soft); }
   .price { font-family: var(--f-display); font-size: 2.6rem; font-weight: 800; color: var(--grass-dark); line-height: 1; }
-  .src { font-size: 0.75rem; font-family: monospace; background: var(--sky); padding: 0.2rem 0.5rem; border-radius: 0.4rem; align-self: flex-start; }
-  .added { font-family: var(--f-display); font-size: 1.5rem; font-weight: 800; color: var(--grass-dark); text-align: center; padding: 0.5rem; background: #f0f8ea; border-radius: 1rem; }
+  .src { font-size: 0.75rem; font-family: monospace; background: var(--sky); color: var(--sky-ink); padding: 0.2rem 0.5rem; border-radius: 0.4rem; align-self: flex-start; }
+  .added { font-family: var(--f-display); font-size: 1.5rem; font-weight: 800; color: var(--grass-dark); text-align: center; padding: 0.5rem; background: var(--ok-bg); border-radius: 1rem; }
   .pimg :global(.think) { animation: think 1s ease-in-out infinite; }
   .pimg :global(.shrug) { animation: shrug 0.6s ease-in-out 2; }
   @keyframes think { 50% { transform: rotate(-8deg); } }

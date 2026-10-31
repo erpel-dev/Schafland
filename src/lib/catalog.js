@@ -1,4 +1,5 @@
 import { ownEan } from "./ean.js";
+import { aktionen } from "./aktionen.js";
 
 export const categories = [
   { id: "obst", name: "Obst", emoji: "🍎", defaultPrice: 60 },
@@ -17,7 +18,8 @@ export const MAGAZINE = { id: "zeitschrift", name: "Zeitschrift", emoji: "📰",
 export const BOOK = { id: "buch", name: "Buch", emoji: "📚", defaultPrice: 500 };
 
 const scannedKinds = [MAGAZINE, BOOK];
-export const categoryById = (id) => categories.find((c) => c.id === id) ?? scannedKinds.find((c) => c.id === id) ?? SCANNED;
+export const categoryById = (id) =>
+  categories.find((c) => c.id === id) ?? scannedKinds.find((c) => c.id === id) ?? aktionen.find((a) => a.id === id)?.category ?? SCANNED;
 
 // [Name, Emoji, Preis in Cent, eigenes Bild in public/produkte/ (optional, wenn kein passendes Emoji existiert)]
 const raw = {
@@ -67,4 +69,7 @@ export const products = categories.flatMap((cat, ci) =>
   })),
 );
 
-export const productByEan = new Map(products.map((p) => [p.ean, p]));
+// Sortiment plus alle Aktionsprodukte: Aktions-Etiketten lassen sich auch scannen, wenn die Aktion aus ist
+export const allProducts = [...products, ...aktionen.flatMap((a) => a.products)];
+
+export const productByEan = new Map(allProducts.map((p) => [p.ean, p]));

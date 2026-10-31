@@ -62,7 +62,7 @@
   .opt .emoji { font-size: 2.3rem; }
   .opt b { font-family: var(--f-display); font-size: 1.3rem; }
   .opt small { color: var(--ink-soft); }
-  .opt.on { border-color: var(--grass); background: #f0f8ea; }
+  .opt.on { border-color: var(--grass); background: var(--ok-bg); }
   .qrrow { display: flex; gap: 1.4rem; align-items: center; background: #fff; border-radius: 1.3rem; padding: 1rem; }
   .txt { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
   .txt b { font-family: var(--f-display); font-size: 1.5rem; }
