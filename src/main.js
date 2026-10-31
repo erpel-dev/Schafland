@@ -11,6 +11,7 @@ import { settings } from "./lib/settings.svelte.js";
 import { scanned } from "./lib/shop.svelte.js";
 import { music } from "./lib/music.svelte.js";
 import { scanLog } from "./lib/scanlog.svelte.js";
+import { update } from "./lib/update.svelte.js";
 
 async function boot() {
   try {
@@ -21,5 +22,6 @@ async function boot() {
     console.warn("Speicher nicht verfügbar", err);
   }
   mount(App, { target: document.getElementById("app") });
+  update.init();
 }
 boot();

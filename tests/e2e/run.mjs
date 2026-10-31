@@ -4,7 +4,7 @@
 import { chromium } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { makeFixtures } from "./fixtures.mjs";
 import { prepareZXingModule, readBarcodes } from "zxing-wasm/reader";
@@ -462,6 +462,68 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       check("Eltern-Bereich schließt das Bezahlfenster", (await page.locator(".modal").count()) === 0);
       check("Keine Konsolenfehler (Bezahlen)", !errors.length, errors.join(" | "));
       await browser.close();
+    }
+
+    // ---------- Update nach git pull ----------
+    // Fehlerbericht: Nach git pull lud der erste Start noch die alte Version (Offline-Zwischenspeicher).
+    if (section("update")) {
+      const UPD = path.join(SHOTS, "update");
+      fs.rmSync(UPD, { recursive: true, force: true });
+      const build = (v) => {
+        const out = path.join(UPD, v);
+        execSync(`npx vite build --outDir "${out}" --emptyOutDir`, { cwd: R, env: { ...process.env, SCHAFLAND_VERSION: v }, stdio: "ignore" });
+        return out;
+      };
+      const [A, B, C] = ["9.0.0-a", "9.0.0-b", "9.0.0-c"].map(build);
+      const LIVE = path.join(UPD, "live");
+      const deploy = (dir) => { fs.rmSync(LIVE, { recursive: true, force: true }); fs.cpSync(dir, LIVE, { recursive: true }); };
+      deploy(A);
+      const port = 8079;
+      const srv = spawn("python3", [`${R}/kiosk/server.py`, LIVE, String(port)], { stdio: "ignore" });
+      await wait(800);
+      const profile = path.join(UPD, "profil"); // wie das Kiosk-Profil: bleibt zwischen den Starts erhalten
+      const start = async () => {
+        const ctx = await chromium.launchPersistentContext(profile, { viewport: { width: 1366, height: 768 } });
+        const page = ctx.pages()[0] ?? (await ctx.newPage());
+        await page.goto(`http://localhost:${port}/`);
+        return { ctx, page };
+      };
+      const versionOf = async (page) => {
+        await page.click("text=Laden öffnen");
+        await openSettings(page);
+        const v = (await page.textContent("header small")).match(/Version (\S+)/)?.[1];
+        await page.click("text=Zurück zum Laden");
+        return v;
+      };
+      try {
+        // 1. Start mit Version A, Offline-Speicher wird angelegt
+        let { ctx, page } = await start();
+        await page.waitForFunction(() => navigator.serviceWorker?.controller, null, { timeout: 15000 }).catch(() => {});
+        check("Update: erster Start zeigt Version A", (await versionOf(page)) === "9.0.0-a");
+        await ctx.close();
+        // 2. git pull → Version B, Kasse neu starten, Startbildschirm stehen lassen
+        deploy(B);
+        ({ ctx, page } = await start());
+        await wait(4000);
+        check("Update: erster Start nach git pull zeigt schon Version B", (await versionOf(page)) === "9.0.0-b");
+        await ctx.close();
+        // 3. git pull → Version C, aber das Kind öffnet den Laden sofort: kein Neuladen mitten im Spiel
+        deploy(C);
+        ({ ctx, page } = await start());
+        await page.click("text=Laden öffnen");
+        await page.click(".tile:has-text('Apfel')");
+        await wait(4000);
+        check("Update: kein Neuladen mitten im Spiel (Korb bleibt)", (await page.locator(".ln").count()) === 1 && (await page.locator(".start").count()) === 0);
+        // nach dem Bezahlen (natürliche Pause) kommt die neue Version
+        await page.click(".pay");
+        await page.click("text=Bezahlt! Neuer Einkauf");
+        await page.locator(".party").click();
+        await page.locator(".start").waitFor({ timeout: 10000 }).catch(() => {});
+        check("Update: nach dem Bezahlen neue Version C", (await page.locator(".start").count()) === 1 && (await versionOf(page)) === "9.0.0-c");
+        await ctx.close();
+      } finally {
+        srv.kill();
+      }
     }
 
     // ---------- GiroCode ----------

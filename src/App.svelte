@@ -11,8 +11,14 @@
   import { music } from "./lib/music.svelte.js";
   import { settings } from "./lib/settings.svelte.js";
   import { unlockAudio, kaching, maeh } from "./lib/sounds.js";
+  import { update } from "./lib/update.svelte.js";
 
   let opened = $state(false);
+
+  // Neue Version: auf dem Startbildschirm sofort laden, mitten im Spiel erst nach dem Bezahlen
+  $effect(() => {
+    if (update.ready && !opened) update.apply();
+  });
 
   // Aktive Aktion steuert das Farbschema (siehe app.css)
   $effect(() => {
@@ -107,7 +113,13 @@
     <PayModal onClose={() => (paying = false)} onPaid={paid} />
   {/if}
   {#if celebrate !== null}
-    <Celebration total={celebrate} onDone={() => (celebrate = null)} />
+    <Celebration
+      total={celebrate}
+      onDone={() => {
+        celebrate = null;
+        update.apply();
+      }}
+    />
   {/if}
 {/if}
 

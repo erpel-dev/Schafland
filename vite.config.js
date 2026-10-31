@@ -5,14 +5,17 @@ import { readFileSync } from "node:fs";
 
 // Version für den Eltern-Bereich, damit man auf dem Notebook sieht, welcher Stand läuft
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
-const APP_VERSION = `${pkg.version} vom ${new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}`;
+// SCHAFLAND_VERSION nur für Tests (Update-Test baut mehrere Versionen)
+const APP_VERSION = `${process.env.SCHAFLAND_VERSION ?? pkg.version} vom ${new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}`;
 
 export default defineConfig({
   base: "./",
   plugins: [
     svelte(),
     VitePWA({
-      registerType: "autoUpdate",
+      // "prompt": die App entscheidet, wann eine neue Version geladen wird (src/lib/update.svelte.js)
+      registerType: "prompt",
+      injectRegister: false,
       includeAssets: ["schaf.svg"],
       manifest: {
         name: "Schafland",
