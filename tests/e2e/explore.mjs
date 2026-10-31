@@ -41,6 +41,9 @@ async function launch(cam = "own") {
   const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 }, hasTouch: true, permissions: ["camera"] });
   await ctx.route(/open(food|beauty|products)facts\.org\/api/, (r) =>
     r.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(r.request().url().includes("4001234567891") ? PRODUCT : { status: 0 }) }));
+  // Bücher und Wikidata: nichts gefunden (die Inhalte prüft run.mjs)
+  await ctx.route(/googleapis\.com\/books|openlibrary\.org\/api|wikidata\.org\/w\/api/, (r) =>
+    r.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ totalItems: 0, query: { search: [] } }) }));
   await ctx.route("**/__fx/**", (r) => r.fulfill({ contentType: "audio/mpeg", body: fs.readFileSync(path.join(FIX, "musik", decodeURIComponent(r.request().url().split("/__fx/")[1]))) }));
   const names = fs.readdirSync(path.join(FIX, "musik")).filter((n) => !n.includes("Kaputt")).sort();
   await ctx.addInitScript((names) => {
@@ -95,6 +98,12 @@ async function invariants(page) {
     if (pay.bottom > innerHeight + 1) return "Bezahlen-Knopf nicht sichtbar";
     const ids = lines.map((l) => l.querySelector(".nm").firstChild.textContent);
     if (new Set(ids).size !== ids.length) return "Produkt doppelt im Korb";
+    // Aussehen und Reiter passen zur Aktion (nur wenn das Regal zu sehen ist, nicht beim Scannen)
+    if (!document.querySelector(".cats")) return null;
+    const themed = !!document.documentElement.dataset.aktion;
+    const tab = [...document.querySelectorAll(".cat")].some((c) => c.classList.contains("aktion"));
+    if (themed !== tab) return `Aktion uneinheitlich: Aussehen ${themed ? "an" : "aus"}, Reiter ${tab ? "da" : "fehlt"}`;
+    if (!document.querySelector(".cat.on")) return "Kein Reiter ausgewählt";
     return null;
   });
 }
@@ -106,7 +115,8 @@ const where = (page) =>
 // ---------------------------------------------------------------- Affentest
 async function monkey(ms) {
   log(`Affentest ${Math.round(ms / 60000)} min, Seed ${SEED}`);
-  const { browser, page, errors, cdp } = await launch("own");
+  // Zeitschrift mit Pressecode und Zusatzcode: legt gescannte Produkte an, die umbenannt werden können
+  const { browser, page, errors, cdp } = await launch("press");
   await page.goto(APP_URL);
   await page.click("text=Laden öffnen");
   const start = Date.now();
@@ -151,6 +161,9 @@ async function monkey(ms) {
       [1, "PayPal-Name", async () => { if (await page.locator("#pp-name").count()) { await page.fill("#pp-name", pick(["FamilieTest", "x", "", "Name mit Leerzeichen", "a".repeat(25)])); await page.press("#pp-name", "Enter"); } }],
       [1, "Ordner wählen", async () => { const b = page.locator("text=Ordner wählen …"); if (await b.count()) await b.tap(); }],
       [1, "Lied antippen", async () => { const b = page.locator(".tracks button"); const n = await b.count(); if (n) await b.nth(Math.floor(rnd() * n)).tap(); }],
+      [2, "Aktion an/aus", async () => { const t = page.locator("#aktion-halloween"); if (await t.count()) await t.tap(); }],
+      [1, "Name ändern", async () => { const i = page.locator(".prod input.name"); if (await i.count()) { await i.first().fill(pick(["c't", "Mein Heft", "", "  ", "X".repeat(80), "Zeitschrift"])); await i.first().press("Enter"); } }],
+      [1, "Protokoll leeren", async () => { const b = page.locator("text=Protokoll leeren"); if (await b.count()) await b.tap(); }],
       [1, "Preis ändern", async () => { const i = page.locator(".prod .price input"); if (await i.count()) { await i.first().fill(pick(["0,5", "12", "abc", "-1", "999,99", "1000", ""])); await i.first().press("Tab"); } }],
       [3, "Zurück", async () => page.locator("text=Zurück zum Laden").tap()],
     ],
