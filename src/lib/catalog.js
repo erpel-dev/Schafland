@@ -19,7 +19,7 @@ export const BOOK = { id: "buch", name: "Buch", emoji: "📚", defaultPrice: 500
 const scannedKinds = [MAGAZINE, BOOK];
 export const categoryById = (id) => categories.find((c) => c.id === id) ?? scannedKinds.find((c) => c.id === id) ?? SCANNED;
 
-// [Name, Emoji, Preis in Cent]
+// [Name, Emoji, Preis in Cent, eigenes Bild in public/produkte/ (optional, wenn kein passendes Emoji existiert)]
 const raw = {
   obst: [
     ["Apfel", "🍎", 50], ["Banane", "🍌", 30], ["Birne", "🍐", 60], ["Trauben", "🍇", 200],
@@ -38,6 +38,11 @@ const raw = {
   backwaren: [
     ["Brot", "🍞", 250], ["Brezel", "🥨", 80], ["Croissant", "🥐", 90], ["Baguette", "🥖", 120],
     ["Muffin", "🧁", 150], ["Kuchen", "🍰", 200], ["Waffel", "🧇", 100], ["Pfannkuchen", "🥞", 150],
+    // Neue Produkte immer hinten anhängen: die Etiketten-Codes hängen von der Position ab.
+    // \u00ad ist ein weiches Trennzeichen: lange Namen dürfen dort umbrechen ("Laugen-brötchen").
+    ["Brötchen", "🍞", 35, "broetchen"], ["Kaiser\u00adbrötchen", "🍞", 45, "kaiserbroetchen"],
+    ["Körner\u00adbrötchen", "🍞", 65, "koernerbroetchen"], ["Laugen\u00adbrötchen", "🥨", 60, "laugenbroetchen"],
+    ["Mohn\u00adbrötchen", "🍞", 50, "mohnbroetchen"], ["Sesam\u00adbrötchen", "🍞", 50, "sesambroetchen"],
   ],
   suesses: [
     ["Schokolade", "🍫", 99], ["Bonbons", "🍬", 50], ["Lolli", "🍭", 40], ["Keks", "🍪", 30],
@@ -50,10 +55,11 @@ const raw = {
 };
 
 export const products = categories.flatMap((cat, ci) =>
-  raw[cat.id].map(([name, emoji, priceCents], pi) => ({
+  raw[cat.id].map(([name, emoji, priceCents, icon], pi) => ({
     id: `${cat.id}-${pi + 1}`,
     name,
     emoji,
+    icon: icon ? `produkte/${icon}.svg` : null,
     priceCents,
     categoryId: cat.id,
     ean: ownEan(ci + 1, pi + 1),

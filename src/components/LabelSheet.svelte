@@ -2,6 +2,7 @@
   import { categories, products } from "../lib/catalog.js";
   import { euro } from "../lib/money.js";
   import Barcode from "./Barcode.svelte";
+  import ProductImage from "./ProductImage.svelte";
 
   let picked = $state(new Set(categories.map((c) => c.id)));
   let withPrice = $state(true);
@@ -30,7 +31,7 @@
 <div class="sheet">
   {#each shown as p (p.id)}
     <div class="label">
-      <div class="head"><span class="emoji">{p.emoji}</span><b>{p.name}</b>{#if withPrice}<span class="pr">{euro(p.priceCents)}</span>{/if}</div>
+      <div class="head"><ProductImage product={p} size="1.7rem" /><b>{p.name}</b>{#if withPrice}<span class="pr">{euro(p.priceCents)}</span>{/if}</div>
       <Barcode value={p.ean} />
     </div>
   {/each}
@@ -47,7 +48,7 @@
   .sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.6rem; }
   .label { border: 2px dashed #cfc8b5; border-radius: 0.8rem; padding: 0.5rem 0.6rem 0.2rem; background: #fff; display: flex; flex-direction: column; align-items: center; break-inside: avoid; }
   .head { display: flex; align-items: center; gap: 0.4rem; width: 100%; font-size: 1.1rem; }
-  .head .emoji { font-size: 1.6rem; }
+  .head :global(.emoji) { font-size: 1.6rem; }
   .head b { flex: 1; font-family: var(--f-display); }
   .pr { font-family: var(--f-display); font-weight: 800; color: var(--grass-dark); }
   .label :global(svg) { width: 100%; height: auto; }

@@ -44,3 +44,18 @@ test("Katalog: Codes hängen nur von der Position ab (gedruckte Etiketten bleibe
   assert.equal(productByEan.get("2101001000001")?.name, "Apfel");
   assert.equal(productByEan.get("2101002000000")?.name, "Banane");
 });
+
+test("Katalog: eigene Produktbilder existieren", async () => {
+  const { existsSync } = await import("node:fs");
+  const withIcon = products.filter((p) => p.icon);
+  assert.ok(withIcon.length >= 6);
+  for (const p of withIcon) assert.ok(existsSync(new URL(`../../public/${p.icon}`, import.meta.url)), `${p.name}: ${p.icon} fehlt`);
+});
+
+test("Katalog: Brötchen sind hinten angehängt, alte Backwaren-Codes unverändert", () => {
+  assert.equal(productByEan.get("2104001000002")?.name, "Brot");
+  assert.equal(productByEan.get("2104008000005")?.name, "Pfannkuchen");
+  const kaiser = products.find((p) => p.name.replace(/\u00ad/g, "") === "Kaiserbrötchen");
+  assert.equal(kaiser.ean, "2104010000000");
+  assert.equal(kaiser.categoryId, "backwaren");
+});

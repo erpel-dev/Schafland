@@ -37,7 +37,7 @@
     {#each cart.lines as l (l.product.id)}
       <div class="ln" class:new={l.product.id === cart.lastId}>
         <ProductImage product={l.product} size="1.9rem" />
-        <span class="nm">{l.product.name}<small>{euro(l.product.priceCents)}</small></span>
+        <span class="nm"><span class="name">{l.product.name}</span><small>{euro(l.product.priceCents)}</small></span>
         <span class="qty">
           <button onclick={() => change(l.product.id, -1)} aria-label="Eins weniger">−</button>
           <b>{l.qty}</b>
@@ -83,7 +83,9 @@
     background: var(--wool); border-radius: 0.9rem; padding: 0.4rem 0.55rem;
   }
   .ln.new { background: #fff3c4; }
-  .nm { font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nm { font-weight: 800; min-width: 0; }
+  /* lange Namen zweizeilig, getrennt an weichen Trennzeichen (Laugen-brötchen) */
+  .name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; line-height: 1.15; hyphens: manual; overflow-wrap: anywhere; }
   .nm small { display: block; color: var(--ink-soft); font-weight: 600; font-size: 0.85rem; }
   .qty { display: flex; align-items: center; gap: 0.3rem; }
   .qty button {
