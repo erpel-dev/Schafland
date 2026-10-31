@@ -223,7 +223,7 @@ async function cameraSoak(ms) {
   const m0 = await metrics(page, cdp);
   for (let i = 0; i < 40; i++) {
     await page.click(".scanbar");
-    await page.waitForSelector(".found .t:has-text('Apfel')", { timeout: 10000 }).catch(() => finding("Scan nach mehrfachem Öffnen langsam/kaputt", `Durchgang ${i + 1}`));
+    await page.locator(".found .t:has-text('Apfel')").waitFor({ timeout: 10000 }).catch(() => finding("Scan nach mehrfachem Öffnen langsam/kaputt", `Durchgang ${i + 1}`));
     await page.click("text=✓ Fertig gescannt");
   }
   const qty = await page.evaluate(() => Number(document.querySelector(".ln .qty b")?.textContent ?? 0));
@@ -231,7 +231,9 @@ async function cameraSoak(ms) {
   const live = await page.evaluate(() => document.querySelectorAll("video").length);
   if (live) finding("Video bleibt nach dem Schließen", `${live} video-Elemente`);
   const m1 = await metrics(page, cdp);
-  log(`  40× öffnen/schließen: Menge ${qty}, Speicher ${m0.heapMB} → ${m1.heapMB} MB, Listener ${m0.listeners} → ${m1.listeners}`);
+  log(`  40× öffnen/schließen: Menge ${qty}, Speicher ${m0.heapMB} → ${m1.heapMB} MB, DOM-Knoten ${m0.nodes} → ${m1.nodes}, Listener ${m0.listeners} → ${m1.listeners}`);
+  // Messung nur mit locator().waitFor(): waitForSelector() hält Element-Griffe fest und täuscht ein Leck vor
+  if (m1.nodes > m0.nodes + 400) finding("DOM wächst beim Öffnen/Schließen des Scanners (Leck)", `${m0.nodes} → ${m1.nodes} Knoten`);
   if (m1.heapMB > m0.heapMB + 15) finding("Speicher wächst beim Öffnen/Schließen des Scanners", `${m0.heapMB} → ${m1.heapMB} MB`);
 
   // 2) Scanner lange offen lassen
@@ -266,7 +268,7 @@ async function musicSoak(ms) {
   await page.keyboard.press("Control+,");
   await page.click("nav >> text=Musik");
   await page.click("text=Ordner wählen …");
-  await page.waitForSelector(".tracks button");
+  await page.locator(".tracks button").first().waitFor();
   await page.click("text=Zurück zum Laden");
   const m0 = await metrics(page, cdp);
   const seen = new Set();
@@ -321,7 +323,7 @@ async function edgeCases() {
 
   // Bezahlen: QR bei großem Betrag, doppelt auf "Bezahlt" tippen
   await page.click(".pay");
-  await page.waitForSelector(".modal canvas");
+  await page.locator(".modal canvas").first().waitFor();
   const before = await page.evaluate(() => new Promise((res) => { const q = indexedDB.open("schafland"); q.onsuccess = () => { const t = q.result.transaction("receipts").objectStore("receipts").count(); t.onsuccess = () => res(t.result); }; }));
   // drei schnelle Tipps hintereinander, bevor die Oberfläche reagieren kann
   await page.evaluate(() => { const b = [...document.querySelectorAll(".modal button")].find((x) => x.textContent.includes("Bezahlt")); b.click(); b.click(); b.click(); });
@@ -363,7 +365,7 @@ async function edgeCases() {
   await page.click("text=Laden öffnen");
   const t0 = Date.now();
   await page.click(".cat:has-text('Gescannt')");
-  await page.waitForSelector(".tile:has-text('Nummer 299')");
+  await page.locator(".tile:has-text('Nummer 299')").waitFor();
   log(`  300 gescannte Produkte: Reiter in ${Date.now() - t0} ms`);
   await page.locator(".tile").nth(5).tap();
   bad = await invariants(page);
@@ -372,7 +374,7 @@ async function edgeCases() {
   await page.keyboard.press("Control+,");
   const t1 = Date.now();
   await page.click("nav >> text=Gescannte Produkte");
-  await page.waitForSelector(".prod >> nth=299");
+  await page.locator(".prod >> nth=299").first().waitFor();
   log(`  Liste im Eltern-Bereich mit 300 Einträgen: ${Date.now() - t1} ms`);
   await page.click("text=Zurück zum Laden");
 

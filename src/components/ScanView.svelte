@@ -163,6 +163,11 @@
       clearInterval(fpsTimer);
       worker.terminate();
       stream?.getTracks().forEach((t) => t.stop());
+      // Ohne das hält der Browser das Video samt ganzer Scan-Ansicht im Speicher (Leck pro Scan)
+      if (video) {
+        video.pause();
+        video.srcObject = null;
+      }
     };
   });
 
