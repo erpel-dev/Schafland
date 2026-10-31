@@ -16,7 +16,8 @@
   );
 </script>
 
-<div class="dim" role="presentation" onclick={(e) => e.target === e.currentTarget && onClose()}>
+<!-- Absichtlich kein Schließen durch Tippen daneben: ein Doppeltipp auf "Bezahlen" schloss das Fenster sofort wieder -->
+<div class="dim" role="presentation">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pay-title">
     <h2 id="pay-title">Wie möchtest du bezahlen? <span>{euro(total)}</span></h2>
 

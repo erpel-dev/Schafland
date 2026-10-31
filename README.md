@@ -70,6 +70,25 @@ npm run preview  # dist/ auf http://localhost:8080 testen
 
 Svelte 5 + Vite, Dexie (IndexedDB), zxing-wasm, qrcode, JsBarcode, vite-plugin-pwa. Schriften (Baloo 2, Nunito) werden lokal mitgeliefert. Alle Geräusche werden per Web Audio erzeugt.
 
+### Tests
+
+```bash
+npm test                # Unit-Tests (Node, wenige Sekunden)
+npm run test:e2e        # Browser-Tests mit simulierter Kamera (ca. 5 Minuten)
+npm run test:explore    # Erkundungstest: Zufallsbedienung + Dauerläufe (15 Minuten)
+npm run test:explore -- --minutes=3 --seed=4242
+```
+
+Die Browser-Tests brauchen `ffmpeg` und Python 3, einmalig außerdem `npx playwright install chromium`. Kameras werden mit erzeugten Videos simuliert (sauberes Etikett, unbekannter Code, klein, unscharf), Open Food Facts mit festen Antworten. Testbilder und Ergebnisse landen in `tests/e2e/.fixtures/` und `tests/e2e/.output/`.
+
+| Datei | Inhalt |
+| --- | --- |
+| `tests/unit/` | EAN-Prüfziffern, Katalog, Geldformat, Open-Food-Facts-Abfrage |
+| `tests/e2e/run.mjs` | Warenkorb, Scannen, Bezahlen, Einstellungen, Musik, Touch, Bildschirmgrößen, langsame CPU, offline |
+| `tests/e2e/explore.mjs` | Affentest mit Prüfung nach jedem Schritt, Dauerlauf Kamera und Musik, Randfälle |
+
+Ein Fund im Erkundungstest lässt sich mit demselben `--seed` wiederholen.
+
 ```
 src/
   App.svelte              Ansichten: Start, Kasse, Scannen, Bezahlen, Eltern-Bereich

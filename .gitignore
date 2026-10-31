@@ -1,2 +1,5 @@
 node_modules/
 release/
+tests/e2e/.fixtures/
+tests/e2e/.output/
+.claude/

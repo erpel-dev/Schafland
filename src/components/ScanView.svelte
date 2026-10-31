@@ -125,6 +125,8 @@
 
     return () => {
       stopped = true;
+      // Schon gepiept und angezeigt, aber "Fertig" kam vor dem automatischen Hinzufügen
+      if (status === "found") addFound();
       clearTimeout(loopTimer);
       clearTimeout(addTimer);
       clearTimeout(slowTimer);

@@ -40,9 +40,17 @@
     if (settings.value.musicAutoplay && music.tracks.length) music.play();
   }
 
+  // Schnelles Mehrfach-Tippen auf "Bezahlt!" darf nur einen Kassenbon ergeben
+  let checkingOut = false;
   async function paid(method) {
+    if (checkingOut || !cart.lines.length) return;
+    checkingOut = true;
     const total = cart.totalCents;
-    await cart.checkout(method);
+    try {
+      await cart.checkout(method);
+    } finally {
+      checkingOut = false;
+    }
     paying = false;
     view = "shop";
     celebrate = total;
@@ -50,11 +58,16 @@
     setTimeout(maeh, 450);
   }
 
+  function openSettings() {
+    paying = false;
+    showSettings = true;
+  }
+
   function onKey(e) {
     // Strg + , öffnet den Eltern-Bereich auch mit der Tastatur
     if (e.ctrlKey && e.key === ",") {
       e.preventDefault();
-      showSettings = true;
+      openSettings();
     }
     if (e.key === "Escape") paying = false;
   }
@@ -72,7 +85,7 @@
   <Settings onClose={() => (showSettings = false)} />
 {:else}
   <div class="app">
-    <TopBar onOpenSettings={() => (showSettings = true)} />
+    <TopBar onOpenSettings={openSettings} />
     <main>
       {#if view === "scan"}
         <ScanView onClose={() => (view = "shop")} />
