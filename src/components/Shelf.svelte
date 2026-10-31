@@ -60,14 +60,15 @@
     padding: 1.3rem 1.1rem 1rem;
     background: linear-gradient(180deg, var(--wool), var(--wool-2));
   }
-  .cats { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+  /* 8 Kategorien + Aktion passen ab 1280 px Breite in eine Zeile; Höhe bleibt fingerfreundlich */
+  .cats { display: flex; gap: 0.3rem; flex-wrap: wrap; }
   .cat {
-    display: flex; gap: 0.35rem; align-items: center;
-    padding: 0.5rem 0.8rem; border-radius: 99px;
+    display: flex; gap: 0.3rem; align-items: center;
+    padding: 0.5rem 0.62rem; border-radius: 99px;
     background: #fff; border: 2px solid var(--wool-line);
-    font-weight: 800; font-size: 1rem;
+    font-weight: 800; font-size: 0.93rem;
   }
-  .cat .emoji { font-size: 1.25rem; }
+  .cat .emoji { font-size: 1.2rem; }
   .cat.on { background: var(--grass); border-color: var(--grass); color: #fff; }
   /* Aktionsreiter fällt auf: dunkler Nachthimmel, leuchtet wenn gewählt */
   .cat.aktion { background: var(--sky); border-color: var(--sky); color: var(--sky-ink); }

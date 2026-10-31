@@ -8,6 +8,8 @@ export const categories = [
   { id: "backwaren", name: "Backwaren", emoji: "🍞", defaultPrice: 90 },
   { id: "suesses", name: "Süßes", emoji: "🍬", defaultPrice: 99 },
   { id: "getraenke", name: "Getränke", emoji: "🧃", defaultPrice: 110 },
+  // Neue Kategorien hinten anhängen: die Etiketten-Codes hängen von der Position ab
+  { id: "spielzeug", name: "Spielzeug", emoji: "🧸", defaultPrice: 500 },
 ];
 
 export const SCANNED = { id: "gescannt", name: "Gescannt", emoji: "📦", defaultPrice: 100 };
@@ -53,6 +55,15 @@ const raw = {
   getraenke: [
     ["Saft", "🧃", 110], ["Wasser", "💧", 50], ["Kakao", "☕", 130], ["Tee", "🍵", 150],
     ["Limo", "🥤", 120], ["Kokosnuss", "🥥", 200],
+  ],
+  // Minecraft und Hot Wheels mit eigenen Bildern im typischen Stil, ohne Original-Logos oder -Figuren
+  spielzeug: [
+    ["Kuschelschaf", "🐑", 800, "kuschelschaf"], ["Schaf-Puzzle", "🧩", 500], ["Wollknäuel", "🧶", 200],
+    ["Schaf-Bilder\u00adbuch", "📘", 600],
+    ["Minecraft-Schwert", "⚔️", 600, "pixel-schwert"], ["Minecraft-Spitz\u00adhacke", "⛏️", 600, "pixel-spitzhacke"],
+    ["Minecraft-Gras\u00adblock", "🟩", 400, "pixel-grasblock"], ["Minecraft-Diamant", "💎", 300, "pixel-diamant"],
+    ["Hot-Wheels-Renn\u00adwagen", "🏎️", 250], ["Hot-Wheels-Monster\u00adtruck", "🛻", 400],
+    ["Hot-Wheels-Renn\u00adbahn", "🛤️", 1200, "rennbahn"], ["Hot-Wheels-Polizei\u00adauto", "🚓", 250],
   ],
 };
 

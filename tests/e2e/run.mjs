@@ -140,6 +140,16 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       check("Kontextmenü auf Kacheln unterdrückt", prevented);
       // Gescannt-Reiter fehlt ohne gescannte Produkte
       check("Reiter „Gescannt“ fehlt am Anfang", (await page.locator(".cat:has-text('Gescannt')").count()) === 0);
+      // Kategorie Spielzeug: eigene Bilder geladen, Namen im Korb vollständig
+      await page.click(".cat:has-text('Spielzeug')");
+      check("Spielzeug: 12 Produkte", (await page.locator(".tile").count()) === 12);
+      const broken = await page.evaluate(() => [...document.querySelectorAll(".tile img")].filter((i) => !i.complete || !i.naturalWidth).map((i) => i.src));
+      check("Spielzeug: eigene Bilder geladen (Kuschelschaf, Minecraft, Rennbahn)", (await page.locator(".tile img").count()) === 6 && !broken.length, broken.join(", "));
+      for (const t of await page.locator(".tile").all()) await t.click();
+      const cutToys = await page.evaluate(() => [...document.querySelectorAll(".ln .name")].filter((e) => e.scrollHeight > e.clientHeight + 4).map((e) => e.textContent));
+      check("Spielzeug: Namen im Korb nicht abgeschnitten", !cutToys.length, cutToys.join(", "));
+      check("Spielzeug: Summe aller 12 Spielsachen 61,00 €", (await total(page)).replace(/\s/g, " ") === "61,00 €", await total(page));
+      await page.click(".clear"); await page.click(".clear");
       // 30 verschiedene Produkte: Korb scrollt, Bezahlen bleibt sichtbar
       for (const c of ["Obst", "Gemüse", "Milch"]) { await page.click(`.cat:has-text('${c}')`); for (const t of await page.locator(".tile").all()) await t.click(); }
       const payBox = await page.locator(".pay").boundingBox();

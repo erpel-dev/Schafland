@@ -90,3 +90,14 @@ test("Aktion Weihnachten: 12 Produkte mit eigenen Codes ab 2151…, Texte vorhan
   assert.equal(categoryById("weihnachten").emoji, "🎄");
   for (const a of aktionen) assert.ok(a.startText && a.thanksText && a.ground.length, a.id);
 });
+
+test("Kategorie Spielzeug: hinten angehängt, 12 Produkte, Codes ab 2107…", () => {
+  const toys = products.filter((p) => p.categoryId === "spielzeug");
+  assert.equal(toys.length, 12);
+  for (const p of toys) assert.match(p.ean, /^2107\d{9}$/);
+  const names = toys.map((p) => p.name.replace(/­/g, ""));
+  for (const n of ["Kuschelschaf", "Minecraft-Schwert", "Hot-Wheels-Rennbahn"]) assert.ok(names.includes(n), n);
+  // bestehende Codes unverändert (gedruckte Etiketten bleiben gültig)
+  assert.equal(productByEan.get("2101001000001")?.name, "Apfel");
+  assert.equal(products.find((p) => p.name === "Saft").ean.slice(0, 7), "2106001");
+});

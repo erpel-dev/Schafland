@@ -50,7 +50,7 @@ Beim ersten Scannen fragt Chromium oben links nach der Kamera. Dort **„Beim Be
 - **Kassenbons:** Die letzten 30 Einkäufe.
 - **Scan-Protokoll:** Die letzten 50 Scans mit Code und den Antworten der Datenbanken. Hilft, wenn etwas nicht erkannt wird.
 
-Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.8.0 vom 31.10.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
+Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.9.0 vom 31.10.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
 
 ## Scannen: so funktioniert es
 
@@ -134,6 +134,8 @@ kiosk/                    Start- und Autostart-Skripte
 ```
 
 Neue Aktionen kommen in `src/lib/aktionen.js` (Name, Emoji, Texte für Start und Danke, Deko auf der Wiese, Produkte). Das Aussehen steht in `src/app.css` unter `:root[data-aktion="…"]`, das Kostüm der Schafe in `src/components/Sheep.svelte`, die Himmels-Deko in `src/components/Deko.svelte`. Jede Aktion bekommt eigene Etiketten-Codes (`2150…`, `2151…`, …).
+
+**Sortiment:** Obst, Gemüse, Milch, Backwaren (mit sechs Brötchensorten), Süßes, Getränke und **Spielzeug**: Schaf-Spielzeug (Kuschelschaf, Schaf-Puzzle, Wollknäuel, Schaf-Bilderbuch), Minecraft (Schwert, Spitzhacke, Grasblock, Diamant) und Hot Wheels (Rennwagen, Monstertruck, Rennbahn, Polizeiauto). Minecraft- und Hot-Wheels-Bilder sind eigene Zeichnungen im typischen Stil, ohne Original-Logos oder -Figuren.
 
 Eigene Produkte oder Preise ändern: `src/lib/catalog.js` bearbeiten und `npm run build` ausführen. Die EAN-Codes werden aus der Position berechnet. Neue Produkte also hinten an die Liste einer Kategorie anhängen, damit die gedruckten Etiketten gültig bleiben.
 
