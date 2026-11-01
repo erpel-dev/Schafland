@@ -362,8 +362,10 @@
         </div>
         <div class="field">
           <label for="schaf-try">Ausprobieren (tippen statt sprechen)</label>
-          <input id="schaf-try" bind:value={tryText} />
-          {#if tryReply}<p class="answer">🐑 {tryReply}</p>{/if}
+          <div class="stack">
+            <input id="schaf-try" bind:value={tryText} />
+            {#if tryReply}<p class="answer">🐑 {tryReply}</p>{/if}
+          </div>
         </div>
 
         <h3>Stufe 2: Freie Fragen mit KI</h3>
@@ -406,12 +408,14 @@
           </div>
           <div class="field">
             <label for="ki-try">KI ausprobieren</label>
-            <div class="row">
-              <input id="ki-try" bind:value={kiQuestion} onkeydown={(e) => e.key === "Enter" && tryKi()} />
-              <button class="big-btn light small" disabled={kiAsking || !kiQuestion.trim()} onclick={tryKi}>{kiAsking ? "…" : "Fragen"}</button>
+            <div class="stack">
+              <div class="row">
+                <input id="ki-try" bind:value={kiQuestion} onkeydown={(e) => e.key === "Enter" && tryKi()} />
+                <button class="big-btn light small" disabled={kiAsking || !kiQuestion.trim()} onclick={tryKi}>{kiAsking ? "…" : "Fragen"}</button>
+              </div>
+              {#if kiAnswer}<p class="answer ki-answer">🐑 {kiAnswer}</p>{/if}
+              {#if schaf.kiLastMs}<small class="muted">Letzte Antwort: {(schaf.kiLastMs / 1000).toFixed(1)} s</small>{/if}
             </div>
-            {#if kiAnswer}<p class="answer ki-answer">🐑 {kiAnswer}</p>{/if}
-            {#if schaf.kiLastMs}<small class="muted">Letzte Antwort: {(schaf.kiLastMs / 1000).toFixed(1)} s</small>{/if}
           </div>
           <p class="muted">Lizenz: LFM Open License v1.0 (für private Nutzung frei). Kinder sollten die KI-Antworten nicht allein als Wissen nehmen; das Schaf ist ein Spielkamerad.</p>
         {/if}
@@ -553,6 +557,7 @@
   .opt.off { opacity: 0.45; cursor: not-allowed; }
   .opt input { position: absolute; opacity: 0; pointer-events: none; }
   .ok { color: var(--grass-dark); font-weight: 800; }
+  .stack { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
   .answer { background: #fff; border-radius: 0.9rem; padding: 0.6rem 0.9rem; margin: 0.3rem 0 0; font-weight: 700; }
   .alias { display: flex; gap: 0.7rem; align-items: center; background: #fff; border-radius: 0.8rem; padding: 0.4rem 0.8rem; }
   .alias span:first-child { font-weight: 800; min-width: 8rem; }

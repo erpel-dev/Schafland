@@ -901,6 +901,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       const heard = await page.textContent(".panel .heard");
       check("Aufnahme endet von selbst nach dem Sprechen", secs < 6 && /\(1\.[0-9] s|\(2\.[0-9] s/.test(heard), `${secs.toFixed(1)} s, ${heard}`);
       check("Antwort mit Preis", (await page.textContent(".panel .big")).includes("Die Banane kostet 30 Cent"));
+      await wait(400);
       await page.screenshot({ path: `${SHOTS}/schaf-antwort.png` });
       await page.click("text=🧺 Ja, in den Korb");
       await wait(300);
@@ -955,6 +956,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       check("Offene Frage: empfohlene Produkte als Bilder", (await page.locator(".choice").count()) === 2);
       const prompt = await page.evaluate(() => window.__kiPrompt[0].content);
       check("KI bekommt Sortiment und Korb, keine Preise", prompt.includes("Obst: Apfel, Banane") && prompt.includes("Im Korb liegt schon") && !/\d+,\d\d/.test(prompt));
+      await wait(400);
       await page.screenshot({ path: `${SHOTS}/schaf-ki-antwort.png` });
       await page.locator(".choice").first().click();
       check("KI-Bild antippen: Preis aus der Kasse", (await page.textContent(".panel .big")).includes("Der Apfel kostet 50 Cent"));
