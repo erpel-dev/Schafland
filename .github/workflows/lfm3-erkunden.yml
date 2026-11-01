@@ -1,0 +1,24 @@
+# Einmalig: Aufbau von LFM3-Audio-2B-ONNX auslesen (Prototyp „Frag das Schaf“ mit Audio-Modell)
+name: LFM3-Audio erkunden
+
+on:
+  push:
+    branches: [lfm3-audio]
+    paths: ["tools/lfm3_audio_erkunden.py", ".github/workflows/lfm3-erkunden.yml"]
+  workflow_dispatch:
+
+jobs:
+  erkunden:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        repo: ["LiquidAI/LFM3-Audio-2B-ONNX", "LiquidAI/LFM2.5-Audio-1.5B-ONNX"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet huggingface_hub onnx
+      - run: python tools/lfm3_audio_erkunden.py "${{ matrix.repo }}"
