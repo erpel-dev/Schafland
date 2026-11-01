@@ -115,7 +115,9 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          target: google_apis
+          # Android ohne Google-Play-Dienste: Die stürzen im überlasteten Emulator ständig ab und
+          # Android beendet dabei jede App mit, die eine WebView zeigt (auch Chrome).
+          target: default
           arch: x86_64
           profile: ${{ matrix.profile }}
           disable-animations: true
