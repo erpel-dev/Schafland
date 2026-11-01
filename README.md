@@ -84,7 +84,7 @@ base64 -w0 schafland.jks   # Ausgabe als Secret SCHAFLAND_KEYSTORE_BASE64
 
 Das gewählte Passwort als Secret `SCHAFLAND_KEYSTORE_PASSWORD`. Den Schlüssel gut aufheben und nicht ins Repo legen. Ohne die Secrets wird die APK mit einem Test-Schlüssel signiert: Sie lässt sich installieren, vor jedem Update muss die alte App aber deinstalliert werden (dabei gehen gescannte Produkte und Einstellungen verloren).
 
-**Tests:** Der GitHub-Lauf startet die App zusätzlich in einem Android-Emulator (Pixel-Tablet quer, Pixel 7 hochkant) und bedient sie: Start, Kasse, Kamera, Zurück-Taste, Bezahlen, Eltern-Bereich, eigenes Kiosk-Plugin, und prüft, dass die App nicht an den Google-Play-Diensten hängt (`android/ci/smoke.mjs`). Screenshots stehen als `SCREENSHOT`-Zeilen im Protokoll des Laufs.
+**Tests:** Der GitHub-Lauf startet die App zusätzlich in einem Android-Emulator (Pixel-Tablet quer, Pixel 7 hochkant) und bedient sie: Start, Kasse, Kamera, Zurück-Taste, Bezahlen, Eltern-Bereich, eigenes Kiosk-Plugin (`android/ci/smoke.mjs`). Screenshots stehen als `SCREENSHOT`-Zeilen im Protokoll des Laufs.
 
 **Selbst bauen** (braucht Android Studio bzw. Android-SDK und Java 21): `npm run build:apk` → `android/app/build/outputs/apk/release/app-release.apk`.
 
