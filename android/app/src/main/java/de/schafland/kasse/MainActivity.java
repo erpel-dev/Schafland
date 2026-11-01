@@ -2,10 +2,13 @@ package de.schafland.kasse;
 
 import android.os.Bundle;
 import android.view.WindowManager;
+import android.webkit.RenderProcessGoneDetail;
+import android.webkit.WebView;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.WebViewListener;
 
 public class MainActivity extends BridgeActivity {
 
@@ -16,6 +19,15 @@ public class MainActivity extends BridgeActivity {
         // Beim Spielen soll das Tablet nicht dunkel werden oder sperren
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         hideSystemBars();
+        // Stürzt die Darstellung ab (z. B. wenig Speicher), startet die Kasse neu statt leer zu bleiben
+        bridge.addWebViewListener(new WebViewListener() {
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                android.util.Log.w("Schafland", "Darstellung abgestürzt, starte neu");
+                recreate();
+                return true;
+            }
+        });
     }
 
     @Override

@@ -31,5 +31,5 @@ adb forward tcp:9222 "localabstract:$SOCK"
 node android/ci/smoke.mjs "$NAME" || STATUS=$?
 
 echo "---- App-Meldungen (logcat, Auszug) ----"
-adb logcat -d | grep -E "Capacitor/Console|chromium|AndroidRuntime|FATAL" | grep -v "Native Bridge" | tail -60 || true
+adb logcat -d | grep -E "Capacitor/Console|chromium|AndroidRuntime|FATAL|Schafland|has died" | grep -v "Native Bridge" | tail -60 || true
 exit ${STATUS:-0}

@@ -138,4 +138,4 @@ try {
 }
 const failed = results.filter((r) => !r).length;
 console.log(`\n${NAME}: ${results.length - failed}/${results.length} bestanden`);
-process.exitCode = failed ? 1 : 0;
+process.exit(failed ? 1 : 0); // offene Verbindungen sollen den Test nicht festhalten

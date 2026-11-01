@@ -119,5 +119,7 @@ jobs:
           arch: x86_64
           profile: ${{ matrix.profile }}
           disable-animations: true
+          ram-size: 4096M
+          heap-size: 512M
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back emulated -camera-front emulated
           script: android/ci/smoke.sh apk/app-debug.apk ${{ matrix.name }}
