@@ -24,8 +24,7 @@ adb logcat -c
 adb logcat -b main,system,crash -v time > logcat.txt 2>&1 &   # alles mitschreiben, der Puffer läuft sonst über
 LOGPID=$!
 adb shell am start -n "$PKG/.MainActivity"
-sleep 2
-APPPID=$(adb shell pidof $PKG || true)
+for i in $(seq 1 30); do APPPID=$(adb shell pidof $PKG || true); [ -n "$APPPID" ] && break; sleep 1; done
 
 # Fernsteuerung der WebView suchen und auf localhost:9222 weiterleiten
 for i in $(seq 1 60); do
@@ -44,7 +43,7 @@ grep -E "Capacitor/Console|AndroidRuntime|FATAL|F DEBUG|F/DEBUG|Schafland|schafl
   | grep -vE "Native Bridge|gms" | tail -80 || true
 echo "---- Vor dem Ende der App ----"
 grep -B80 -m1 "WIN DEATH.*schafland" logcat.txt | grep -vE "AppsFilter|ImeTracker|CarrierSvc|ImsResolver|AiAiEcho" | tail -70 || true
-grep -E "Fatal signal|F/libc|F/DEBUG|backtrace|#0[0-9] pc|Abort message|Kill '|lmkd.*kill|Killing.*schafland" logcat.txt | head -40 || true
+grep -E "Killing [0-9]+:de.schafland|Fatal signal|F/libc|F/DEBUG|backtrace|#0[0-9] pc|Abort message|Kill '|lmkd.*kill|Killing.*schafland" logcat.txt | head -40 || true
 echo "---- Warnungen und Fehler der App (pid $APPPID) ----"
 [ -n "$APPPID" ] && grep -E "^[0-9-]+ [0-9:.]+ [WEF]/[^(]*\( *$APPPID\)" logcat.txt | grep -vE "Long monitor|hidden method|ziparchive" | tail -60 || true
 echo "---- Java-Ausnahmen ----"
