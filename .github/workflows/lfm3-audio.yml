@@ -1,12 +1,12 @@
-# Prototyp „Frag das Schaf“ mit LFM3-Audio: prüft die JavaScript-Umsetzung (src/lib/sprache/lfm3audio.js)
+# Prototyp „Frag das Schaf“ mit LFM3-Omni: prüft die JavaScript-Umsetzung (src/lib/sprache/lfm3audio.js)
 # mit dem echten Modell. GitHub-Rechner haben keine Grafikkarte, daher läuft hier die q4-Fassung auf
 # dem Prozessor (onnxruntime-node); im Browser nimmt die App die q4f16-Fassung auf der Grafikkarte.
-name: LFM3-Audio
+name: LFM3-Omni
 
 on:
   push:
     branches: [lfm3-audio, main]
-    paths: ["src/lib/sprache/lfm3audio.js", "tests/lfm3/**", ".github/workflows/lfm3-audio.yml"]
+    paths: ["src/lib/sprache/lfm3audio.js", "src/lib/sprache/ki.js", "tests/lfm3/**", ".github/workflows/lfm3-audio.yml"]
   workflow_dispatch:
 
 jobs:
@@ -24,18 +24,23 @@ jobs:
       - name: Abhängigkeiten
         run: |
           npm ci
-          sudo apt-get install -y -qq ffmpeg libttspico-utils >/dev/null || sudo apt-get install -y -qq ffmpeg espeak-ng >/dev/null
+          sudo apt-get install -y -qq ffmpeg libttspico-utils fonts-noto-color-emoji >/dev/null || sudo apt-get install -y -qq ffmpeg espeak-ng fonts-noto-color-emoji >/dev/null
+          npx playwright install --with-deps chromium
           pip install --quiet huggingface_hub
 
-      - name: Modell laden (q4, ca. 2,7 GB)
+      - name: Modell laden (q4, ca. 2,9 GB)
         run: |
           python - <<'EOF'
           from huggingface_hub import snapshot_download
-          snapshot_download("LiquidAI/LFM3-Audio-2B-ONNX", local_dir="lfm3-audio", allow_patterns=[
+          snapshot_download("LiquidAI/LFM3-Omni-2B-ONNX", local_dir="lfm3-omni", allow_patterns=[
               "*.json", "*.jinja", "audio_tokenizer/*",
-              "onnx/decoder_q4.onnx*", "onnx/audio_encoder.onnx*", "onnx/depth_decoder.onnx*", "onnx/codec_decoder.onnx*"])
+              "onnx/decoder_q4.onnx*", "onnx/audio_encoder.onnx*", "onnx/depth_decoder.onnx*", "onnx/codec_decoder.onnx*",
+              "onnx/vision_encoder_q8.onnx*"])
           EOF
-          du -sh lfm3-audio
+          du -sh lfm3-omni
+
+      - name: Produktbilder (Emojis als Bilder)
+        run: node tests/lfm3/bilder.mjs bilder
 
       - name: Gesprochene Fragen (16 kHz)
         run: |
@@ -48,7 +53,7 @@ jobs:
           say "Schokolade" "Was kostet die Schokolade"
 
       - name: Spracherkennung und Sprachausgabe mit LFM3-Audio
-        run: node tests/lfm3/echt.mjs lfm3-audio wavs
+        run: node tests/lfm3/echt.mjs lfm3-omni wavs bilder
 
       - uses: actions/upload-artifact@v4
         if: always()

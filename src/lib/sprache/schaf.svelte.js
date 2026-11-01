@@ -12,7 +12,7 @@ import { understand } from "./verstehen.js";
 import { answer } from "./antworten.js";
 import { record } from "./aufnahme.js";
 import { speak, stopSpeaking } from "./sprechen.js";
-import { isOpenQuestion, buildMessages, checkAnswer } from "./ki.js";
+import { isOpenQuestion, buildMessages, checkAnswer, productImageQuestion, productFromAnswer } from "./ki.js";
 import { topicOf, topicProducts } from "./wissen.js";
 
 export const MODELLE = {
@@ -141,7 +141,7 @@ class FragDasSchaf {
         await this.loadModel();
       }
       // Stufe 2 im Hintergrund vorbereiten (aus dem Speicher, wenn schon einmal geladen)
-      if (settings.value.kiAn && this.ki === "aus") this.loadKi();
+      if (settings.value.kiAn && this.ki === "aus" && !this.kiViaAudio) this.loadKi();
       this.phase = "listening";
       this.#recording = await record({ onLevel: (l) => (this.level = l) });
       const { audio, heardVoice } = await this.#recording.done;
@@ -215,7 +215,7 @@ class FragDasSchaf {
   async hear(text) {
     const { result, reply } = this.#resolve(text);
     // Stufe 2: offene Fragen an das Sprachmodell, wenn es eingeschaltet und geladen ist
-    if (settings.value.kiAn && this.ki === "bereit" && isOpenQuestion(result)) {
+    if (settings.value.kiAn && (this.ki === "bereit" || this.kiViaAudio) && isOpenQuestion(result)) {
       this.heard = text;
       this.reply = { say: "", streaming: true };
       this.phase = "answer";
@@ -342,6 +342,17 @@ class FragDasSchaf {
       onText(raw);
       return checkAnswer(raw, { products: this.pool });
     }
+    // Ist LFM3-Audio geladen, antwortet es selbst: kein zweites Sprachmodell nötig
+    if (this.kiViaAudio) {
+      const timer = setTimeout(() => this.#audioCall({ type: "stop" }).catch(() => {}), 30000);
+      try {
+        const out = await this.#audioCall({ type: "chat", messages: $state.snapshot(messages) }, (e) => onText(e.text));
+        this.kiLastMs = out.ms;
+        return checkAnswer(out.text, { products: this.pool });
+      } finally {
+        clearTimeout(timer);
+      }
+    }
     const timer = setTimeout(() => this.#kiCall({ type: "stop" }).catch(() => {}), 30000);
     try {
       const out = await this.#kiCall({ type: "generate", messages: $state.snapshot(messages), maxNewTokens: 90 }, (e) => {
@@ -361,7 +372,7 @@ class FragDasSchaf {
       this.#audioWorker.onmessage = ({ data }) => {
         const p = this.#audioPending.get(data.id);
         if (!p) return;
-        if (["progress", "status", "frame"].includes(data.type)) return p.onEvent?.(data);
+        if (["progress", "status", "frame", "token"].includes(data.type)) return p.onEvent?.(data);
         this.#audioPending.delete(data.id);
         if (data.type === "error") p.reject(new Error(data.message));
         else p.resolve(data);
@@ -374,7 +385,12 @@ class FragDasSchaf {
     });
   }
 
-  /** Lädt LFM3-Audio (Eltern-Bereich). Beim ersten Mal ca. 2,4 GB. */
+  /** Beantwortet LFM3-Audio die freien Fragen? (dann wird kein eigenes Stufe-2-Modell geladen) */
+  get kiViaAudio() {
+    return settings.value.audioModell && this.audio === "bereit" && !globalThis.__schafFakeAudio;
+  }
+
+  /** Lädt LFM3-Omni (Eltern-Bereich). Beim ersten Mal ca. 2,6 GB. */
   loadAudioModel() {
     if (this.audio === "bereit") return Promise.resolve();
     if (this.#audioLoad) return this.#audioLoad;
@@ -384,6 +400,7 @@ class FragDasSchaf {
       this.audioProgress = 0;
       try {
         if (globalThis.__schafFakeAudio) {
+          // Tests: Modell ersetzt
           this.audio = "bereit";
           return;
         }
@@ -395,7 +412,7 @@ class FragDasSchaf {
       } catch (err) {
         console.warn("LFM3-Audio", err);
         this.audio = "fehler";
-        this.audioError = /WebGPU|Grafikkarte/.test(err?.message) ? "Dieses Gerät hat keine Grafikkarte im Browser (WebGPU)." : /memory|Memory|allocation|OOM|Array buffer/i.test(err?.message) ? "Zu wenig Speicher für LFM3-Audio auf diesem Gerät." : "LFM3-Audio ließ sich nicht starten: " + (err?.message ?? "").slice(0, 160);
+        this.audioError = /WebGPU|Grafikkarte/.test(err?.message) ? "Dieses Gerät hat keine Grafikkarte im Browser (WebGPU)." : /memory|Memory|allocation|OOM|Array buffer/i.test(err?.message) ? "Zu wenig Speicher für LFM3-Omni auf diesem Gerät." : "LFM3-Omni ließ sich nicht starten: " + (err?.message ?? "").slice(0, 160);
         this.resetAudioModel(true);
       } finally {
         this.#audioLoad = null;
@@ -427,6 +444,27 @@ class FragDasSchaf {
       }
     }
     await speak(text);
+  }
+
+  /** Darf die Kamera Produkte ohne Strichcode erkennen? (LFM3-Omni geladen) */
+  get canSeeProducts() {
+    return settings.value.audioModell && this.audio === "bereit";
+  }
+
+  /** Welches Produkt ist auf dem Kamerabild (ImageData)? Ergebnis: { product, answer, ms } */
+  async recognizeProduct(imageData) {
+    // eigenes Sortiment und Aktionsprodukte (gescannte Produkte haben lange Markennamen)
+    const aktion = aktionById(settings.value.aktion);
+    const pool = [...(aktion ? aktion.products : []), ...products];
+    const { system, question } = productImageQuestion(pool);
+    if (globalThis.__schafFakeAudio?.image) {
+      const answer = await globalThis.__schafFakeAudio.image(question);
+      return { product: productFromAnswer(answer, pool), answer, ms: 0 };
+    }
+    const rgba = new Uint8ClampedArray(imageData.data);
+    const out = await this.#audioCall({ type: "image", rgba, width: imageData.width, height: imageData.height, system, question });
+    this.audioLastMs = { ...this.audioLastMs, bild: out.ms };
+    return { product: productFromAnswer(out.text, pool), answer: out.text, ms: out.ms };
   }
 
   /** Probe im Eltern-Bereich */

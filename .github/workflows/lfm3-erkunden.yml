@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        repo: ["LiquidAI/LFM3-Audio-2B-ONNX", "LiquidAI/LFM2.5-Audio-1.5B-ONNX"]
+        repo: ["LiquidAI/LFM3-Omni-2B-ONNX"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

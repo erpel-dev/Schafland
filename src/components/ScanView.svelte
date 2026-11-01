@@ -10,6 +10,7 @@
   import { beep, nope } from "../lib/sounds.js";
   import ProductImage from "./ProductImage.svelte";
   import Sheep from "./Sheep.svelte";
+  import { schaf } from "../lib/sprache/schaf.svelte.js";
 
   let { onClose } = $props();
 
@@ -214,6 +215,40 @@
     };
   });
 
+  // Produkte ohne Strichcode: Bild an LFM3-Omni („Was ist das?“)
+  let seeing = $state(false);
+  async function whatIsThis() {
+    if (seeing || !video?.videoWidth) return;
+    seeing = true;
+    clearTimeout(addTimer);
+    status = "seeing";
+    found = null;
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0);
+      const t0 = Date.now();
+      const { product, answer } = await schaf.recognizeProduct(ctx.getImageData(0, 0, canvas.width, canvas.height));
+      scanLog.add({ code: "Kamerabild", result: product ? `erkannt: ${product.name}` : "nicht erkannt", trace: [`LFM3-Omni: „${answer}“`, `${((Date.now() - t0) / 1000).toFixed(1)} s`] });
+      if (product) {
+        beep();
+        found = { product, source: "Bilderkennung" };
+        status = "found";
+        addTimer = setTimeout(addFound, AUTO_ADD_MS * 2);
+      } else {
+        status = "notseen";
+        nope();
+      }
+    } catch (err) {
+      console.warn("Bilderkennung", err);
+      status = "notseen";
+    } finally {
+      seeing = false;
+    }
+  }
+
   function addFound() {
     clearTimeout(addTimer);
     if (!found || status !== "found") return;
@@ -244,13 +279,24 @@
       {/if}
     </p>
     <button class="big-btn light done" onclick={onClose}>✓ Fertig gescannt</button>
+    {#if schaf.canSeeProducts}
+      <button class="see" onclick={whatIsThis} disabled={seeing}><span class="emoji">🐑</span> {seeing ? "Ich schaue …" : "Was ist das?"}</button>
+    {/if}
     {#if cameras.length > 1}
       <button class="switch" onclick={() => switchCamera()} aria-label="Andere Kamera"><span class="emoji">🔄</span> Kamera</button>
     {/if}
   </div>
 
   <div class="found">
-    {#if status === "looking"}
+    {#if status === "seeing"}
+      <div class="pimg"><Sheep size="6rem" class="think" /></div>
+      <b class="t">Ich schaue genau hin …</b>
+      <small>Halte die Sache ruhig in die Kamera.</small>
+    {:else if status === "notseen"}
+      <div class="pimg"><Sheep size="6rem" class="shrug" /></div>
+      <b class="t">Das erkenne ich nicht.</b>
+      <small>Halte es näher an die Kamera oder tippe es im Regal an.</small>
+    {:else if status === "looking"}
       <div class="pimg"><Sheep size="6rem" class="think" /></div>
       <b class="t">Ich schaue nach …</b>
       <small>Code {lastCode}</small>
@@ -291,6 +337,12 @@
   video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   video.mirror { transform: scaleX(-1); }
   .switch { position: absolute; top: 1rem; right: 1rem; padding: 0.5rem 0.9rem; border-radius: 99px; background: rgba(255, 255, 255, 0.9); font-weight: 800; display: flex; gap: 0.4rem; align-items: center; }
+  .see {
+    position: absolute; left: 0.8rem; bottom: 0.8rem; z-index: 2;
+    display: flex; align-items: center; gap: 0.4rem; padding: 0.6rem 1rem; border-radius: 99px;
+    background: var(--sky); color: var(--sky-ink); font-weight: 800; font-size: 1.05rem;
+  }
+  .see:disabled { opacity: 0.7; }
   .frame { position: relative; width: 26rem; max-width: 80%; aspect-ratio: 16 / 9; }
   .wool {
     position: absolute; inset: -1.8rem; border-radius: 3.5rem; padding: 1.8rem;
