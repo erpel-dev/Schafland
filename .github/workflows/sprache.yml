@@ -1,0 +1,49 @@
+# Testet „Frag das Schaf“ mit der echten Spracherkennung: espeak-ng spricht Fragen,
+# Chromium spielt sie als Mikrofon ein, Whisper (im Browser) erkennt sie.
+name: Frag das Schaf
+
+on:
+  push:
+    branches: [main, frag-das-schaf]
+    paths: ["src/lib/sprache/**", "src/components/FragDasSchaf.svelte", "tests/e2e/sprache-echt.mjs", ".github/workflows/sprache.yml", "package-lock.json"]
+  workflow_dispatch:
+
+jobs:
+  sprache:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [base, tiny]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Abhängigkeiten
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          sudo apt-get install -y -qq espeak-ng ffmpeg >/dev/null
+
+      - name: Gesprochene Fragen erzeugen
+        run: |
+          mkdir -p wavs
+          say() { espeak-ng -v de -s 140 -w /tmp/s.wav "$2"; ffmpeg -loglevel error -y -i /tmp/s.wav -af "apad=pad_dur=2.5" -ar 48000 -ac 1 "wavs/$1__$2.wav"; }
+          say "Banane kostet 30 Cent" "Was kostet die Banane"
+          say "Eis ist im Korb" "Ich möchte ein Eis"
+          say "Korb ist noch leer" "Wie viel muss ich bezahlen"
+          say "Bei Obst gibt es" "Was gibt es bei Obst"
+          say "Schokolade kostet 99 Cent" "Was kostet die Schokolade"
+          say "Brezel ist im Korb" "Ich nehme eine Brezel"
+          ls wavs
+
+      - name: App bauen
+        run: npx vite build
+
+      - name: Spracherkennung testen (${{ matrix.model }})
+        run: node tests/e2e/sprache-echt.mjs wavs ${{ matrix.model }}

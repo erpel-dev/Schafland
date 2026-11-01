@@ -119,6 +119,25 @@ Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.11.0 vom 01.11.
 
 **Updates:** `git pull` und die Kasse neu starten. Die Kasse speichert sich für den Offline-Betrieb zwischen und zeigt beim Start zuerst kurz die alte Version. Sobald die neue geladen ist, wechselt sie automatisch: sofort, solange der Startbildschirm zu sehen ist, sonst nach dem nächsten Bezahlen, damit nie mitten im Spiel neu geladen wird.
 
+## Frag das Schaf (Fragen per Sprache)
+
+Eltern-Bereich → **Frag das Schaf** einschalten. Dann gibt es neben „Scannen!“ den Knopf **„Frag das Schaf!“**: antippen und sprechen. Das Schaf hört zu, bis das Kind eine kurze Pause macht, und antwortet laut und in einer Sprechblase.
+
+| Das Kind sagt | Das Schaf |
+| --- | --- |
+| „Was kostet die Banane?“ | „Die Banane kostet 30 Cent. Soll ich sie in den Korb legen?“ + Knopf „Ja, in den Korb“ |
+| „Ich möchte ein Eis“ | legt das Eis in den Korb: „Das Eis ist im Korb!“ |
+| „Wie viel muss ich bezahlen?“ | nennt Anzahl und Summe im Korb |
+| „Was gibt es bei Obst?“ | zählt Produkte auf und zeigt Bilder |
+| etwas Unklares („Ki…“) | „Meinst du eins von diesen?“ mit Bildern zum Antippen |
+
+- **Undeutliche Aussprache:** Das Schaf vergleicht nach Klang und erkennt auch verschluckte Silben („Nane“ → Banane, „Tokolade“ → Schokolade) sowie andere Wörter (Möhre, Semmel, Schoki …). Im Eltern-Bereich lassen sich eigene Aussprachen des Kindes hinterlegen. Unter „Zuletzt gefragt“ steht, was das Schaf verstanden hat; tippt das Kind nach einer unklaren Frage ein Bild an, lässt sich das mit einem Tipp als Aussprache merken.
+- **Datenschutz:** Die Spracherkennung (Whisper) läuft komplett auf dem Gerät. Aufnahmen verlassen das Gerät nicht und werden nicht gespeichert.
+- **Erstes Laden:** Das Erkennungsmodell wird einmal aus dem Internet geladen („Genau“ ca. 80 MB, „Schnell“ ca. 40 MB) und danach im Browser behalten; am besten im Eltern-Bereich vorab „Jetzt laden“ tippen. Danach geht es offline.
+- **Vorlesen:** Browser: deutsche Stimme des Systems (Windows hat sie dabei; Linux: `sudo apt install speech-dispatcher espeak-ng`, danach Browser neu starten). Android-App: Androids Sprachausgabe. Ohne Stimme antwortet das Schaf nur in der Sprechblase.
+- **Tempo:** Auf dem alten Notebook dauert das Erkennen 1–3 Sekunden; auf sehr langsamen Geräten „Schnell“ wählen.
+- **Tests:** `tests/unit/sprache.test.js` (Verstehen, Antworten, keine Fehlzuordnung von Alltagswörtern), Abschnitt `schaf` in `npm run test:e2e` (Mikrofon, Ablauf, Eltern-Bereich, Handy) und `.github/workflows/sprache.yml` mit echter Spracherkennung und gesprochenen Testsätzen.
+
 ## Scannen: so funktioniert es
 
 1. Eigener Katalog (`src/lib/catalog.js`, Codes von den gedruckten Etiketten)

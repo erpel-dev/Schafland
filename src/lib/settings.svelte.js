@@ -14,6 +14,9 @@ const DEFAULTS = {
   aktion: null, // id der aktiven Aktion oder null
   cameraId: null, // zuletzt gewählte Kamera (Tablets: vorne/hinten)
   cameraLabel: null, // ihr Name: bleibt gleich, auch wenn der Browser die Kennung neu vergibt
+  fragSchaf: false, // „Frag das Schaf“: Fragen per Sprache (lädt beim ersten Mal das Erkennungsmodell)
+  fragModell: "base", // base (genau) | tiny (schnell)
+  sprachAliases: [], // [{ heard, productId }]: so spricht das Kind ein Produkt aus
 };
 
 class Settings {
