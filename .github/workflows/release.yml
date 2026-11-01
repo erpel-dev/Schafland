@@ -1,10 +1,12 @@
 # Baut alle Schafland-Dateien und hängt sie an ein GitHub-Release.
-# Auslösen: Version in package.json erhöhen, committen, dann Tag pushen:
-#   git tag v1.11.0 && git push origin v1.11.0
+# Auslösen: Version in package.json erhöhen und nach main pushen. Gibt es zu dieser Version
+# noch kein Release, legt der Lauf es samt Tag (v<version>) an. Ein gepushter Tag v* geht auch.
 name: Release
 
 on:
   push:
+    branches: [main]
+    paths: ["package.json", ".github/workflows/release.yml"]
     tags: ["v*"]
   workflow_dispatch:
     inputs:
@@ -20,11 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -32,39 +34,51 @@ jobs:
           cache: npm
 
       - name: Version prüfen
+        id: v
         run: |
           V=$(node -p "require('./package.json').version")
           echo "V=$V" >> "$GITHUB_ENV"
-          if [ "v$V" != "$TAG" ]; then
-            echo "::error::Tag $TAG passt nicht zur Version $V in package.json"
+          echo "TAG=v$V" >> "$GITHUB_ENV"
+          if [ "${{ github.ref_type }}" = "tag" ] && [ "${{ github.ref_name }}" != "v$V" ]; then
+            echo "::error::Tag ${{ github.ref_name }} passt nicht zur Version $V in package.json"
             exit 1
+          fi
+          if [ "${{ github.ref_type }}" = "branch" ] && [ "${{ github.event_name }}" = "push" ] && gh release view "v$V" >/dev/null 2>&1; then
+            echo "Release v$V gibt es schon – nichts zu tun."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Abhängigkeiten und Tests
+        if: steps.v.outputs.skip != '1'
         run: |
           npm ci
           npm test
 
       - name: App bauen
+        if: steps.v.outputs.skip != '1'
         run: npx vite build
 
       - uses: actions/setup-go@v5
+        if: steps.v.outputs.skip != '1'
         with:
           go-version-file: launcher/go.mod
           cache: false
 
       - name: Windows- und Linux-Starter bauen
+        if: steps.v.outputs.skip != '1'
         run: |
           (cd launcher && go test ./...)
           node scripts/build-starter.mjs
 
       - uses: actions/setup-java@v4
+        if: steps.v.outputs.skip != '1'
         with:
           distribution: temurin
           java-version: 21
           cache: gradle
 
       - name: Signaturschlüssel aus den Secrets (falls hinterlegt)
+        if: steps.v.outputs.skip != '1'
         env:
           KEYSTORE_BASE64: ${{ secrets.SCHAFLAND_KEYSTORE_BASE64 }}
         run: |
@@ -78,6 +92,7 @@ jobs:
           fi
 
       - name: APK bauen
+        if: steps.v.outputs.skip != '1'
         env:
           SCHAFLAND_KEYSTORE_PASSWORD: ${{ secrets.SCHAFLAND_KEYSTORE_PASSWORD }}
         run: |
@@ -85,6 +100,7 @@ jobs:
           cd android && ./gradlew assembleRelease --no-daemon
 
       - name: Dateien zusammenstellen
+        if: steps.v.outputs.skip != '1'
         run: |
           mkdir -p out
           cp android/app/build/outputs/apk/release/app-release.apk "out/schafland-$V.apk"
@@ -97,6 +113,7 @@ jobs:
           ls -la out
 
       - name: Release-Text
+        if: steps.v.outputs.skip != '1'
         run: |
           if [ "$SIGNIERT" = "nein" ]; then
             SIGN="Die APK ist mit einem Test-Schlüssel signiert: Vor einem Update die alte App deinstallieren (gescannte Produkte und Einstellungen gehen dabei verloren). Mit eigenem Schlüssel als GitHub-Secret entfällt das (siehe README)."
@@ -124,12 +141,11 @@ jobs:
           cat notes.md
 
       - name: Release anlegen
-        env:
-          GH_TOKEN: ${{ github.token }}
+        if: steps.v.outputs.skip != '1'
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" out/* --clobber
             gh release edit "$TAG" --notes-file notes.md
           else
-            gh release create "$TAG" out/* --title "Schafland $V" --notes-file notes.md
+            gh release create "$TAG" out/* --target "$(git rev-parse HEAD)" --title "Schafland $V" --notes-file notes.md
           fi

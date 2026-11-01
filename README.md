@@ -208,11 +208,4 @@ Gedacht für Chromium, Chrome oder Edge. In Firefox fehlt die Ordnerauswahl. Dor
 
 ## Neue Version veröffentlichen
 
-Version in `package.json` erhöhen, committen, pushen, dann den passenden Tag pushen:
-
-```bash
-git tag v1.11.0
-git push origin v1.11.0
-```
-
-GitHub baut daraufhin APK, Windows-exe, Linux-Datei und Web-Version und legt ein Release mit allen Dateien an (`.github/workflows/release.yml`).
+Version in `package.json` erhöhen (z. B. `npm version 1.12.0 --no-git-tag-version`), committen und nach `main` pushen. Gibt es zu dieser Version noch kein Release, baut GitHub APK, Windows-exe, Linux-Datei und Web-Version und legt das Release samt Tag `v1.12.0` an (`.github/workflows/release.yml`).
