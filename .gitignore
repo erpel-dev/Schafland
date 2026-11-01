@@ -3,3 +3,6 @@ release/
 tests/e2e/.fixtures/
 tests/e2e/.output/
 .claude/
+launcher/web/*
+!launcher/web/.gitkeep
+launcher/*.syso

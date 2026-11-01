@@ -27,6 +27,34 @@ Beim ersten Scannen fragt Chromium oben links nach der Kamera. Dort **„Beim Be
 
 **Windows:** `kiosk/start-schafland-windows.bat` startet die App mit Microsoft Edge im Vollbild (braucht Python 3).
 
+## Als einzelne Datei (Windows und Linux)
+
+Statt Startskript und Python gibt es Schafland auch als **eine einzige Datei** pro Betriebssystem, etwa 8 MB groß:
+
+| Datei | System | Braucht |
+| --- | --- | --- |
+| `schafland.exe` | Windows 10/11 (64 Bit) | Microsoft Edge (ist immer installiert) oder Google Chrome |
+| `schafland` | Linux (64 Bit) | Chromium oder Google Chrome (`sudo apt install chromium`) |
+
+Die Datei enthält die komplette Kasse und einen kleinen Webserver. Ein Doppelklick startet den Browser im Vollbild, **Alt+F4** beendet alles. Sie benutzt dieselbe Adresse (`localhost:8080`) und denselben Profil-Ordner wie die Startskripte, gespeicherte Produkte, Einstellungen und Kassenbons bleiben also erhalten. Ein zweiter Doppelklick, während Schafland läuft, öffnet kein zweites Mal.
+
+```bash
+./schafland --autostart       # beim Anmelden starten (Linux: auch im Anwendungsmenü)
+./schafland --kein-autostart  # wieder entfernen
+./schafland --version
+```
+
+Unter Windows genauso: `schafland.exe --autostart` (z. B. über eine Verknüpfung mit diesem Zusatz). Beim ersten Start einer unsignierten exe zeigt Windows „Der Computer wurde durch Windows geschützt“: auf **Weitere Informationen → Trotzdem ausführen** klicken. Unter Linux die Datei einmal ausführbar machen: `chmod +x schafland`.
+
+**Selbst bauen** (braucht Go ≥ 1.22, baut beide Dateien unter Linux, Windows oder macOS):
+
+```bash
+npm run build:starter    # → release/schafland.exe und release/schafland
+npm run test:starter     # Go-Tests und Ende-zu-Ende-Test der Linux-Datei
+```
+
+Der Quellcode liegt in `launcher/` (Go, nur Standardbibliothek). Beim Bauen wird `dist/` hineinkopiert und eingebettet; das Schaf-Icon der exe erzeugt `go-winres` (braucht beim ersten Bauen Internet, sonst fehlt nur das Icon).
+
 ## Bedienung
 
 | Was | Wie |

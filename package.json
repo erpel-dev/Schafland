@@ -11,7 +11,9 @@
     "test": "node --test tests/unit/*.test.js",
     "test:e2e": "vite build && node tests/e2e/run.mjs",
     "test:fixtures": "node tests/e2e/fixtures.mjs",
-    "test:explore": "vite build && node tests/e2e/explore.mjs"
+    "test:explore": "vite build && node tests/e2e/explore.mjs",
+    "build:starter": "vite build && node scripts/build-starter.mjs",
+    "test:starter": "cd launcher && go test ./... && cd .. && node tests/e2e/starter.mjs"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.1.1",
