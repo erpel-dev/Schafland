@@ -3,6 +3,7 @@
 // sicher. Das Modell bekommt nur offene Fragen und darf nur über das Sortiment sprechen. Seine Antwort
 // wird geprüft: keine Preise (die zeigt die Kasse selbst), nur Produkte aus dem Laden, kurz.
 import { normalize, keysFor } from "./verstehen.js";
+import { knowledgeLines } from "./wissen.js";
 
 // Wörter, an denen man eine offene Frage erkennt
 const OFFEN = [
@@ -15,7 +16,7 @@ const OFFEN = [
 
 /** Soll die Frage an das Sprachmodell gehen? */
 export function isOpenQuestion(result) {
-  if (["add", "total", "hello", "thanks"].includes(result.intent)) return false;
+  if (["add", "total", "hello", "thanks", "topic"].includes(result.intent)) return false;
   const text = " " + result.text + " ";
   // auch „Welches Obst ist gelb?“ (sonst zählt Stufe 1 nur das Obst auf)
   if (OFFEN.some((w) => text.includes(" " + w + " ") || text.includes(" " + w))) return true;
@@ -46,7 +47,8 @@ export function buildMessages(question, { products, categories = [], cart = [] }
         "- Empfiehl nur Produkte aus dem Sortiment unten, mit genau diesem Namen. Erfinde nichts dazu.\n" +
         "- Nenne keine Preise und keine Zahlen.\n" +
         "- Ist die Frage nicht zum Einkaufen, antworte kurz und lieb und frag, was das Kind kaufen möchte.\n\n" +
-        `Sortiment:\n${sortiment}\n\n${korb}`,
+        `Sortiment:\n${sortiment}\n\nWissen über das Sortiment:\n${knowledgeLines()}\n\n${korb}\n\n` +
+        "Beispiel: Frage „Was ist lecker zum Nachtisch?“ Antwort: „Zum Nachtisch passen Eis oder Muffin. Lecker!“",
     },
     { role: "user", content: question },
   ];

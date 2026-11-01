@@ -951,7 +951,9 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       check("Eltern: KI ausprobieren, Preis-Satz entfernt", kiTry.includes("Äpfel und Bananen sind gesund!") && !kiTry.includes("30 Cent") && kiTry.includes("Apfel, Banane"), kiTry);
       await page.screenshot({ path: `${SHOTS}/schaf-ki-eltern.png`, fullPage: true });
       await page.click("text=Zurück zum Laden");
-      await page.evaluate(() => window.__fragDasSchaf.hear("Was ist gesund?"));
+      await page.evaluate(() => window.__fragDasSchaf.hear("Welches Obst ist gelb?"));
+      check("Wissensfrage: feste Antwort statt KI", (await page.textContent(".panel .big")).trim() === "Gelb sind Banane, Zitrone und Ananas." && (await page.locator(".choice").count()) === 3);
+      await page.evaluate(() => window.__fragDasSchaf.hear("Was schmeckt lecker?"));
       check("Offene Frage: KI-Antwort", (await page.textContent(".panel .big")).trim() === "Äpfel und Bananen sind gesund!");
       check("Offene Frage: empfohlene Produkte als Bilder", (await page.locator(".choice").count()) === 2);
       const prompt = await page.evaluate(() => window.__kiPrompt[0].content);

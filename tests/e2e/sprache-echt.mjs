@@ -43,7 +43,7 @@ try {
       await page.keyboard.press("Control+,");
       await page.click("nav >> text=Frag das Schaf");
       await page.click("#schaf-on");
-      await page.click(`.opt:has-text("${MODEL === "tiny" ? "Schnell" : "Genau"}")`);
+      await page.click(`.opt:has(b:text-is("${{ tiny: "Schnell", base: "Genau", small: "Sehr genau" }[MODEL]}"))`);
       const t0 = Date.now();
       await page.click("text=Jetzt laden");
       await page.waitForSelector("text=✓ Geladen", { timeout: 300000 });

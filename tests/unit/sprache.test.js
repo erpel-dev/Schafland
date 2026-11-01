@@ -135,3 +135,39 @@ test("Alltagswörter werden keinem Produkt zugeordnet", () => {
     assert.equal(r.product, null, `„${w}“ → ${r.product?.name}`);
   }
 });
+
+import { topicOf, topicProducts, THEMEN } from "../../src/lib/sprache/wissen.js";
+
+/** wie in schaf.svelte.js: Thema erkennen und beantworten */
+function ask(text) {
+  const r = hear(text);
+  const topic = topicOf(text);
+  if (topic && ["unknown", "product", "category"].includes(r.intent)) {
+    Object.assign(r, { intent: "topic", topic, topicList: topicProducts(topic, products, r.category?.id ?? null) });
+  }
+  return answer(r);
+}
+
+test("Wissen: alle Produkte der Themen gibt es im Sortiment", () => {
+  const names = new Set(products.map((p) => p.name.replace(/­/g, "")));
+  for (const t of THEMEN) for (const n of t.products) assert.ok(names.has(n), `${t.id}: ${n}`);
+});
+
+test("Wissen: typische Kinderfragen", () => {
+  assert.equal(ask("Was ist gesund?").say, "Gesund sind Obst und Gemüse, zum Beispiel Apfel, Banane und Karotte.");
+  assert.equal(ask("Welches Obst ist gelb?").say, "Gelb sind Banane, Zitrone und Ananas.");
+  assert.equal(ask("Was ist gelb?").say, "Gelb sind Banane, Zitrone und Ananas.");
+  assert.equal(ask("Welches Gemüse ist gelb?").say, "Gelb ist Mais.");
+  assert.equal(ask("Was passt zum Frühstück?").say, "Zum Frühstück passen Brötchen, Butter und Honig.");
+  assert.equal(ask("Ich habe Durst").say, "Gegen Durst helfen Wasser, Saft und Tee.");
+  assert.equal(ask("Ist die Banane gesund?").say, "Ja! Die Banane ist gesund.");
+  assert.equal(ask("Sind Erdbeeren rot?").say, "Ja! Die Erdbeeren sind rot.");
+  assert.equal(ask("Passt Honig zum Frühstück?").say, "Ja! Der Honig passt gut zum Frühstück.");
+  assert.match(ask("Ist die Schokolade gesund?").say, /^Hmm, eher nicht\. Gesund sind Obst und Gemüse, zum Beispiel Apfel, Banane und Karotte\.$/);
+  assert.equal(ask("Was kann ich naschen?").choices.length, 6);
+  // keine Verwechslung mit „weißt“ oder „heißt“
+  assert.equal(topicOf("Weißt du, was eine Banane kostet?"), null);
+  assert.equal(topicOf("Wie heißt du?"), null);
+  // Preisfrage bleibt Preisfrage, auch mit Farbwort
+  assert.match(ask("Was kostet die rote Paprika?").say, /^Die Paprika kostet/);
+});

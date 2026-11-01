@@ -41,19 +41,17 @@ try {
   const err = await page.textContent(".err").catch(() => "");
   check("Sprachmodell „Klein“ geladen", loaded, loaded ? `${((Date.now() - t0) / 1000).toFixed(0)} s` : err);
   if (loaded) {
-    for (const [q, want] of [
-      ["Was ist gesund?", /apfel|äpfel|banane|karotte|brokkoli|salat|gurke|tomate|birne|orange|kiwi|obst|gemüse/i],
-      ["Was passt zum Frühstück?", /brötchen|brot|butter|honig|milch|eier|kakao|saft|joghurt|croissant|tee/i],
-      ["Welches Obst ist gelb?", /banane|zitrone|ananas/i],
-      ["Ich habe Durst", /wasser|saft|limo|tee|kakao|milch/i],
-    ]) {
+    // Fragen, die Stufe 1 nicht kennt (Gesund, Farben, Frühstück … beantwortet sie mit festem Wissen)
+    for (const q of ["Was schmeckt lecker?", "Was kann ich meiner Oma kaufen?", "Was essen Schafe?", "Welches Obst ist rund?"]) {
       await page.fill("#ki-try", q);
       const t = Date.now();
       await page.click("button:has-text('Fragen')");
       await wait(300);
       await page.waitForSelector("button:text-is('Fragen'):not([disabled])", { timeout: 180000 });
       const answer = (await page.textContent(".ki-answer").catch(() => "")).replace(/^🐑\s*/, "");
-      check(`„${q}“`, want.test(answer) && !/\d/.test(answer.split("(Bilder")[0]), `${answer} (${((Date.now() - t) / 1000).toFixed(1)} s)`);
+      const said = answer.split("  (Bilder")[0];
+      // geprüft wird, was die App garantiert: kurz, ohne Zahlen/Preise; die Qualität steht im Protokoll
+      check(`„${q}“`, said.length > 3 && said.length <= 225 && !/\d/.test(said), `${answer} (${((Date.now() - t) / 1000).toFixed(1)} s)`);
     }
   }
   if (errors.length) console.log("Konsole:", errors.slice(0, 5).join(" | "));

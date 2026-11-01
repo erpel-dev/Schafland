@@ -78,6 +78,24 @@ export function answer(result, { cartCount = 0, cartTotal = 0, categoryProducts 
         choices: categoryProducts.slice(0, 6),
       };
     }
+    case "topic": {
+      const { topic, topicList = [] } = result;
+      if (p) {
+        const { plural } = genus(p);
+        const inList = topicList.some((x) => x.id === p.id);
+        const verb = plural ? "sind" : "ist";
+        const adjectiv = !/ /.test(topic.yes); // „gesund“, „gelb“ … oder ganze Wendung („passt gut zum Frühstück“)
+        const yes = adjectiv ? `${subject(p)} ${verb} ${topic.yes}` : `${subject(p)} ${plural ? topic.yes.replace(/^(passt|ist|macht|kann|braucht)/, (v) => ({ passt: "passen", ist: "sind", macht: "machen", kann: "kann", braucht: "braucht" })[v]) : topic.yes}`;
+        if (inList) return { say: `Ja! ${yes}.`, offerAdd: p };
+        const others = topicList.slice(0, 3);
+        return { say: others.length ? `Hmm, eher nicht. ${topic.intro} ${list(others.map((x) => clean(x.name)))}.` : "Hmm, eher nicht.", choices: others };
+      }
+      const shown = topicList.slice(0, 3);
+      if (!shown.length) return { say: "Dazu habe ich gerade nichts im Laden.", retry: true };
+      // nur eins: „Gelb ist Mais.“ statt „Gelb sind Mais.“
+      const intro = shown.length === 1 ? topic.intro.replace(/ sind$/, " ist").replace(/ passen$/, " passt").replace(/ helfen$/, " hilft") : topic.intro;
+      return { say: `${intro} ${list(shown.map((x) => clean(x.name)))}.`, choices: topicList.slice(0, 6) };
+    }
     case "hello":
       return { say: "Hallo! Schön, dass du da bist. Was möchtest du kaufen?" };
     case "thanks":

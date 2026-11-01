@@ -13,8 +13,10 @@ import { answer } from "./antworten.js";
 import { record } from "./aufnahme.js";
 import { speak, stopSpeaking } from "./sprechen.js";
 import { isOpenQuestion, buildMessages, checkAnswer } from "./ki.js";
+import { topicOf, topicProducts } from "./wissen.js";
 
 export const MODELLE = {
+  small: { id: "onnx-community/whisper-small", name: "Sehr genau", mb: 250, info: "versteht am besten, braucht auf älteren Geräten 5–10 Sekunden" },
   base: { id: "onnx-community/whisper-base", name: "Genau", mb: 80, info: "versteht besser, braucht 1–3 Sekunden" },
   tiny: { id: "onnx-community/whisper-tiny", name: "Schnell", mb: 40, info: "für langsame Geräte, versteht weniger" },
 };
@@ -164,6 +166,13 @@ class FragDasSchaf {
     const pool = this.pool;
     const cats = [...(aktion ? [aktion.category] : []), ...categories];
     const result = understand(text, { products: pool, categories: cats, aliases: settings.value.sprachAliases ?? [] });
+    // Fragen zu Eigenschaften („Was ist gesund?“, „Welches Obst ist gelb?“, „Ist die Banane gesund?“)
+    const topic = topicOf(text);
+    if (topic && ["unknown", "product", "category"].includes(result.intent)) {
+      result.topic = topic;
+      result.topicList = topicProducts(topic, pool, result.category?.id ?? null);
+      result.intent = "topic";
+    }
     const categoryProducts = result.category
       ? aktion && result.category.id === aktion.category.id
         ? aktion.products

@@ -82,7 +82,8 @@ export function similarity(heard, key) {
   const pk = koelner(k);
   // Klangcode: erst ab drei Lauten aussagekräftig („Katze“ und „Käse“ haben beide „48“)
   if (ph && pk && Math.min(ph.length, pk.length) >= 3) {
-    if (ph === pk) best = Math.max(best, 0.86);
+    // gleicher Klang zählt viel, aber nicht allein („Marne“ und „Möhren“ haben denselben Code)
+    if (ph === pk) best = Math.max(best, 0.55 + 0.4 * ratio(h, k));
     else best = Math.max(best, 0.8 * ratio(ph, pk));
   } else if (ph && ph === pk && h.length >= 3) best = Math.max(best, 0.62);
   return best;
