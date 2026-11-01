@@ -1,0 +1,58 @@
+# Veröffentlicht Schafland als PWA auf GitHub Pages: https://erpel-dev.github.io/Schafland/
+# Läuft bei jedem Push nach main. Einmalig nötig: Settings → Pages → Source: „GitHub Actions“.
+name: PWA auf GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "**.md", "android/**", "launcher/**", "tests/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Abhängigkeiten und Tests
+        run: |
+          npm ci
+          npm test
+
+      - name: App bauen
+        run: |
+          npx vite build
+          # Pages soll Dateien mit Unterstrich nicht ausfiltern
+          touch dist/.nojekyll
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

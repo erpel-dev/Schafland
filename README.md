@@ -6,6 +6,10 @@ Spiel-Kasse für den Kinderkaufladen. Produkte werden angetippt oder mit der Web
 
 Gebaut für ein älteres Notebook (i5-4200U, 8 GB RAM) mit Chromium im Vollbild.
 
+**Sofort ausprobieren:** https://erpel-dev.github.io/Schafland/ – läuft im Browser (Chrome, Edge, Safari, Firefox) und lässt sich als App installieren: Chrome/Edge → „App installieren“, iPhone/iPad → Teilen → „Zum Home-Bildschirm“. Danach geht alles außer der Produktsuche auch offline. Gescannte Produkte, Kassenbons und Einstellungen bleiben nur auf dem jeweiligen Gerät. Neue Versionen kommen bei jedem Push nach `main` automatisch (`.github/workflows/pages.yml`).
+
+**Fertige Dateien** (Android-APK, Windows, Linux, Web-Version): GitHub → **Releases**.
+
 ## Auf dem Notebook einrichten (Linux Mint / Ubuntu)
 
 1. Chromium installieren (und Emojis, falls die Produktbilder als Kästchen erscheinen):
