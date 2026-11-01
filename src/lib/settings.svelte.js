@@ -12,6 +12,7 @@ const DEFAULTS = {
   musicVolume: 0.5,
   musicShuffle: true,
   aktion: null, // id der aktiven Aktion oder null
+  cameraId: null, // zuletzt gewählte Kamera (Tablets: vorne/hinten)
 };
 
 class Settings {

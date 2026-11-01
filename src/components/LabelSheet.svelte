@@ -4,6 +4,10 @@
   import { euro } from "../lib/money.js";
   import Barcode from "./Barcode.svelte";
   import ProductImage from "./ProductImage.svelte";
+  import { isNativeApp, Kiosk } from "../lib/platform.js";
+
+  // Im Browser der normale Druckdialog, in der Android-App der Android-Druckdialog
+  const print = () => (isNativeApp ? Kiosk.print({ title: "Schafland Etiketten" }) : window.print());
 
   // Aktions-Etiketten lassen sich immer drucken, z. B. vor der Aktion
   const categories = [...baseCategories, ...aktionen.map((a) => a.category)];
@@ -25,7 +29,7 @@
     {/each}
   </div>
   <label class="check"><input id="label-price" type="checkbox" bind:checked={withPrice} /> Preis aufdrucken</label>
-  <button class="big-btn" onclick={() => window.print()} disabled={!shown.length}>🖨 {shown.length} Etiketten drucken</button>
+  <button class="big-btn" onclick={print} disabled={!shown.length}>🖨 {shown.length} Etiketten drucken</button>
 </div>
 <p class="note noprint">
   Ausschneiden und auf das Spielzeug kleben. Die Codes beginnen mit 21 und sind nur für Schafland gedacht. Groß gedruckt erkennt die Webcam sie am besten.

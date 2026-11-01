@@ -12,6 +12,8 @@
   import { settings } from "./lib/settings.svelte.js";
   import { unlockAudio, kaching, maeh } from "./lib/sounds.js";
   import { update } from "./lib/update.svelte.js";
+  import { isNativeApp } from "./lib/platform.js";
+  import { onMount } from "svelte";
 
   let opened = $state(false);
 
@@ -70,6 +72,22 @@
     kaching();
     setTimeout(maeh, 450);
   }
+
+  // Android-Zurück-Taste: eine Ebene zurück, aber nie die App verlassen (Kind tippt gern darauf).
+  // Beenden geht nur im Eltern-Bereich.
+  onMount(() => {
+    if (!isNativeApp) return;
+    let listener;
+    import("@capacitor/app").then(({ App }) =>
+      App.addListener("backButton", () => {
+        if (celebrate !== null) celebrate = null;
+        else if (paying) paying = false;
+        else if (showSettings) showSettings = false;
+        else if (view === "scan") view = "shop";
+      }).then((l) => (listener = l)),
+    );
+    return () => listener?.remove();
+  });
 
   function openSettings() {
     paying = false;

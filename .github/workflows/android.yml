@@ -1,0 +1,71 @@
+# Baut die Android-APK für Tablets (Capacitor) und stellt sie als Download bereit:
+# GitHub → Actions → „Android-APK“ → letzter Lauf → Artifacts → schafland-apk
+name: Android-APK
+
+on:
+  push:
+    branches: [main, android-apk]
+    paths-ignore: ["docs/**", "**.md"]
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Abhängigkeiten
+        run: npm ci
+
+      - name: Unit-Tests
+        run: npm test
+
+      - name: App bauen und ins Android-Projekt kopieren
+        run: |
+          npx vite build
+          npx cap sync android
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Signaturschlüssel aus den Secrets (falls hinterlegt)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SCHAFLAND_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/schafland.jks"
+            echo "SCHAFLAND_KEYSTORE=$RUNNER_TEMP/schafland.jks" >> "$GITHUB_ENV"
+            echo "Signiert mit dem Schafland-Schlüssel"
+          else
+            echo "::warning::Kein Secret SCHAFLAND_KEYSTORE_BASE64: APK mit Testschlüssel signiert. Für Updates muss die alte App erst deinstalliert werden (siehe README)."
+          fi
+
+      - name: APK bauen
+        working-directory: android
+        env:
+          SCHAFLAND_KEYSTORE_PASSWORD: ${{ secrets.SCHAFLAND_KEYSTORE_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: APK benennen
+        run: |
+          V=$(node -p "require('./package.json').version")
+          mkdir -p out
+          cp android/app/build/outputs/apk/release/app-release.apk "out/schafland-$V.apk"
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: schafland-apk
+          path: out/*.apk
+          retention-days: 60

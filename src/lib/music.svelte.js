@@ -1,4 +1,4 @@
-import { kvGet, kvSet } from "./db.js";
+import { db, kvGet, kvSet } from "./db.js";
 import { settings } from "./settings.svelte.js";
 import { onSound } from "./sounds.js";
 
@@ -52,8 +52,9 @@ class Music {
     return this.tracks[this.index] ?? null;
   }
 
-  /** Beim App-Start: gespeicherten Ordner wieder öffnen, wenn die Erlaubnis noch gilt. */
+  /** Beim App-Start: gespeicherten Ordner wieder öffnen bzw. importierte Lieder laden. */
   async restore() {
+    if (!canPickFolder) return this.#loadSongs();
     this.#dir = await kvGet("musicDir", null);
     if (!this.#dir) return;
     this.folderName = this.#dir.name;
@@ -92,13 +93,39 @@ class Music {
     await this.#load();
   }
 
-  /** Rückfall ohne File System Access API: <input webkitdirectory>. Gilt nur bis zum Neustart. */
-  useFiles(fileList) {
-    const files = [...fileList].filter((f) => AUDIO_EXT.test(f.name));
+  /**
+   * Ohne Ordnerauswahl (Android-App, Firefox): Lieder werden einmal importiert und in der App
+   * gespeichert. So sind sie nach jedem Neustart da, ohne erneut gewählt zu werden.
+   */
+  async importFiles(fileList) {
+    const files = [...fileList].filter((f) => AUDIO_EXT.test(f.name) || f.type.startsWith("audio/"));
+    const known = new Set((await db.songs.toArray()).map((s) => `${s.name}|${s.size}`));
+    for (const f of files) {
+      if (known.has(`${f.name}|${f.size}`)) continue; // dasselbe Lied nicht doppelt
+      await db.songs.add({ name: f.name, size: f.size, blob: f, addedAt: Date.now() });
+    }
+    await this.#loadSongs();
+    return files.length;
+  }
+
+  async removeSong(songId) {
+    if (this.current?.songId === songId) this.stop();
+    await db.songs.delete(songId);
+    await this.#loadSongs();
+  }
+
+  /** Speicherplatz der importierten Lieder in MB */
+  get songsMB() {
+    return this.tracks.reduce((s, t) => s + (t.size ?? 0), 0) / 1048576;
+  }
+
+  async #loadSongs() {
+    this.error = "";
+    const songs = await db.songs.toArray();
     this.stop();
-    this.folderName = files[0]?.webkitRelativePath?.split("/")[0] || "Ausgewählte Dateien";
-    this.tracks = files
-      .map((f) => ({ path: f.webkitRelativePath || f.name, title: prettyName(f.name), file: f }))
+    this.folderName = songs.length ? "In der App gespeichert" : "";
+    this.tracks = songs
+      .map((s) => ({ path: s.name, title: prettyName(s.name), file: s.blob, size: s.size, songId: s.id }))
       .sort((a, b) => a.path.localeCompare(b.path, "de"));
     this.#shuffleOrder();
   }

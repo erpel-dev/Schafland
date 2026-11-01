@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { cart, findByEan } from "../lib/shop.svelte.js";
   import { scanLog } from "../lib/scanlog.svelte.js";
+  import { settings } from "../lib/settings.svelte.js";
   import { isValidEan } from "../lib/ean.js";
   import { isPressCode } from "../lib/presse.js";
   import { euro } from "../lib/money.js";
@@ -30,6 +31,9 @@
 
   let addTimer;
   let slowStart = $state(false);
+  let mirror = $state(true); // Frontkamera spiegeln wie ein Spiegel, Rückkamera nicht
+  let cameras = $state([]); // mehrere Kameras (Tablet): Knopf zum Umschalten
+  let switchCamera = () => {};
 
   onMount(() => {
     let stream;
@@ -131,17 +135,32 @@
       loopTimer = setTimeout(tick, 110); // höchstens ca. 9 Bilder pro Sekunde
     }
 
-    (async () => {
+    async function startCamera(deviceId) {
+      stream?.getTracks().forEach((t) => t.stop());
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "environment" },
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            // gemerkte Kamera, sonst die Rückkamera (Tablet) bzw. die einzige Webcam
+            ...(deviceId ? { deviceId: { ideal: deviceId } } : { facingMode: "environment" }),
+          },
         });
         if (stopped) return stream.getTracks().forEach((t) => t.stop());
+        const track = stream.getVideoTracks()[0];
+        const info = track?.getSettings() ?? {};
+        mirror = info.facingMode !== "environment";
         video.srcObject = stream;
         await video.play();
         camState = "live";
-        tick();
+        // Erst nach der Erlaubnis verrät der Browser alle Kameras
+        cameras = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
+        current = info.deviceId ?? deviceId ?? null;
+        if (!looping) {
+          looping = true;
+          tick();
+        }
       } catch (err) {
         camState = "error";
         camError =
@@ -151,7 +170,17 @@
               ? "Es wurde keine Kamera gefunden."
               : "Die Kamera lässt sich gerade nicht starten.";
       }
-    })();
+    }
+    let looping = false;
+    let current = null;
+    switchCamera = () => {
+      if (cameras.length < 2) return;
+      const i = cameras.findIndex((c) => c.deviceId === current);
+      const next = cameras[(i + 1) % cameras.length].deviceId;
+      settings.set({ cameraId: next });
+      startCamera(next);
+    };
+    startCamera(settings.value.cameraId);
 
     return () => {
       stopped = true;
@@ -182,7 +211,7 @@
 <section class="scan">
   <div class="feed">
     <!-- svelte-ignore a11y_media_has_caption -->
-    <video bind:this={video} muted playsinline></video>
+    <video bind:this={video} class:mirror muted playsinline></video>
     <div class="frame" class:hit={status === "found" || status === "added"}>
       <div class="wool"></div>
       <div class="laser"></div>
@@ -201,6 +230,9 @@
       {/if}
     </p>
     <button class="big-btn light done" onclick={onClose}>✓ Fertig gescannt</button>
+    {#if cameras.length > 1}
+      <button class="switch" onclick={() => switchCamera()} aria-label="Andere Kamera"><span class="emoji">🔄</span> Kamera</button>
+    {/if}
   </div>
 
   <div class="found">
@@ -242,7 +274,9 @@
 <style>
   .scan { display: grid; grid-template-columns: 1fr 17rem; min-height: 0; min-width: 0; }
   .feed { position: relative; background: #2f342b; overflow: hidden; display: grid; place-items: center; }
-  video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  video.mirror { transform: scaleX(-1); }
+  .switch { position: absolute; top: 1rem; right: 1rem; padding: 0.5rem 0.9rem; border-radius: 99px; background: rgba(255, 255, 255, 0.9); font-weight: 800; display: flex; gap: 0.4rem; align-items: center; }
   .frame { position: relative; width: 26rem; max-width: 80%; aspect-ratio: 16 / 9; }
   .wool {
     position: absolute; inset: -1.8rem; border-radius: 3.5rem; padding: 1.8rem;
