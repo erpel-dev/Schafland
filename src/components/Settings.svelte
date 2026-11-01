@@ -4,6 +4,7 @@
   import { scanned } from "../lib/shop.svelte.js";
   import { scanLog } from "../lib/scanlog.svelte.js";
   import { aktionen } from "../lib/aktionen.js";
+  import { isNativeApp, Kiosk } from "../lib/platform.js";
   import { isValidIban, normalizeIban, formatIban, giroPayload, MAX_NAME, MAX_TEXT, DEFAULT_TEXT } from "../lib/girocode.js";
   import { categoryById } from "../lib/catalog.js";
   import { db } from "../lib/db.js";
@@ -24,6 +25,8 @@
     ["gescannt", "Gescannte Produkte"],
     ["bons", "Kassenbons"],
     ["protokoll", "Scan-Protokoll"],
+    // nur in der Android-App
+    ...(isNativeApp ? [["tablet", "Tablet"]] : []),
   ];
   let tab = $state(initialTab);
 
@@ -47,6 +50,28 @@
     settings.set({ giroName, giroIban: normalizeIban(giroIban), giroText });
   }
   const onEnter = (e) => e.key === "Enter" && e.currentTarget.blur();
+
+  // --- Tablet (Android-App)
+  let pinned = $state(false);
+  let pinError = $state("");
+  $effect(() => {
+    if (tab === "tablet") Kiosk.isPinned().then((r) => (pinned = r.pinned)).catch(() => {});
+  });
+  async function setPinned(on) {
+    pinError = "";
+    try {
+      await (on ? Kiosk.pin() : Kiosk.unpin());
+      pinned = on;
+    } catch (err) {
+      pinError = err?.message ?? String(err);
+      pinned = !on;
+    }
+  }
+  async function exitApp() {
+    const { App } = await import("@capacitor/app");
+    await Kiosk.unpin().catch(() => {});
+    App.exitApp();
+  }
 
   // --- Musik
   let folderError = $state("");
@@ -169,20 +194,21 @@
       {:else if tab === "musik"}
         <h2>Musik</h2>
         <div class="field">
-          <span class="lbl">Musik-Ordner</span>
+          <span class="lbl">{canPickFolder ? "Musik-Ordner" : "Lieder"}</span>
           <div class="stack">
             <div class="row">
-              <span class="path">{music.folderName || "Noch kein Ordner gewählt"}</span>
               {#if canPickFolder}
+                <span class="path">{music.folderName || "Noch kein Ordner gewählt"}</span>
                 <button class="big-btn light small" onclick={pick}>Ordner wählen …</button>
               {:else}
-                <label class="big-btn light small">Ordner wählen …<input id="music-files" type="file" webkitdirectory multiple hidden onchange={(e) => music.useFiles(e.currentTarget.files)} /></label>
+                <span class="path">{music.tracks.length ? `${music.tracks.length} Lieder · ${music.songsMB.toFixed(1)} MB` : "Noch keine Lieder"}</span>
+                <label class="big-btn light small">Lieder hinzufügen …<input id="music-files" type="file" accept="audio/*,.mp3,.m4a,.ogg,.opus,.wav,.flac" multiple hidden onchange={async (e) => { const input = e.currentTarget; await music.importFiles(input.files); input.value = ""; }} /></label>
               {/if}
             </div>
             {#if music.needsPermission}
               <button class="big-btn small" onclick={() => music.regainPermission()}>Zugriff auf „{music.folderName}“ erlauben</button>
             {/if}
-            {#if !canPickFolder}<span class="muted">Dieser Browser merkt sich den Ordner nicht. Mit Chrome oder Chromium bleibt er gespeichert.</span>{/if}
+            {#if !canPickFolder}<span class="muted">Lieder auswählen (auch mehrere auf einmal). Sie werden in der App gespeichert und sind nach jedem Start da.</span>{/if}
             {#if folderError || music.error}<span class="err">{folderError || music.error}</span>{/if}
           </div>
         </div>
@@ -214,10 +240,13 @@
             <small class="time">{mmss(music.time)} / {mmss(music.duration)}</small>
           </div>
           <div class="tracks">
-            {#each music.tracks as t, i (t.path)}
-              <button class:on={i === music.index} onclick={() => music.play(i)}>
-                <span>{i === music.index ? "▶ " : ""}{t.title}</span><small>{t.path}</small>
-              </button>
+            {#each music.tracks as t, i (t.songId ?? t.path)}
+              <div class="track">
+                <button class:on={i === music.index} onclick={() => music.play(i)}>
+                  <span>{i === music.index ? "▶ " : ""}{t.title}</span><small>{t.path}</small>
+                </button>
+                {#if t.songId}<button class="del" onclick={() => music.removeSong(t.songId)} aria-label={`${t.title} entfernen`}>✕</button>{/if}
+              </div>
             {/each}
           </div>
         {/if}
@@ -260,6 +289,27 @@
         {:else}
           <p class="muted">Noch nichts gescannt.</p>
         {/each}
+
+      {:else if tab === "tablet"}
+        <h2>Tablet</h2>
+        <div class="field">
+          <label for="pin-on">Kasse anpinnen</label>
+          <div class="row">
+            <Toggle id="pin-on" label="Kasse anpinnen" checked={pinned} onchange={setPinned} />
+            <span class="muted">Angepinnt kann das Kind die App nicht verlassen, auch nicht mit der Home-Taste.</span>
+          </div>
+        </div>
+        {#if pinError}<p class="err">{pinError}</p>{/if}
+        <p class="muted">
+          Android fragt beim ersten Anpinnen einmal nach. Lösen: hier ausschalten, oder „Zurück“ und „Übersicht“ gleichzeitig gedrückt halten (bei Gestensteuerung: vom unteren Rand nach oben wischen und halten).
+        </p>
+        <div class="field">
+          <span class="lbl">App beenden</span>
+          <button class="big-btn light small" style:justify-self="start" onclick={exitApp}>Schafland beenden</button>
+        </div>
+        <p class="muted">
+          Die Zurück-Taste schließt nur Fenster in der Kasse, sie beendet die App nie. Kamera: Beim Scannen schaltet „🔄 Kamera“ zwischen Vorder- und Rückkamera um; die Wahl wird gemerkt.
+        </p>
 
       {:else if tab === "protokoll"}
         <h2>Scan-Protokoll</h2>
@@ -333,6 +383,8 @@
   .bar { height: 0.5rem; border-radius: 99px; background: var(--wool-line); position: relative; overflow: hidden; margin-top: 0.3rem; }
   .bar i { position: absolute; inset: 0 auto 0 0; background: var(--grass); border-radius: 99px; }
   .tracks { display: flex; flex-direction: column; gap: 0.1rem; }
+  .track { display: flex; gap: 0.4rem; align-items: center; }
+  .track > button:first-child { flex: 1; min-width: 0; }
   .tracks button { display: flex; justify-content: space-between; gap: 1rem; text-align: left; padding: 0.4rem 0.7rem; border-radius: 0.6rem; }
   .tracks button.on { background: var(--ok-bg); font-weight: 800; }
   .tracks small { color: var(--ink-soft); font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -363,5 +415,26 @@
   @media print {
     .noprint { display: none !important; }
     .settings, .body, .pane { display: block; height: auto; overflow: visible; padding: 0; }
+  }
+
+  /* Handy: Reiter oben zum Wischen, Felder untereinander */
+  @media (max-width: 760px) {
+    header { padding: 0.5rem 0.7rem; }
+    header b { font-size: 1.3rem; }
+    header :global(.big-btn) { font-size: 0.95rem; padding: 0.45rem 0.7rem; }
+    .body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    nav { flex-direction: row; overflow-x: auto; padding: 0.4rem 0.5rem; scrollbar-width: none; }
+    nav::-webkit-scrollbar { display: none; }
+    nav button { flex: none; padding: 0.5rem 0.8rem; }
+    .pane { padding: 0.9rem 0.8rem 1.5rem; }
+    .field { grid-template-columns: 1fr; gap: 0.35rem; }
+    .test { flex-direction: column; align-items: flex-start; }
+    .player { grid-template-columns: auto 1fr; }
+    .player .time { grid-column: 1 / -1; }
+    .aktion { grid-template-columns: auto 1fr; }
+    .aktion :global(.toggle) { grid-column: 2; justify-self: start; }
+    .prod { grid-template-columns: 2.8rem 1fr auto; }
+    .prod .del { grid-column: 3; }
+    input[type="range"] { width: 100%; }
   }
 </style>

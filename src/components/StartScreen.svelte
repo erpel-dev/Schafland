@@ -39,4 +39,19 @@
   .aktion { font-size: 1.6rem; color: var(--sun); margin-top: -1rem; }
   .ground { position: absolute; bottom: 2.6rem; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 8%; font-size: 4.5rem; pointer-events: none; }
   .ground span:nth-child(2) { font-size: 3.2rem; align-self: flex-end; }
+
+  @media (max-width: 760px), (max-height: 500px) {
+    .start { gap: 1.2rem; }
+    h1 { font-size: clamp(3rem, 15vw, 5rem); }
+    p { font-size: clamp(1.05rem, 4.6vw, 1.5rem); text-align: center; padding: 0 1rem; }
+    .open { font-size: 1.6rem; padding: 0.8rem 2rem; }
+    .hero :global(.bob) { width: 8rem !important; height: 8rem !important; }
+    .ground { font-size: 3rem; bottom: 2rem; }
+  }
+  @media (max-height: 500px) {
+    .start { gap: 0.6rem; }
+    .hero :global(.bob) { width: 5.5rem !important; height: 5.5rem !important; }
+    .grass { height: 3rem; }
+    .ground { font-size: 2.4rem; bottom: 1rem; }
+  }
 </style>

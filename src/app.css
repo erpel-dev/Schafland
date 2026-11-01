@@ -45,6 +45,10 @@ body {
 button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
 input, select { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+/* Android: „Noto Color Emoji“ beim Namen zu nennen lässt die WebView die Schrift über die
+   Google-Play-Dienste holen. Stürzen die ab, beendet Android die Kasse mit. Die eingebauten
+   Emojis des Systems kommen auch so. */
+:root[data-native] { --emoji: sans-serif; }
 .emoji { font-family: var(--emoji); line-height: 1; }
 
 .big-btn {

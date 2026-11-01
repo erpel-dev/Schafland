@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Schafland</string>
+    <string name="title_activity_main">Schafland</string>
+    <string name="package_name">de.schafland.kasse</string>
+    <string name="custom_url_scheme">de.schafland.kasse</string>
+</resources>

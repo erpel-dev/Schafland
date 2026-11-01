@@ -2,6 +2,8 @@
   import { onMount } from "svelte";
   import { cart, findByEan } from "../lib/shop.svelte.js";
   import { scanLog } from "../lib/scanlog.svelte.js";
+  import { settings } from "../lib/settings.svelte.js";
+  import { layout } from "../lib/layout.svelte.js";
   import { isValidEan } from "../lib/ean.js";
   import { isPressCode } from "../lib/presse.js";
   import { euro } from "../lib/money.js";
@@ -30,6 +32,9 @@
 
   let addTimer;
   let slowStart = $state(false);
+  let mirror = $state(true); // Frontkamera spiegeln wie ein Spiegel, Rückkamera nicht
+  let cameras = $state([]); // mehrere Kameras (Tablet): Knopf zum Umschalten
+  let switchCamera = () => {};
 
   onMount(() => {
     let stream;
@@ -131,18 +136,44 @@
       loopTimer = setTimeout(tick, 110); // höchstens ca. 9 Bilder pro Sekunde
     }
 
-    (async () => {
+    // Gewählte Kamera genau nehmen; fehlt sie (anderes Gerät, abgesteckt), die Rückkamera bzw. Webcam
+    async function startCamera(deviceId) {
+      stream?.getTracks().forEach((t) => t.stop());
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "environment" },
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            // gemerkte Kamera, sonst die Rückkamera (Tablet) bzw. die einzige Webcam
+            ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: "environment" }),
+          },
         });
         if (stopped) return stream.getTracks().forEach((t) => t.stop());
+        const track = stream.getVideoTracks()[0];
+        const info = track?.getSettings() ?? {};
+        mirror = info.facingMode !== "environment";
         video.srcObject = stream;
         await video.play();
         camState = "live";
-        tick();
+        // Erst nach der Erlaubnis verrät der Browser alle Kameras
+        cameras = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
+        current = info.deviceId ?? deviceId ?? null;
+        // Gemerkte Kamera unter neuer Kennung wiederfinden (über ihren Namen)
+        const wanted = settings.value.cameraLabel && cameras.find((c) => c.label === settings.value.cameraLabel);
+        if (wanted && wanted.deviceId !== current && !relabeled) {
+          relabeled = true;
+          settings.set({ cameraId: wanted.deviceId });
+          return startCamera(wanted.deviceId);
+        }
+        if (!looping) {
+          looping = true;
+          tick();
+        }
       } catch (err) {
+        if (deviceId && (err?.name === "OverconstrainedError" || err?.name === "NotFoundError")) {
+          return startCamera(null);
+        }
         camState = "error";
         camError =
           err?.name === "NotAllowedError"
@@ -151,7 +182,19 @@
               ? "Es wurde keine Kamera gefunden."
               : "Die Kamera lässt sich gerade nicht starten.";
       }
-    })();
+    }
+    let looping = false;
+    let current = null;
+    let relabeled = false;
+    switchCamera = () => {
+      if (cameras.length < 2) return;
+      const i = cameras.findIndex((c) => c.deviceId === current);
+      const next = cameras[(i + 1) % cameras.length];
+      settings.set({ cameraId: next.deviceId, cameraLabel: next.label || null });
+      relabeled = true;
+      startCamera(next.deviceId);
+    };
+    startCamera(settings.value.cameraId);
 
     return () => {
       stopped = true;
@@ -182,7 +225,7 @@
 <section class="scan">
   <div class="feed">
     <!-- svelte-ignore a11y_media_has_caption -->
-    <video bind:this={video} muted playsinline></video>
+    <video bind:this={video} class:mirror muted playsinline></video>
     <div class="frame" class:hit={status === "found" || status === "added"}>
       <div class="wool"></div>
       <div class="laser"></div>
@@ -201,6 +244,9 @@
       {/if}
     </p>
     <button class="big-btn light done" onclick={onClose}>✓ Fertig gescannt</button>
+    {#if cameras.length > 1}
+      <button class="switch" onclick={() => switchCamera()} aria-label="Andere Kamera"><span class="emoji">🔄</span> Kamera</button>
+    {/if}
   </div>
 
   <div class="found">
@@ -210,7 +256,7 @@
       <small>Code {lastCode}</small>
     {:else if (status === "found" || status === "added") && found}
       <span class="src">gefunden · {found.source}</span>
-      <div class="pimg"><ProductImage product={found.product} size="8rem" /></div>
+      <div class="pimg"><ProductImage product={found.product} size={layout.narrow || layout.short ? "4.2rem" : "8rem"} /></div>
       <b class="t">{found.product.name}</b>
       <small>{[found.product.brand, found.product.quantity].filter(Boolean).join(" · ")}</small>
       <div class="price">{euro(found.product.priceCents)}</div>
@@ -242,7 +288,9 @@
 <style>
   .scan { display: grid; grid-template-columns: 1fr 17rem; min-height: 0; min-width: 0; }
   .feed { position: relative; background: #2f342b; overflow: hidden; display: grid; place-items: center; }
-  video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  video.mirror { transform: scaleX(-1); }
+  .switch { position: absolute; top: 1rem; right: 1rem; padding: 0.5rem 0.9rem; border-radius: 99px; background: rgba(255, 255, 255, 0.9); font-weight: 800; display: flex; gap: 0.4rem; align-items: center; }
   .frame { position: relative; width: 26rem; max-width: 80%; aspect-ratio: 16 / 9; }
   .wool {
     position: absolute; inset: -1.8rem; border-radius: 3.5rem; padding: 1.8rem;
@@ -271,4 +319,29 @@
   .pimg :global(.shrug) { animation: shrug 0.6s ease-in-out 2; }
   @keyframes think { 50% { transform: rotate(-8deg); } }
   @keyframes shrug { 25% { transform: rotate(-10deg); } 75% { transform: rotate(10deg); } }
+
+  /* Handy hochkant: Kamera oben, Fund darunter als schmale Zeile */
+  @media (max-width: 760px) {
+    .scan { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+    .frame { width: 80%; }
+    .hint { font-size: 1.25rem; bottom: 4.4rem; }
+    .found { border-left: 0; border-top: 2px solid var(--wool-line); display: grid; grid-template-columns: 5.5rem 1fr; column-gap: 0.8rem; row-gap: 0.2rem; padding: 0.7rem; align-content: start; }
+    /* Bild links über alle Zeilen, alles andere rechts daneben */
+    .found > * { grid-column: 2; min-width: 0; }
+    .found .pimg { grid-column: 1; grid-row: 1 / span 6; height: 5.5rem; font-size: 3rem; align-self: start; }
+    .t { font-size: 1.2rem; }
+    .price { font-size: 1.8rem; }
+    .src { font-size: 0.7rem; }
+    .found :global(.big-btn), .added { font-size: 1.05rem; padding: 0.45rem 0.8rem; }
+  }
+  /* Handy quer */
+  @media (max-height: 500px) {
+    .scan { grid-template-columns: 1fr 13rem; }
+    .found { padding: 0.7rem; gap: 0.35rem; }
+    .pimg { height: 5.5rem; font-size: 3rem; }
+    .t { font-size: 1.15rem; }
+    .price { font-size: 1.7rem; }
+    .hint { font-size: 1.15rem; bottom: 3.8rem; }
+    .done { bottom: 0.6rem; font-size: 1.05rem; padding: 0.45rem 0.9rem; }
+  }
 </style>

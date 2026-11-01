@@ -1,6 +1,6 @@
 {
   "name": "schafland",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "private": true,
   "description": "Schafland – Spiel-Kasse für den Kinderkaufladen",
   "type": "module",
@@ -13,9 +13,12 @@
     "test:fixtures": "node tests/e2e/fixtures.mjs",
     "test:explore": "vite build && node tests/e2e/explore.mjs",
     "build:starter": "vite build && node scripts/build-starter.mjs",
-    "test:starter": "cd launcher && go test ./... && cd .. && node tests/e2e/starter.mjs"
+    "test:starter": "cd launcher && go test ./... && cd .. && node tests/e2e/starter.mjs",
+    "build:apk": "vite build && cap sync android && cd android && ./gradlew assembleRelease"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
     "@sveltejs/vite-plugin-svelte": "^5.1.1",
     "playwright": "^1.63.0",
     "svelte": "^5.57.3",
@@ -23,6 +26,8 @@
     "vite-plugin-pwa": "^2.0.0"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.0",
     "@fontsource/baloo-2": "^5.3.0",
     "@fontsource/nunito": "^5.3.0",
     "dexie": "^4.4.7",

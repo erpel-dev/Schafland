@@ -1,0 +1,13 @@
+{
+  "appId": "de.schafland.kasse",
+  "appName": "Schafland",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#fffdf7",
+    "allowMixedContent": false,
+    "captureInput": true
+  },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 0 }
+  }
+}

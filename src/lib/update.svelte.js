@@ -1,4 +1,5 @@
 import { registerSW } from "virtual:pwa-register";
+import { isNativeApp } from "./platform.js";
 
 /**
  * Neue Version nach git pull: Der Offline-Speicher (Service Worker) liefert beim Start zuerst die
@@ -10,7 +11,8 @@ class Update {
   #activate = null;
 
   init() {
-    if (!("serviceWorker" in navigator)) return;
+    // Die APK enthält die App selbst; neue Versionen kommen als neue APK
+    if (isNativeApp || !("serviceWorker" in navigator)) return;
     this.#activate = registerSW({
       immediate: true,
       onNeedRefresh: () => (this.ready = true),

@@ -55,6 +55,39 @@ npm run test:starter     # Go-Tests und Ende-zu-Ende-Test der Linux-Datei
 
 Der Quellcode liegt in `launcher/` (Go, nur Standardbibliothek). Beim Bauen wird `dist/` hineinkopiert und eingebettet; das Schaf-Icon der exe erzeugt `go-winres` (braucht beim ersten Bauen Internet, sonst fehlt nur das Icon).
 
+## Android-App für Tablets und Smartphones
+
+Schafland gibt es auch als **APK** für Android 7 und neuer. Die App enthält die komplette Kasse und braucht keinen Server; Internet nur für die Produktsuche.
+
+**Herunterladen:** Die APK wird bei jedem Push automatisch auf GitHub gebaut: GitHub → **Actions** → „Android-APK“ → letzter Lauf → unten bei **Artifacts** „schafland-apk“ (eine ZIP mit `schafland-<version>.apk`).
+
+**Installieren:** APK aufs Gerät kopieren (USB, Cloud, E-Mail) und antippen. Android fragt einmal, ob Apps aus dieser Quelle installiert werden dürfen. Beim ersten Scannen fragt die App nach der Kamera.
+
+Unterschiede zur Browser-Version:
+
+| | Tablet / Smartphone |
+| --- | --- |
+| Kamera | Rückkamera mit Autofokus (scannt deutlich besser), Knopf „🔄 Kamera“ zum Wechseln, Wahl wird gemerkt |
+| Ansicht | Tablet und Handy quer: Regal links, Korb rechts. Handy hochkant: Korb als Leiste unten, antippen zeigt ihn als Blatt |
+| Musik | Lieder einmal über „Lieder hinzufügen“ importieren (Android hat keine Ordnerauswahl); sie bleiben in der App gespeichert |
+| Etiketten | Drucken über den Android-Druckdialog |
+| Kind kommt nicht raus | Eltern-Bereich → **Tablet** → „Kasse anpinnen“. Die Zurück-Taste schließt nur Fenster und beendet die App nie; „Schafland beenden“ ebenfalls dort |
+| Bildschirm | bleibt an, Vollbild ohne Android-Leisten. Beim allerersten Start zeigt Android einmal „Vollbildmodus – zum Beenden von oben wischen“: einmal mit „OK“ bestätigen |
+| Updates | neue APK installieren (Daten bleiben, siehe Signatur) |
+
+**Signatur und Updates:** Eine neue APK lässt sich nur über die alte installieren, wenn beide mit demselben Schlüssel signiert sind. Dafür einmal einen Schlüssel erzeugen und als GitHub-Secrets hinterlegen (Repository → Settings → Secrets and variables → Actions):
+
+```bash
+keytool -genkeypair -keystore schafland.jks -storetype PKCS12 -alias schafland -keyalg RSA -keysize 2048 -validity 10950 -dname "CN=Schafland"
+base64 -w0 schafland.jks   # Ausgabe als Secret SCHAFLAND_KEYSTORE_BASE64
+```
+
+Das gewählte Passwort als Secret `SCHAFLAND_KEYSTORE_PASSWORD`. Den Schlüssel gut aufheben und nicht ins Repo legen. Ohne die Secrets wird die APK mit einem Test-Schlüssel signiert: Sie lässt sich installieren, vor jedem Update muss die alte App aber deinstalliert werden (dabei gehen gescannte Produkte und Einstellungen verloren).
+
+**Tests:** Der GitHub-Lauf startet die App zusätzlich in einem Android-Emulator (Pixel-Tablet quer, Pixel 7 hochkant) und bedient sie: Start, Kasse, Kamera, Zurück-Taste, Bezahlen, Eltern-Bereich, eigenes Kiosk-Plugin, und prüft, dass die App nicht an den Google-Play-Diensten hängt (`android/ci/smoke.mjs`). Screenshots stehen als `SCREENSHOT`-Zeilen im Protokoll des Laufs.
+
+**Selbst bauen** (braucht Android Studio bzw. Android-SDK und Java 21): `npm run build:apk` → `android/app/build/outputs/apk/release/app-release.apk`.
+
 ## Bedienung
 
 | Was | Wie |
@@ -78,7 +111,7 @@ Der Quellcode liegt in `launcher/` (Go, nur Standardbibliothek). Beim Bauen wird
 - **Kassenbons:** Die letzten 30 Einkäufe.
 - **Scan-Protokoll:** Die letzten 50 Scans mit Code und den Antworten der Datenbanken. Hilft, wenn etwas nicht erkannt wird.
 
-Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.10.0 vom 31.10.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
+Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.11.0 vom 01.11.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
 
 **Updates:** `git pull` und die Kasse neu starten. Die Kasse speichert sich für den Offline-Betrieb zwischen und zeigt beim Start zuerst kurz die alte Version. Sobald die neue geladen ist, wechselt sie automatisch: sofort, solange der Startbildschirm zu sehen ist, sonst nach dem nächsten Bezahlen, damit nie mitten im Spiel neu geladen wird.
 
