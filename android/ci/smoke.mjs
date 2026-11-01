@@ -27,22 +27,23 @@ b = io.BytesIO(); im.save(b, "JPEG", quality=70); sys.stdout.buffer.write(b.getv
   console.log(`SCREENSHOT ${NAME}-${label} ${jpg.toString("base64")}`);
 }
 
-// --- minimaler CDP-Client
+// --- minimaler CDP-Client (verbindet sich neu, falls die Seite neu lädt; jede Anfrage mit Zeitlimit)
 let ws;
 let seq = 0;
 const pending = new Map();
 async function connect() {
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 40; i++) {
     try {
       const pages = await (await fetch("http://127.0.0.1:9222/json")).json();
       const page = pages.find((p) => p.type === "page" && p.url.startsWith("https://localhost"));
       if (page) {
         ws = new WebSocket(page.webSocketDebuggerUrl);
-        await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
+        await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; setTimeout(() => rej(new Error("Zeitlimit")), 5000); });
         ws.onmessage = (m) => {
           const msg = JSON.parse(m.data);
           if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id); }
         };
+        ws.onclose = () => { for (const [, res] of pending) res({ error: { message: "Verbindung geschlossen" } }); pending.clear(); ws = null; };
         return page.url;
       }
     } catch {}
@@ -50,13 +51,18 @@ async function connect() {
   }
   throw new Error("WebView nicht erreichbar");
 }
-function send(method, params = {}) {
+async function send(method, params = {}) {
+  if (!ws || ws.readyState !== 1) await connect();
   const id = ++seq;
   ws.send(JSON.stringify({ id, method, params }));
-  return new Promise((res) => pending.set(id, res));
+  return new Promise((res) => {
+    pending.set(id, res);
+    setTimeout(() => { if (pending.delete(id)) res({ error: { message: `Zeitlimit bei ${method}` } }); }, 10000);
+  });
 }
 async function js(expression) {
   const r = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
+  if (r.error) throw new Error(r.error.message);
   if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description ?? "JS-Fehler");
   return r.result?.result?.value;
 }
@@ -71,7 +77,7 @@ const clickText = (sel, text) => js(`(() => { const el = [...document.querySelec
 try {
   const url = await connect();
   check("App startet in der WebView", true, url);
-  check("läuft als Android-App", (await js("window.Capacitor?.getPlatform?.()")) === "android");
+  check("läuft als Android-App", await until(`window.Capacitor?.getPlatform?.() === "android"`), await js("window.Capacitor?.getPlatform?.()").catch((e) => e.message));
   check("Startbildschirm", await until(`document.body.innerText.includes("Laden öffnen")`));
   await wait(1500);
   screenshot("1-start");
@@ -95,7 +101,11 @@ try {
   check("Kamera startet (Erlaubnis, WebView)", camera, hint);
   await wait(1500);
   screenshot("3-scannen");
+  // zählt mit, ob die Zurück-Taste in der App ankommt (Fehlersuche)
+  await js(`window.__back = 0; window.Capacitor.Plugins.App.addListener("backButton", () => window.__back++).then(() => true)`).catch(() => {});
   adb("shell", "input", "keyevent", "KEYCODE_BACK");
+  await wait(800);
+  console.log(`  Zurück-Taste in der App angekommen: ${await js("window.__back").catch((e) => e.message)}×`);
   check("Zurück-Taste schließt das Scannen", await until(`!document.querySelector("video") && !!document.querySelector(".tile")`, 5000));
 
   await click(narrow ? ".bar-pay" : ".pay");

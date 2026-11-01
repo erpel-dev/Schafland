@@ -51,7 +51,8 @@
     unlockAudio();
     opened = true;
     keepAwake();
-    document.documentElement.requestFullscreen?.().catch(() => {});
+    // In der APK sorgt Android für das Vollbild
+    if (!isNativeApp) document.documentElement.requestFullscreen?.().catch(() => {});
     await music.regainPermission();
     if (settings.value.musicAutoplay && music.tracks.length) music.play();
   }

@@ -12,6 +12,9 @@ adb shell 'while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 1; done'
 adb shell settings put global window_animation_scale 0
 adb shell settings put global transition_animation_scale 0
 adb shell settings put global animator_duration_scale 0
+# Android zeigt beim ersten Vollbild einmalig "Viewing full screen … Got it"; auf dem Gerät tippt man
+# das einmal weg. Im Test vorab als gesehen markieren, sonst fängt der Hinweis die Zurück-Taste ab.
+adb shell settings put secure immersive_mode_confirmations confirmed
 adb install -r -g "$APK"            # -g: Kamera-Erlaubnis gleich erteilen
 adb logcat -c
 adb shell am start -n "$PKG/.MainActivity"
