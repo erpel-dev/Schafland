@@ -740,8 +740,8 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       check("Lieder nach Neustart noch da (in der App gespeichert)", (await page.locator(".tracks .track").count()) === 4);
       // Reihenfolge der importierten Lieder ist nicht festgelegt: gezielt ein heiles Lied wählen
       await page.locator(".tracks .track", { hasText: "Kurz" }).first().locator("button").first().click();
-      await wait(1500);
-      check("Gespeichertes Lied spielt", (await page.textContent(".now b")).includes("Kurz"), await page.textContent(".now b"));
+      const playing = await page.waitForFunction(() => document.querySelector(".now b")?.textContent.includes("Kurz"), null, { timeout: 5000 }).then(() => true, () => false);
+      check("Gespeichertes Lied spielt", playing, await page.textContent(".now b"));
       await page.locator(".tracks .track .del").last().click();
       await wait(400);
       check("Lied entfernen", (await page.locator(".tracks .track").count()) === 3);
