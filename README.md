@@ -59,7 +59,7 @@ Der Quellcode liegt in `launcher/` (Go, nur Standardbibliothek). Beim Bauen wird
 
 Schafland gibt es auch als **APK** für Android 7 und neuer. Die App enthält die komplette Kasse und braucht keinen Server; Internet nur für die Produktsuche.
 
-**Herunterladen:** Die APK wird bei jedem Push automatisch auf GitHub gebaut: GitHub → **Actions** → „Android-APK“ → letzter Lauf → unten bei **Artifacts** „schafland-apk“ (eine ZIP mit `schafland-<version>.apk`).
+**Herunterladen:** Am einfachsten unter GitHub → **Releases**: Dort hängen an jeder Version die APK, die Windows-exe, die Linux-Datei und die Web-Version. Zwischenstände: Die APK wird außerdem bei jedem Push gebaut: GitHub → **Actions** → „Android-APK“ → letzter Lauf → unten bei **Artifacts** „schafland-apk“ (eine ZIP mit `schafland-<version>.apk`).
 
 **Installieren:** APK aufs Gerät kopieren (USB, Cloud, E-Mail) und antippen. Android fragt einmal, ob Apps aus dieser Quelle installiert werden dürfen. Beim ersten Scannen fragt die App nach der Kamera.
 
@@ -205,3 +205,14 @@ Eigene Produkte oder Preise ändern: `src/lib/catalog.js` bearbeiten und `npm ru
 ## Browser
 
 Gedacht für Chromium, Chrome oder Edge. In Firefox fehlt die Ordnerauswahl. Dort muss der Musik-Ordner nach jedem Start neu gewählt werden.
+
+## Neue Version veröffentlichen
+
+Version in `package.json` erhöhen, committen, pushen, dann den passenden Tag pushen:
+
+```bash
+git tag v1.11.0
+git push origin v1.11.0
+```
+
+GitHub baut daraufhin APK, Windows-exe, Linux-Datei und Web-Version und legt ein Release mit allen Dateien an (`.github/workflows/release.yml`).
