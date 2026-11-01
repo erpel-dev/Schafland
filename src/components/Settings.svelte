@@ -14,12 +14,15 @@
   import QrCode from "./QrCode.svelte";
   import LabelSheet from "./LabelSheet.svelte";
   import ProductImage from "./ProductImage.svelte";
+  import { schaf, MODELLE, KI_MODELLE, gpuInfo } from "../lib/sprache/schaf.svelte.js";
+  import { speak, speechStatus } from "../lib/sprache/sprechen.js";
 
   let { onClose, initialTab = "bezahlen" } = $props();
 
   const TABS = [
     ["bezahlen", "Bezahlen"],
     ["musik", "Musik"],
+    ["schaf", "Frag das Schaf"],
     ["aktionen", "Aktionen"],
     ["etiketten", "Etiketten drucken"],
     ["gescannt", "Gescannte Produkte"],
@@ -50,6 +53,69 @@
     settings.set({ giroName, giroIban: normalizeIban(giroIban), giroText });
   }
   const onEnter = (e) => e.key === "Enter" && e.currentTarget.blur();
+
+  // --- Frag das Schaf
+  let loadingModel = $state(false);
+  let modelError = $state("");
+  async function preloadModel() {
+    loadingModel = true;
+    modelError = "";
+    try {
+      await schaf.loadModel();
+    } catch (err) {
+      modelError = "Laden hat nicht geklappt. Ist das Gerät online? " + (err?.message ?? "");
+    } finally {
+      loadingModel = false;
+    }
+  }
+  function setModel(id) {
+    settings.set({ fragModell: id });
+    schaf.resetModel();
+  }
+  let voice = $state(null);
+  $effect(() => {
+    if (tab === "schaf" && !voice) speechStatus().then((v) => (voice = v));
+  });
+
+  // Stufe 2
+  let gpu = $state(null);
+  $effect(() => {
+    if (tab === "schaf" && !gpu) gpuInfo().then((g) => (gpu = g));
+  });
+  function setKiModel(id) {
+    settings.set({ kiModell: id });
+    schaf.resetKi();
+  }
+  let kiQuestion = $state("Was ist gesund?");
+  let kiAnswer = $state("");
+  let kiAsking = $state(false);
+  async function tryKi() {
+    kiAsking = true;
+    kiAnswer = "";
+    try {
+      await schaf.loadKi();
+      if (schaf.ki !== "bereit") return;
+      const r = await schaf.askKi(kiQuestion, (raw) => (kiAnswer = raw));
+      kiAnswer = r ? r.text + (r.products.length ? `  (Bilder: ${r.products.map((p) => p.name.replace(/\u00ad/g, "")).join(", ")})` : "") : "(keine brauchbare Antwort – das Schaf würde einfach antworten)";
+    } catch (err) {
+      kiAnswer = "Fehler: " + (err?.message ?? err);
+    } finally {
+      kiAsking = false;
+    }
+  }
+
+  let tryText = $state("Was kostet die Banane?");
+  let tryReply = $derived(tryText.trim() ? schaf.preview(tryText).reply.say : "");
+  let aliasHeard = $state("");
+  let aliasProduct = $state("");
+  let pool = $derived(schaf.pool);
+  const productName = (id) => pool.find((p) => p.id === id)?.name.replace(/\u00ad/g, "") ?? "?";
+  function addAlias(heard = aliasHeard, productId = aliasProduct) {
+    heard = heard.trim().toLowerCase();
+    if (!heard || !productId) return;
+    schaf.addAlias(heard, productId);
+    aliasHeard = "";
+  }
 
   // --- Tablet (Android-App)
   let pinned = $state(false);
@@ -251,6 +317,156 @@
           </div>
         {/if}
 
+      {:else if tab === "schaf"}
+        <h2>Frag das Schaf</h2>
+        <p class="muted">
+          Das Kind tippt auf „Frag das Schaf!“ und fragt zum Beispiel „Was kostet die Banane?“, „Ich möchte ein Eis“ oder „Was gibt es bei Obst?“.
+          Das Schaf antwortet laut und in einer Sprechblase. Versteht es etwas nicht sicher, zeigt es Bilder zur Auswahl.
+          Die Spracherkennung läuft komplett auf diesem Gerät: Keine Aufnahme verlässt das Gerät.
+        </p>
+        <div class="field">
+          <label for="schaf-on">Frag das Schaf</label>
+          <div class="row">
+            <Toggle id="schaf-on" label="Frag das Schaf" checked={settings.value.fragSchaf} onchange={(v) => settings.set({ fragSchaf: v })} />
+            <span class="muted">Zeigt den Knopf „Frag das Schaf!“ neben „Scannen!“. Beim ersten Fragen fragt das Gerät nach dem Mikrofon.</span>
+          </div>
+        </div>
+        <div class="field">
+          <span class="lbl">Spracherkennung</span>
+          <div class="choice-row">
+            {#each Object.entries(MODELLE) as [id, m] (id)}
+              <label class="opt" class:on={settings.value.fragModell === id}>
+                <input type="radio" name="modell" checked={settings.value.fragModell === id} onchange={() => setModel(id)} />
+                <b>{m.name}</b><small>ca. {m.mb} MB, {m.info}</small>
+              </label>
+            {/each}
+          </div>
+          <div class="row">
+            {#if schaf.modelReady}
+              <span class="ok">✓ Geladen, funktioniert jetzt auch offline</span>
+            {:else}
+              <button class="big-btn light small" disabled={loadingModel} onclick={preloadModel}>
+                {loadingModel ? `Lädt … ${Math.round(schaf.progress * 100)} %` : "Jetzt laden"}
+              </button>
+              <span class="muted">Einmal mit Internet laden, dann muss das Kind beim ersten Fragen nicht warten.</span>
+            {/if}
+          </div>
+          {#if modelError}<p class="err">{modelError}</p>{/if}
+          {#if schaf.lastMs}<small class="muted">Letzte Erkennung: {(schaf.lastMs / 1000).toFixed(1)} s</small>{/if}
+        </div>
+        <div class="field">
+          <span class="lbl">Stimme</span>
+          <div class="row">
+            {#if voice === null}
+              <span class="muted">Prüfe Stimme …</span>
+            {:else if voice.ok}
+              <button class="big-btn light small" onclick={() => speak("Hallo! Ich bin das Schaf von Schafland. Was möchtest du kaufen?")}>🔊 Probe hören</button>
+              <span class="muted">{voice.name}</span>
+            {:else if isNativeApp}
+              <span class="err">Keine deutsche Stimme gefunden{voice.name ? ` (${voice.name})` : ""}. Das Schaf antwortet dann nur in der Sprechblase. Android: Einstellungen → System → Sprache → Sprachausgabe, dort z. B. „Sprachausgabe von Google“ mit Deutsch installieren.</span>
+            {:else}
+              <span class="err">Keine deutsche Stimme gefunden. Das Schaf antwortet dann nur in der Sprechblase. Linux: <code>sudo apt install speech-dispatcher espeak-ng</code>, danach den Browser neu starten.</span>
+            {/if}
+          </div>
+        </div>
+        <div class="field">
+          <label for="schaf-try">Ausprobieren (tippen statt sprechen)</label>
+          <div class="stack">
+            <input id="schaf-try" bind:value={tryText} />
+            {#if tryReply}<p class="answer">🐑 {tryReply}</p>{/if}
+          </div>
+        </div>
+
+        <h3>Stufe 2: Freie Fragen mit KI</h3>
+        <p class="muted">
+          Für Fragen wie „Was ist gesund?“, „Was passt zum Frühstück?“ oder „Welches Obst ist gelb?“ nutzt das Schaf ein kleines Sprachmodell (LFM von Liquid AI), das ebenfalls nur auf diesem Gerät läuft.
+          Es darf nur Produkte aus dem Laden empfehlen und nennt keine Preise; die empfohlenen Produkte erscheinen als Bilder zum Antippen.
+          Einfache Fragen (Preis, „Ich möchte …“, Summe) beantwortet weiter die schnelle Stufe 1.
+        </p>
+        <div class="field">
+          <label for="ki-on">Freie Fragen mit KI</label>
+          <div class="row">
+            {#if gpu && !gpu.webgpu && !gpu.cpuErlaubt && !settings.value.kiAn}
+              <span class="muted">Geht auf diesem Gerät nicht: Es braucht eine Grafikkarte im Browser (WebGPU). Ohne sie würde eine Antwort ein bis drei Minuten dauern. Die festen Antworten (gesund, Farben, Frühstück …) gibt es trotzdem.</span>
+            {:else}
+              <Toggle id="ki-on" label="Freie Fragen mit KI" checked={settings.value.kiAn} onchange={(v) => { settings.set({ kiAn: v }); if (!v) schaf.resetKi(); }} />
+              <span class="muted">
+                {#if gpu === null}Prüfe Grafikkarte …{:else if gpu.webgpu}Grafikkarte (WebGPU) gefunden: Antworten in wenigen Sekunden.{:else if gpu.cpuErlaubt}Testbetrieb auf dem Prozessor (sehr langsam).{:else}Keine Grafikkarte (WebGPU) gefunden: ausschalten, Stufe 1 antwortet.{/if}
+              </span>
+            {/if}
+          </div>
+        </div>
+        {#if settings.value.kiAn}
+          <div class="field">
+            <span class="lbl">Sprachmodell</span>
+            <div class="choice-row">
+              {#each Object.entries(KI_MODELLE) as [id, m] (id)}
+                <label class="opt" class:on={settings.value.kiModell === id}>
+                  <input type="radio" name="kimodell" checked={settings.value.kiModell === id} onchange={() => setKiModel(id)} />
+                  <b>{m.name}</b><small>ca. {m.mb >= 1000 ? `${(m.mb / 1000).toFixed(1).replace(".", ",")} GB` : `${m.mb} MB`}. {m.info}</small>
+                </label>
+              {/each}
+            </div>
+            <div class="row">
+              {#if schaf.ki === "bereit"}
+                <span class="ok">✓ Geladen ({schaf.kiDevice === "webgpu" ? "Grafikkarte" : schaf.kiDevice === "wasm" ? "Prozessor" : schaf.kiDevice})</span>
+              {:else}
+                <button class="big-btn light small" disabled={schaf.ki === "lädt"} onclick={() => schaf.loadKi()}>
+                  {schaf.ki === "lädt" ? `Lädt … ${Math.round(schaf.kiProgress * 100)} %` : "Jetzt laden"}
+                </button>
+                <span class="muted">Großer Download; am besten im WLAN. Danach offline nutzbar.</span>
+              {/if}
+            </div>
+            {#if schaf.ki === "fehler"}<p class="err">{schaf.kiError}</p>{/if}
+          </div>
+          <div class="field">
+            <label for="ki-try">KI ausprobieren</label>
+            <div class="stack">
+              <div class="row">
+                <input id="ki-try" bind:value={kiQuestion} onkeydown={(e) => e.key === "Enter" && tryKi()} />
+                <button class="big-btn light small" disabled={kiAsking || !kiQuestion.trim()} onclick={tryKi}>{kiAsking ? "…" : "Fragen"}</button>
+              </div>
+              {#if kiAnswer}<p class="answer ki-answer">🐑 {kiAnswer}</p>{/if}
+              {#if schaf.kiLastMs}<small class="muted">Letzte Antwort: {(schaf.kiLastMs / 1000).toFixed(1)} s</small>{/if}
+            </div>
+          </div>
+          <p class="muted">Lizenz: LFM Open License v1.0 (für private Nutzung frei). Kinder sollten die KI-Antworten nicht allein als Wissen nehmen; das Schaf ist ein Spielkamerad.</p>
+        {/if}
+
+        <h3>Aussprache des Kindes</h3>
+        <p class="muted">Wenn das Kind ein Produkt anders ausspricht, hier eintragen, z. B. „Nane“ → Banane. Das Schaf versteht ähnliche Wörter auch so schon; Einträge hier gelten sicher.</p>
+        {#each settings.value.sprachAliases ?? [] as a (a.heard)}
+          <div class="alias"><span>„{a.heard}“</span><span>→ {productName(a.productId)}</span><button class="del" onclick={() => schaf.removeAlias(a.heard)} aria-label="Entfernen">✕</button></div>
+        {/each}
+        <div class="alias-add">
+          <input placeholder="Das Kind sagt …" aria-label="Das Kind sagt" bind:value={aliasHeard} />
+          <select aria-label="gemeint ist" bind:value={aliasProduct}>
+            <option value="">gemeint ist …</option>
+            {#each pool as p (p.id)}<option value={p.id}>{p.name.replace(/\u00ad/g, "")}</option>{/each}
+          </select>
+          <button class="big-btn light small" disabled={!aliasHeard.trim() || !aliasProduct} onclick={() => addAlias()}>Merken</button>
+        </div>
+
+        <h3>Zuletzt gefragt</h3>
+        {#each schaf.log as e (e.at)}
+          <div class="log" class:ok={!!e.product || ["category", "total", "hello", "thanks", "ki"].includes(e.intent)}>
+            <div class="loghead"><b>„{e.text || "(nichts verstanden)"}“</b><small>{when(e.at)}</small></div>
+            <small>
+              {#if e.intent === "gewählt"}Kind hat danach {e.product} angetippt
+                {#if e.text && !(settings.value.sprachAliases ?? []).some((a) => a.heard === e.text.toLowerCase())}
+                  · <button class="link" onclick={() => addAlias(e.text, e.productId)}>„{e.text}“ als {e.product} merken</button>
+                {/if}
+              {:else if e.intent === "ki"}KI: „{e.answer}“
+              {:else if e.product}verstanden: {e.product}{:else if e.intent === "category"}Frage nach {e.category}{:else if e.intent === "total"}Frage nach der Summe{:else if e.intent === "hello" || e.intent === "thanks"}Gruß{:else}nichts Passendes gefunden{/if}
+            </small>
+          </div>
+        {:else}
+          <p class="muted">Noch nichts gefragt.</p>
+        {/each}
+        {#if schaf.log.length}
+          <button class="big-btn light small" style:align-self="flex-start" onclick={() => schaf.clearLog()}>Liste leeren</button>
+        {/if}
+
       {:else if tab === "aktionen"}
         <h2>Aktionen</h2>
         <p class="muted">Eine Aktion gibt der Kasse ein eigenes Aussehen und einen zusätzlichen Reiter mit Aktionsprodukten. Alles andere funktioniert wie immer. Es ist höchstens eine Aktion aktiv.</p>
@@ -348,6 +564,20 @@
   header small { color: var(--ink-soft); font-family: var(--f-display); }
   .spacer { flex: 1; }
   .body { flex: 1; min-height: 0; display: grid; grid-template-columns: 14rem 1fr; }
+  .choice-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .opt { display: flex; flex-direction: column; padding: 0.6rem 0.9rem; border-radius: 0.9rem; background: #fff; border: 2px solid var(--wool-line); cursor: pointer; min-width: 12rem; }
+  .opt.on { border-color: var(--grass); }
+  .opt.off { opacity: 0.45; cursor: not-allowed; }
+  .opt input { position: absolute; opacity: 0; pointer-events: none; }
+  .ok { color: var(--grass-dark); font-weight: 800; }
+  .stack { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
+  .answer { background: #fff; border-radius: 0.9rem; padding: 0.6rem 0.9rem; margin: 0.3rem 0 0; font-weight: 700; }
+  .alias { display: flex; gap: 0.7rem; align-items: center; background: #fff; border-radius: 0.8rem; padding: 0.4rem 0.8rem; }
+  .alias span:first-child { font-weight: 800; min-width: 8rem; }
+  .alias .del { margin-left: auto; }
+  .alias-add { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+  .alias-add input, .alias-add select { flex: 1; min-width: 10rem; }
+  .link { color: var(--grass-dark); font-weight: 800; text-decoration: underline; padding: 0; background: none; }
   nav { background: var(--wool-2); padding: 0.8rem 0.6rem; display: flex; flex-direction: column; gap: 0.25rem; }
   nav button { text-align: left; padding: 0.7rem 0.9rem; border-radius: 0.8rem; font-weight: 800; }
   nav button.on { background: #fff; color: var(--grass-dark); }

@@ -135,6 +135,15 @@ try {
   check("Reiter „Tablet“ nur in der App", await clickText("nav button", "Tablet"));
   const pinned = await js(`window.Capacitor.Plugins.Kiosk.isPinned().then((r) => JSON.stringify(r))`).catch((e) => "Fehler: " + e.message);
   check("eigenes Kiosk-Plugin antwortet (Java)", /"pinned":(true|false)/.test(pinned), pinned);
+  // „Frag das Schaf“: Vorlesen über Androids Sprachausgabe (die WebView kann es nicht)
+  const t0 = Date.now();
+  const spoke = await js(`Promise.race([window.Capacitor.Plugins.Kiosk.speak({ text: "Die Banane kostet 30 Cent." }).then(() => "fertig"), new Promise((r) => setTimeout(() => r("Zeitlimit"), 9000))])`).catch((e) => "Fehler: " + e.message);
+  const info = await js(`window.Capacitor.Plugins.Kiosk.speechInfo().then((r) => JSON.stringify(r))`).catch((e) => "Fehler: " + e.message);
+  // Ob das Emulator-Abbild eine Sprachausgabe mitbringt, ist Zufall; geprüft wird, dass nichts hängt
+  check("Vorlesen (Android-Sprachausgabe)", spoke === "fertig", `${spoke}, ${Date.now() - t0} ms, ${info}`);
+  check("Sprachausgabe gibt Auskunft", /"available":(true|false)/.test(info), info);
+  const mic = adb("shell", "dumpsys", "package", "de.schafland.kasse").toString().includes("android.permission.RECORD_AUDIO: granted=true");
+  check("Mikrofon-Erlaubnis für „Frag das Schaf“", mic);
   await wait(800);
   screenshot("5-eltern-tablet");
   await clickText("nav button", "Musik");

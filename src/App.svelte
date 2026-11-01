@@ -7,6 +7,8 @@
   import Celebration from "./components/Celebration.svelte";
   import Settings from "./components/Settings.svelte";
   import StartScreen from "./components/StartScreen.svelte";
+  import FragDasSchaf from "./components/FragDasSchaf.svelte";
+  import { schaf } from "./lib/sprache/schaf.svelte.js";
   import { cart } from "./lib/shop.svelte.js";
   import { music } from "./lib/music.svelte.js";
   import { settings } from "./lib/settings.svelte.js";
@@ -83,7 +85,8 @@
     import("@capacitor/app")
       .then(({ App }) =>
         App.addListener("backButton", () => {
-          if (celebrate !== null) celebrate = null;
+          if (schaf.phase !== "idle") schaf.close();
+          else if (celebrate !== null) celebrate = null;
           else if (paying) paying = false;
           else if (showSettings) showSettings = false;
           else if (view === "scan") view = "shop";
@@ -96,6 +99,7 @@
 
   function openSettings() {
     paying = false;
+    schaf.close();
     showSettings = true;
   }
 
@@ -105,7 +109,10 @@
       e.preventDefault();
       openSettings();
     }
-    if (e.key === "Escape") paying = false;
+    if (e.key === "Escape") {
+      paying = false;
+      schaf.close();
+    }
   }
 </script>
 
@@ -128,10 +135,11 @@
       {:else}
         <Shelf onScan={() => (view = "scan")} />
       {/if}
-      <Cart onPay={() => (paying = true)} compact={layout.narrow} />
+      <Cart onPay={() => { schaf.close(); paying = true; }} compact={layout.narrow} />
     </main>
   </div>
 
+  <FragDasSchaf />
   {#if paying}
     <PayModal onClose={() => (paying = false)} onPaid={paid} />
   {/if}

@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, defaultClientConditions } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { VitePWA } from "vite-plugin-pwa";
 import { readFileSync } from "node:fs";
@@ -10,6 +10,9 @@ const APP_VERSION = `${process.env.SCHAFLAND_VERSION ?? pkg.version} vom ${new D
 
 export default defineConfig({
   base: "./",
+  // Spracherkennung: ONNX-Laufzeit ohne eingebaute Verweise auf ihre großen .wasm-Dateien;
+  // die passende (ohne WebGPU, 14 MB) liefert die App selbst aus (src/lib/sprache/schaf.svelte.js)
+  resolve: { conditions: ["onnxruntime-web-use-extern-wasm", ...defaultClientConditions] },
   plugins: [
     svelte(),
     VitePWA({
@@ -33,6 +36,13 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,woff2,wasm}"],
+        // Laufzeit der Spracherkennung nur laden, wenn „Frag das Schaf“ benutzt wird; dann behalten
+        globIgnores: ["**/ort-wasm-*"],
+        runtimeCaching: [
+          { urlPattern: /\/assets\/ort-wasm-[^/]+$/, handler: "CacheFirst", options: { cacheName: "spracherkennung" } },
+          // Stufe 2 mit Grafikkarte: WebGPU-Laufzeit vom CDN, einmal geladen auch offline
+          { urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/onnxruntime-web@/, handler: "CacheFirst", options: { cacheName: "sprachmodell-laufzeit", cacheableResponse: { statuses: [0, 200] } } },
+        ],
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
         // Produktbilder von Open Food Facts landen ohnehin in IndexedDB
         navigateFallback: "index.html",

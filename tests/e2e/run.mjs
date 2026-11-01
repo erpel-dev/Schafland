@@ -40,16 +40,19 @@ const section = (name) => !ONLY || ONLY.split(",").includes(name);
 const PRODUCT = { status: 1, product: { product_name_de: "Vollmilch-Schokolade", brands: "Beispielmarke", quantity: "100 g",
   image_front_small_url: "https://images.openfoodfacts.org/x/front.jpg", categories_tags: ["en:sweet-snacks", "en:chocolates"] } };
 
-async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, touch = false, camera = true, fakeDir = true, noPicker = false, offFail = false, offMode = null, googleDown = false, cams = 1, rear = false, device = null } = {}) {
+async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, touch = false, camera = true, fakeDir = true, noPicker = false, offFail = false, offMode = null, googleDown = false, cams = 1, rear = false, device = null, audio = null } = {}) {
   // Mit Video-Datei kennt Chromium nur eine Kamera; mehrere Kameras zeigen ein Testbild
   const args = cams > 1
     ? [`--use-fake-device-for-media-stream=device-count=${cams}`, "--autoplay-policy=no-user-gesture-required"]
     : ["--use-fake-device-for-media-stream", `--use-file-for-fake-video-capture=${Q}/${cam}.y4m`, "--autoplay-policy=no-user-gesture-required"];
   args.push(camera ? "--use-fake-ui-for-media-stream" : "--deny-permission-prompts");
+  // Mikrofon: WAV-Datei einmal abspielen, danach Stille
+  if (audio) args.push(`--use-file-for-fake-audio-capture=${audio}%noloop`);
+  const perms = camera ? ["camera", "microphone"] : [];
   const browser = await chromium.launch({ args });
   const ctx = await browser.newContext(device
-    ? { ...device, permissions: camera ? ["camera"] : [] }
-    : { viewport, hasTouch: touch, isMobile: false, permissions: camera ? ["camera"] : [] });
+    ? { ...device, permissions: perms }
+    : { viewport, hasTouch: touch, isMobile: false, permissions: perms });
   const errors = [];
   await ctx.route(/open(food|beauty|products)facts\.org\/api/, (route) => {
     const url = route.request().url();
@@ -153,6 +156,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       // Kategorie Spielzeug: eigene Bilder geladen, Namen im Korb vollständig
       await page.click(".cat:has-text('Spielzeug')");
       check("Spielzeug: 12 Produkte", (await page.locator(".tile").count()) === 12);
+      await page.waitForFunction(() => [...document.querySelectorAll(".tile img")].every((i) => i.complete), null, { timeout: 5000 }).catch(() => {});
       const broken = await page.evaluate(() => [...document.querySelectorAll(".tile img")].filter((i) => !i.complete || !i.naturalWidth).map((i) => i.src));
       check("Spielzeug: eigene Bilder geladen (Kuschelschaf, Minecraft, Rennbahn)", (await page.locator(".tile img").count()) === 6 && !broken.length, broken.join(", "));
       for (const t of await page.locator(".tile").all()) await t.click();
@@ -735,9 +739,10 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await page.click("nav >> text=Musik");
       await page.waitForSelector(".tracks .track", { timeout: 5000 }).catch(() => {});
       check("Lieder nach Neustart noch da (in der App gespeichert)", (await page.locator(".tracks .track").count()) === 4);
-      await page.locator(".tracks .track").first().locator("button").first().click();
-      await wait(1500);
-      check("Gespeichertes Lied spielt", (await page.textContent(".now b")).includes("Kurz"), await page.textContent(".now b"));
+      // Reihenfolge der importierten Lieder ist nicht festgelegt: gezielt ein heiles Lied wählen
+      await page.locator(".tracks .track", { hasText: "Kurz" }).first().locator("button").first().click();
+      const playing = await page.waitForFunction(() => document.querySelector(".now b")?.textContent.includes("Kurz"), null, { timeout: 5000 }).then(() => true, () => false);
+      check("Gespeichertes Lied spielt", playing, await page.textContent(".now b"));
       await page.locator(".tracks .track .del").last().click();
       await wait(400);
       check("Lied entfernen", (await page.locator(".tracks .track").count()) === 3);
@@ -864,6 +869,167 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await page.waitForSelector(".found .t:has-text('Vollmilch')", { timeout: 20000 });
       check("Scan bei 4× langsamer CPU", true, `${Date.now() - t1} ms bis erkannt`);
       await browser.close();
+    }
+
+    // ---------- 7b. Frag das Schaf ----------
+    if (section("schaf")) {
+      // Gesprochene Frage: 1,2 s „Stimme“ (Ton), danach Stille. Die Spracherkennung selbst wird hier
+      // ersetzt (ihr Modell kommt aus dem Internet); echt getestet wird sie in .github/workflows/sprache.yml
+      const wav = path.join(Q, "frage-ton.wav");
+      if (!fs.existsSync(wav)) execSync(`ffmpeg -loglevel error -y -f lavfi -i "sine=frequency=300:duration=1.2" -af "volume=0.8,apad=pad_dur=2.5" -ar 16000 -ac 1 ${wav}`);
+      const { browser, ctx, page, errors } = await launch("empty", { audio: wav });
+      await ctx.addInitScript(() => { window.__schafFakeErkennung = async (audio) => (audio.length > 8000 ? `Was kostet die Banane? (${(audio.length / 16000).toFixed(1)} s)` : ""); });
+      await openShop(page);
+      check("Ohne Einschalten kein Knopf „Frag das Schaf“", (await page.locator(".askbar").count()) === 0);
+      await openSettings(page);
+      await page.click("nav >> text=Frag das Schaf");
+      await page.click("#schaf-on");
+      await page.fill("#schaf-try", "Was kostet die Nane?");
+      check("Eltern: Ausprobieren ohne Mikrofon", (await page.textContent(".answer")).includes("Die Banane kostet 30 Cent"), await page.textContent(".answer"));
+      await page.screenshot({ path: `${SHOTS}/schaf-eltern.png` });
+      await page.click("text=Zurück zum Laden");
+      check("Knopf „Frag das Schaf!“ neben „Scannen!“", await page.isVisible(".askbar"));
+      await page.screenshot({ path: `${SHOTS}/schaf-knopf.png` });
+
+      // Echtes Mikrofon (Test-Ton), Zuhören bis zur Pause, dann Antwort
+      const t0 = Date.now();
+      await page.click(".askbar");
+      let listened = true;
+      try { await page.waitForSelector(".panel >> text=Ich höre zu", { timeout: 5000 }); } catch { listened = false; }
+      check("Mikrofon: Schaf hört zu", listened);
+      await page.waitForSelector(".panel .big:has-text('kostet')", { timeout: 15000 });
+      const secs = (Date.now() - t0) / 1000;
+      const heard = await page.textContent(".panel .heard");
+      check("Aufnahme endet von selbst nach dem Sprechen", secs < 6 && /\(1\.[0-9] s|\(2\.[0-9] s/.test(heard), `${secs.toFixed(1)} s, ${heard}`);
+      check("Antwort mit Preis", (await page.textContent(".panel .big")).includes("Die Banane kostet 30 Cent"));
+      await wait(400);
+      await page.screenshot({ path: `${SHOTS}/schaf-antwort.png` });
+      await page.click("text=🧺 Ja, in den Korb");
+      await wait(300);
+      check("„Ja, in den Korb“ legt die Banane in den Korb", (await cartQty(page, "Banane")) === 1);
+      check("Schaf bestätigt", (await page.textContent(".panel .big")).includes("Die Banane ist im Korb"));
+
+      // Direkt in den Korb, Summe, Unklares mit Bildauswahl
+      await page.evaluate(() => window.__fragDasSchaf.hear("Ich möchte ein Eis"));
+      check("„Ich möchte ein Eis“ legt Eis in den Korb", (await cartQty(page, "Eis")) === 1);
+      await page.evaluate(() => window.__fragDasSchaf.hear("Wie viel muss ich bezahlen?"));
+      check("Summe vorlesen", (await page.textContent(".panel .big")).includes("2 Sachen. Das macht zusammen 3 Euro 30"), await page.textContent(".panel .big"));
+      await page.evaluate(() => window.__fragDasSchaf.hear("Pfirsiche"));
+      await page.evaluate(() => window.__fragDasSchaf.hear("Ki"));
+      const choices = await page.locator(".choice").count();
+      check("Unklar: Bilder zur Auswahl", choices >= 1 || (await page.textContent(".panel .big")).includes("nicht verstanden"), `${choices} Bilder`);
+      await page.evaluate(() => window.__fragDasSchaf.hear("Lulu"));
+      await page.screenshot({ path: `${SHOTS}/schaf-auswahl.png` });
+      if (await page.locator(".choice").count()) {
+        const picked = await page.locator(".choice .nm").first().textContent();
+        await page.locator(".choice").first().click();
+        check("Bild antippen: Schaf nennt den Preis", (await page.textContent(".panel .big")).includes("kostet"), picked);
+      }
+      await page.evaluate(() => window.__fragDasSchaf.hear("Was gibt es bei Obst?"));
+      check("Kategorie: Schaf zählt auf", (await page.textContent(".panel .big")).startsWith("Bei Obst gibt es"));
+      await page.click(".panel .x");
+      check("Schließen", (await page.locator(".panel").count()) === 0);
+
+      // Stufe 2: freie Fragen (Sprachmodell hier durch eine feste Antwort ersetzt)
+      await ctx.addInitScript(() => {
+        window.__schafFakeKiBackup = async (messages) => {
+          window.__kiPrompt = messages;
+          const q = messages.at(-1).content;
+          if (/Party/.test(q)) return "Das kostet 12 Euro.";
+          return "Äpfel und Bananen sind gesund! Eine Banane kostet 30 Cent.";
+        };
+      });
+      await page.evaluate(() => {
+        window.__schafFakeKi = async (messages) => {
+          window.__kiPrompt = messages;
+          const q = messages.at(-1).content;
+          if (/Party/.test(q)) return "Das kostet 12 Euro.";
+          return "Äpfel und Bananen sind gesund! Eine Banane kostet 30 Cent.";
+        };
+      });
+      await openSettings(page);
+      await page.click("nav >> text=Frag das Schaf");
+      check("Ohne Grafikkarte: Stufe 2 nicht einschaltbar, mit Erklärung", (await page.locator("#ki-on").count()) === 0 && (await page.textContent(".pane")).includes("braucht eine Grafikkarte"));
+      await page.evaluate(() => localStorage.setItem("schaf-ki-cpu", "1"));
+      await page.reload();
+      await page.click("text=Laden öffnen");
+      await page.evaluate(() => { window.__schafFakeKi = window.__schafFakeKiBackup; });
+      await openSettings(page);
+      await page.click("nav >> text=Frag das Schaf");
+      check("Stufe 2 ist ab Werk aus", (await page.getAttribute("#ki-on", "aria-checked")) === "false");
+      await page.click("#ki-on");
+      await page.click("text=Jetzt laden >> nth=-1").catch(() => {});
+      await page.waitForSelector("text=✓ Geladen (test)", { timeout: 5000 }).catch(() => {});
+      await page.fill("#ki-try", "Was ist gesund?");
+      await page.click("button:has-text('Fragen')");
+      await page.waitForSelector(".ki-answer:has-text('gesund')", { timeout: 5000 }).catch(() => {});
+      const kiTry = (await page.textContent(".ki-answer").catch(() => "")) ?? "";
+      check("Eltern: KI ausprobieren, Preis-Satz entfernt", kiTry.includes("Äpfel und Bananen sind gesund!") && !kiTry.includes("30 Cent") && kiTry.includes("Apfel, Banane"), kiTry);
+      await page.screenshot({ path: `${SHOTS}/schaf-ki-eltern.png`, fullPage: true });
+      await page.click("text=Zurück zum Laden");
+      await page.evaluate(() => window.__fragDasSchaf.hear("Welches Obst ist gelb?"));
+      check("Wissensfrage: feste Antwort statt KI", (await page.textContent(".panel .big")).trim() === "Gelb sind Banane, Zitrone und Ananas." && (await page.locator(".choice").count()) === 3);
+      await page.evaluate(() => window.__fragDasSchaf.hear("Was schmeckt lecker?"));
+      check("Offene Frage: KI-Antwort", (await page.textContent(".panel .big")).trim() === "Äpfel und Bananen sind gesund!");
+      check("Offene Frage: empfohlene Produkte als Bilder", (await page.locator(".choice").count()) === 2);
+      const prompt = await page.evaluate(() => window.__kiPrompt[0].content);
+      check("KI bekommt Sortiment und Korb, keine Preise", prompt.includes("Obst: Apfel, Banane") && /Im Korb liegt schon|Der Korb ist leer/.test(prompt) && !/\d+,\d\d/.test(prompt));
+      await wait(400);
+      await page.screenshot({ path: `${SHOTS}/schaf-ki-antwort.png` });
+      await page.locator(".choice").first().click();
+      check("KI-Bild antippen: Preis aus der Kasse", (await page.textContent(".panel .big")).includes("Der Apfel kostet 50 Cent"));
+      await page.evaluate(() => window.__fragDasSchaf.hear("Was soll ich für eine Party kaufen?"));
+      check("Unbrauchbare KI-Antwort (nur Preis): Antwort von Stufe 1", !(await page.textContent(".panel .big")).includes("12 Euro"), await page.textContent(".panel .big"));
+      await page.evaluate(() => window.__fragDasSchaf.hear("Was kostet die Birne?"));
+      check("Einfache Frage bleibt bei Stufe 1", (await page.textContent(".panel .big")).includes("Die Birne kostet 60 Cent"));
+      await page.click(".panel .x");
+
+      // Eltern: Protokoll und Aussprache merken
+      await openSettings(page);
+      await page.click("nav >> text=Frag das Schaf");
+      check("Eltern: zuletzt gefragt", (await page.locator(".log").count()) >= 5);
+      const learn = page.locator("button.link").first();
+      if (await learn.count()) {
+        const t = await learn.textContent();
+        await learn.click();
+        check("Eltern: Aussprache mit einem Tipp merken", (await page.locator(".alias").count()) === 1, t);
+      }
+      await page.fill(".alias-add input", "Nane");
+      await page.selectOption(".alias-add select", { label: "Banane" });
+      await page.click(".alias-add button");
+      check("Eltern: Aussprache von Hand", (await page.textContent(".pane")).includes("„nane“"));
+      await page.screenshot({ path: `${SHOTS}/schaf-eltern-aussprache.png`, fullPage: true });
+      await page.click("text=Zurück zum Laden");
+
+      // Ohne Internet beim ersten Mal: verständliche Meldung statt Hängen
+      await page.evaluate(() => { delete window.__schafFakeErkennung; });
+      await ctx.route(/huggingface\.co|hf\.co/, (r) => r.abort("internetdisconnected"));
+      await page.evaluate(() => window.__fragDasSchaf.resetModel());
+      await page.click(".askbar");
+      let msg = "";
+      try { await page.waitForSelector(".panel >> text=Oh!", { timeout: 20000 }); msg = await page.textContent(".panel .bubble"); } catch {}
+      check("Ohne Internet beim ersten Mal: verständliche Meldung", msg.includes("Internet"), msg.replace(/\s+/g, " ").slice(0, 120));
+      await page.click(".panel .x");
+      check("Keine Konsolenfehler (Frag das Schaf)", !errors.filter((e) => !/ERR_INTERNET_DISCONNECTED|Failed to load resource|huggingface|fetch/i.test(e)).length, errors.join(" | "));
+      await browser.close();
+
+      // Handy hochkant: Knöpfe nebeneinander, Sprechblase passt
+      const h = await launch("empty", { device: devices["Pixel 7"], audio: wav });
+      await h.ctx.addInitScript(() => { window.__schafFakeErkennung = async () => "Was kostet die Schokolade"; });
+      await h.page.goto(APP_URL);
+      await h.page.click("text=Laden öffnen");
+      await h.page.waitForSelector(".tile");
+      await openSettings(h.page);
+      await h.page.click("nav >> text=Frag das Schaf");
+      await h.page.click("#schaf-on");
+      await h.page.click("text=Zurück zum Laden");
+      await h.page.screenshot({ path: `${SHOTS}/schaf-handy-knopf.png` });
+      await h.page.click(".askbar");
+      await h.page.waitForSelector(".panel .big:has-text('kostet')", { timeout: 15000 });
+      const fits = await h.page.evaluate(() => { const r = document.querySelector(".panel").getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0; });
+      check("Handy: Sprechblase passt auf den Bildschirm", fits);
+      await h.page.screenshot({ path: `${SHOTS}/schaf-handy.png` });
+      await h.browser.close();
     }
 
     // ---------- 8. Offline (Service Worker) ----------

@@ -7,6 +7,7 @@
   import { pop } from "../lib/sounds.js";
   import ProductImage from "./ProductImage.svelte";
 
+  import { schaf } from "../lib/sprache/schaf.svelte.js";
   let { onScan } = $props();
 
   let aktion = $derived(aktionById(settings.value.aktion));
@@ -48,10 +49,18 @@
     {/each}
   </div>
 
-  <button class="scanbar" onclick={onScan}>
-    <span class="cam" aria-hidden="true"></span>
-    <span><b>Scannen!</b><small>Halte einen Strichcode vor die Kamera</small></span>
-  </button>
+  <div class="bottom">
+    <button class="scanbar" onclick={onScan}>
+      <span class="cam" aria-hidden="true"></span>
+      <span><b>Scannen!</b><small>Halte einen Strichcode vor die Kamera</small></span>
+    </button>
+    {#if settings.value.fragSchaf}
+      <button class="askbar" onclick={() => schaf.ask()}>
+        <span class="mic" aria-hidden="true">🎤</span>
+        <span><b>Frag das Schaf!</b><small>Antippen und sprechen</small></span>
+      </button>
+    {/if}
+  </div>
 </section>
 
 <style>
@@ -99,6 +108,18 @@
   @keyframes hop { 40% { transform: translateY(-0.4rem); } }
   @keyframes rise { from { transform: translateY(0.6rem); opacity: 0; } }
 
+  .bottom { display: flex; gap: 0.6rem; }
+  .bottom > * { flex: 1; min-width: 0; }
+  .askbar {
+    display: flex; align-items: center; gap: 0.8rem; text-align: left;
+    background: var(--sky); color: var(--sky-ink); border-radius: 1.2rem; padding: 0.55rem 0.8rem;
+  }
+  .askbar b { font-family: var(--f-display); font-size: 1.3rem; display: block; line-height: 1.1; }
+  .askbar small { color: var(--sky-ink-soft); }
+  .mic {
+    flex: none; width: 3.2rem; height: 3.2rem; border-radius: 99px; background: #fff;
+    display: grid; place-items: center; font-size: 1.7rem;
+  }
   .scanbar {
     display: flex; align-items: center; gap: 0.9rem; text-align: left;
     background: #fff; border: 2px dashed #cfc8b5; border-radius: 1.2rem; padding: 0.55rem 0.8rem;
@@ -127,6 +148,12 @@
     .tile { border-radius: 1.1rem; padding: 0.55rem 0.3rem 0.45rem; }
     .scanbar { padding: 0.45rem 0.6rem; }
     .cam { width: 4rem; height: 2.4rem; }
+    .bottom { gap: 0.45rem; }
+    .askbar { padding: 0.45rem 0.6rem; gap: 0.5rem; }
+    .mic { width: 2.6rem; height: 2.6rem; font-size: 1.4rem; }
+    .bottom:has(.askbar) small { display: none; }
+    .bottom:has(.askbar) b { font-size: 1.1rem; }
+    .bottom:has(.askbar) .cam { width: 3rem; }
   }
   /* Handy quer: niedriger Bildschirm, kleinere Kacheln, Reiter seitlich wischen */
   @media (max-height: 500px) {
@@ -138,6 +165,9 @@
     .tile { padding: 0.45rem 0.3rem 0.4rem; }
     .scanbar { padding: 0.3rem 0.6rem; }
     .scanbar small { display: none; }
+    .askbar { padding: 0.3rem 0.6rem; }
+    .askbar small { display: none; }
+    .mic { width: 2.4rem; height: 2.4rem; font-size: 1.3rem; }
     .cam { width: 3.6rem; height: 2.1rem; }
   }
 </style>

@@ -115,9 +115,30 @@ Das gewählte Passwort als Secret `SCHAFLAND_KEYSTORE_PASSWORD`. Den Schlüssel 
 - **Kassenbons:** Die letzten 30 Einkäufe.
 - **Scan-Protokoll:** Die letzten 50 Scans mit Code und den Antworten der Datenbanken. Hilft, wenn etwas nicht erkannt wird.
 
-Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.11.0 vom 01.11.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
+Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.12.0 vom 02.11.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
 
 **Updates:** `git pull` und die Kasse neu starten. Die Kasse speichert sich für den Offline-Betrieb zwischen und zeigt beim Start zuerst kurz die alte Version. Sobald die neue geladen ist, wechselt sie automatisch: sofort, solange der Startbildschirm zu sehen ist, sonst nach dem nächsten Bezahlen, damit nie mitten im Spiel neu geladen wird.
+
+## Frag das Schaf (Fragen per Sprache)
+
+Eltern-Bereich → **Frag das Schaf** einschalten. Dann gibt es neben „Scannen!“ den Knopf **„Frag das Schaf!“**: antippen und sprechen. Das Schaf hört zu, bis das Kind eine kurze Pause macht, und antwortet laut und in einer Sprechblase.
+
+| Das Kind sagt | Das Schaf |
+| --- | --- |
+| „Was kostet die Banane?“ | „Die Banane kostet 30 Cent. Soll ich sie in den Korb legen?“ + Knopf „Ja, in den Korb“ |
+| „Ich möchte ein Eis“ | legt das Eis in den Korb: „Das Eis ist im Korb!“ |
+| „Wie viel muss ich bezahlen?“ | nennt Anzahl und Summe im Korb |
+| „Was gibt es bei Obst?“ | zählt Produkte auf und zeigt Bilder |
+| „Was ist gesund?“, „Welches Obst ist gelb?“, „Ich habe Durst“, „Ist die Banane gesund?“ | antwortet aus festem Wissen über das Sortiment (gesund, Frühstück, Durst, Naschen, Party, Farben …) |
+| etwas Unklares („Ki…“) | „Meinst du eins von diesen?“ mit Bildern zum Antippen |
+
+- **Undeutliche Aussprache:** Das Schaf vergleicht nach Klang und erkennt auch verschluckte Silben („Nane“ → Banane, „Tokolade“ → Schokolade) sowie andere Wörter (Möhre, Semmel, Schoki …). Im Eltern-Bereich lassen sich eigene Aussprachen des Kindes hinterlegen. Unter „Zuletzt gefragt“ steht, was das Schaf verstanden hat; tippt das Kind nach einer unklaren Frage ein Bild an, lässt sich das mit einem Tipp als Aussprache merken.
+- **Datenschutz:** Die Spracherkennung (Whisper) läuft komplett auf dem Gerät. Aufnahmen verlassen das Gerät nicht und werden nicht gespeichert.
+- **Erstes Laden:** Das Erkennungsmodell wird einmal aus dem Internet geladen („Sehr genau“ ca. 250 MB, „Genau“ ca. 80 MB, „Schnell“ ca. 40 MB) und danach im Browser behalten; am besten im Eltern-Bereich vorab „Jetzt laden“ tippen. Danach geht es offline.
+- **Vorlesen:** Browser: deutsche Stimme des Systems (Windows hat sie dabei; Linux: `sudo apt install speech-dispatcher espeak-ng`, danach Browser neu starten). Android-App: Androids Sprachausgabe. Ohne Stimme antwortet das Schaf nur in der Sprechblase.
+- **Tempo:** Auf dem alten Notebook dauert das Erkennen 1–3 Sekunden; auf sehr langsamen Geräten „Schnell“ wählen.
+- **Stufe 2, freie Fragen mit KI (optional):** Im Eltern-Bereich unter „Frag das Schaf“ zuschaltbar. Offene Fragen wie „Was ist gesund?“, „Was passt zum Frühstück?“ oder „Welches Obst ist gelb?“ beantwortet dann ein kleines Sprachmodell von Liquid AI, ebenfalls nur auf dem Gerät. Beide Modelle brauchen WebGPU, also eine Grafikkarte, die der Browser nutzen kann (ohne sie dauerte eine Antwort im Test 40–180 Sekunden): „Klein“ (LFM2.5, 350 Mio. Parameter, ca. 300 MB) für einfache Grafikkarten, „Groß“ (LFM3, 1,7 Mrd. Parameter, ca. 1,2 GB) für bessere Antworten. Das Modell bekommt nur das Sortiment und den Korb. Seine Antwort wird geprüft: Sätze mit Zahlen oder Preisen fliegen raus, genannte Produkte erscheinen als Bilder zum Antippen (mit dem echten Preis der Kasse). Einfache Fragen beantwortet weiter Stufe 1. Lizenz der Modelle: LFM Open License v1.0, privat frei nutzbar.
+- **Tests:** `tests/unit/sprache.test.js`, `tests/unit/ki.test.js` (Verstehen, Antworten, keine Fehlzuordnung von Alltagswörtern), Abschnitt `schaf` in `npm run test:e2e` (Mikrofon, Ablauf, Eltern-Bereich, Handy) und `.github/workflows/sprache.yml` mit echter Spracherkennung, gesprochenen Testsätzen und dem echten kleinen Sprachmodell (`tests/e2e/ki-echt.mjs`).
 
 ## Scannen: so funktioniert es
 
