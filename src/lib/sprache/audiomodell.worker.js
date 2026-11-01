@@ -1,11 +1,11 @@
-// LFM3-Audio im Browser (Prototyp): Zuhören und Sprechen mit einem Modell, auf der Grafikkarte (WebGPU).
-// Was das Schaf sagt, bestimmt weiter die Kasse; das Modell erkennt nur die Frage und liest die Antwort vor.
-// Dateien (ca. 2,4 GB) kommen beim ersten Mal von Hugging Face und bleiben im Browser-Speicher.
+// LFM3-Omni im Browser (Prototyp): ein Modell zum Zuhören, Sprechen, Antworten und Sehen, auf der
+// Grafikkarte (WebGPU). Was das Schaf über Preise und den Korb sagt, bestimmt weiter die Kasse.
+// Dateien (ca. 2,6 GB) kommen beim ersten Mal von Hugging Face und bleiben im Browser-Speicher.
 import * as ort from "onnxruntime-web/webgpu";
 import { AutoTokenizer, env } from "@huggingface/transformers";
-import { Lfm3Audio } from "./lfm3audio.js";
+import { Lfm3Audio, smartResize } from "./lfm3audio.js";
 
-const REPO = "LiquidAI/LFM3-Audio-2B-ONNX";
+const REPO = "LiquidAI/LFM3-Omni-2B-ONNX";
 const BASE = `https://huggingface.co/${REPO}/resolve/main/onnx/`;
 // Laut Modellkarte für WebGPU: q4f16-Decoder mit den float32-Nebengraphen
 const FILES = {
@@ -13,8 +13,9 @@ const FILES = {
   audio_encoder: ["audio_encoder.onnx", "audio_encoder.onnx_data"],
   depth_decoder: ["depth_decoder.onnx", "depth_decoder.onnx_data"],
   codec_decoder: ["codec_decoder.onnx", "codec_decoder.onnx_data"],
+  vision_encoder: ["vision_encoder_q8.onnx", "vision_encoder_q8.onnx_data"],
 };
-const CACHE = "lfm3-audio-v1";
+const CACHE = "lfm3-omni-v1";
 
 env.allowLocalModels = false;
 ort.env.wasm.wasmPaths = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ort.env.versions.web}/dist/`;
@@ -76,7 +77,7 @@ async function load(post) {
       graphOptimizationLevel: "all",
     });
   }
-  model = new Lfm3Audio({ ort, sessions, tokenizer });
+  model = new Lfm3Audio({ ort, sessions, tokenizer, variant: "omni" });
 }
 
 let stop = false;
@@ -103,6 +104,24 @@ self.onmessage = async ({ data }) => {
       const t0 = performance.now();
       stop = false;
       const text = await model.chat(data.messages, { onText: (t) => post({ type: "token", text: t }), shouldStop: () => stop });
+      return post({ type: "text", text, ms: Math.round(performance.now() - t0) });
+    }
+    if (type === "image") {
+      // Kamerabild (RGBA) auf die Größe bringen, die das Modell erwartet
+      const t0 = performance.now();
+      const { width, height } = smartResize(data.height, data.width, { maxTokens: data.maxTokens ?? 256 });
+      const bitmap = await createImageBitmap(new ImageData(data.rgba, data.width, data.height), { resizeWidth: width, resizeHeight: height, resizeQuality: "high" });
+      const canvas = new OffscreenCanvas(width, height);
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(bitmap, 0, 0);
+      const rgba = ctx.getImageData(0, 0, width, height).data;
+      const rgb = new Uint8Array(width * height * 3);
+      for (let i = 0, j = 0; i < rgba.length; i += 4) {
+        rgb[j++] = rgba[i];
+        rgb[j++] = rgba[i + 1];
+        rgb[j++] = rgba[i + 2];
+      }
+      const text = await model.askImage({ data: rgb, width, height }, data.question, { system: data.system ?? "", maxImageTokens: data.maxTokens ?? 256 });
       return post({ type: "text", text, ms: Math.round(performance.now() - t0) });
     }
     if (type === "speak") {

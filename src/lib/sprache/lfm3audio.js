@@ -1,4 +1,5 @@
-// LFM3-Audio-2B (Liquid AI) auf ONNX Runtime: Spracherkennung (ASR) und Sprachausgabe (TTS).
+// LFM3-Audio-2B / LFM3-Omni-2B (Liquid AI) auf ONNX Runtime: Spracherkennung (ASR), Sprachausgabe (TTS),
+// Text-Antworten und (nur Omni) Bilder verstehen.
 // Portiert aus Liquids Referenz liquidonnx/lfm3_audio/session.py (github.com/Liquid4All/onnx-export):
 // Log-Mel-Merkmale → audio_encoder → Decoder mit Zwischenspeichern; für Sprache sagt der depth_decoder
 // je Sprach-Frame 12 Codes in 3 MaskGIT-Durchgängen voraus, der codec_decoder macht daraus STFT-Merkmale
@@ -22,16 +23,31 @@ const HIDDEN = 2048;
 
 export const MEL = { samplingRate: 16000, nFft: 400, winLength: 400, hop: 160, nMels: 128, logFloor: -12, offset: 4, divisor: 4, encoderStride: 8 };
 export const CODEC = { nFft: 1280, hop: 320, samplingRate: 24000 };
-export const SPEECH = { temperature: 1.0, topK: 128, repetitionPenalty: 1.1, repetitionWindow: 4096 };
+// Sprach-Ziehen laut generation_config.json des jeweiligen Modells
+export const SPEECH = {
+  audio: { temperature: 1.0, topK: 128, repetitionPenalty: 1.1, repetitionWindow: 4096 },
+  omni: { temperature: 0.4, topK: null, repetitionPenalty: 1.2, repetitionWindow: 64 },
+};
+export const VISION = { patch: 16, merge: 2, temporal: 2, minPixels: 65536, imageToken: 125030 };
 
 // ---------- Prompts (Chat-Vorlage des Modells, für unsere zwei Fälle ausgeschrieben) ----------
 
-export function asrPrompt(language = "German") {
-  return `${TOKENS.bos}<|im_start|>system\nPerform ASR in ${language}.<|im_end|>\n<|im_start|>user\n<|audio|><|im_end|>\n<|im_start|>assistant\n`;
+// Omni: Audio steht zwischen <|vision_start|> und <|vision_end|>, Antworten beginnen nach <think></think>
+const clip = (omni) => (omni ? "<|vision_start|><|audio|><|vision_end|>" : "<|audio|>");
+const think = (omni) => (omni ? "<think></think>" : "");
+
+export function asrPrompt(language = "German", { omni = false } = {}) {
+  return `${TOKENS.bos}<|im_start|>system\nPerform ASR in ${language}.<|im_end|>\n<|im_start|>user\n${clip(omni)}<|im_end|>\n<|im_start|>assistant\n${think(omni)}`;
 }
 
-export function ttsPrompt(text, { language = "German", voice = "female" } = {}) {
-  return `${TOKENS.bos}<|im_start|>system\nPerform TTS in ${language} using a ${voice} voice.<|im_end|>\n<|im_start|>user\n${text}<|im_end|>\n<|im_start|>assistant\n<|audio_start|>`;
+export function ttsPrompt(text, { language = "German", voice = "female", omni = false } = {}) {
+  return `${TOKENS.bos}<|im_start|>system\nPerform TTS in ${language} using a ${voice} voice.<|im_end|>\n<|im_start|>user\n${text}<|im_end|>\n<|im_start|>assistant\n${think(omni)}<|audio_start|>`;
+}
+
+/** Bild + Frage (nur Omni) */
+export function imagePrompt(system, question) {
+  const sys = system ? `<|im_start|>system\n${system}<|im_end|>\n` : "";
+  return `${TOKENS.bos}${sys}<|im_start|>user\n<|vision_start|><|image|><|vision_end|>${question}<|im_end|>\n<|im_start|>assistant\n<think></think>`;
 }
 
 /** Text-Chat (Antwort als Text, ohne Sprache), wie der „chat“-Modus der Referenz: Denken leer vorgegeben. */
@@ -234,6 +250,57 @@ function argmax(data, offset, size, suppress) {
   return best;
 }
 
+// ---------- Bilder (Qwen2-VL-Vorverarbeitung, wie liquidonnx.lfm3_vl.session.preprocess_images) ----------
+
+/** Zielgröße: Vielfache von 32 Pixeln, zwischen minPixels und maxTokens · 32² (smart_resize). */
+export function smartResize(h, w, { maxTokens = 256 } = {}) {
+  const f = VISION.patch * VISION.merge;
+  const maxPixels = maxTokens * f * f;
+  let hb = Math.max(f, Math.round(h / f) * f);
+  let wb = Math.max(f, Math.round(w / f) * f);
+  if (hb * wb > maxPixels) {
+    const beta = Math.sqrt((h * w) / maxPixels);
+    hb = Math.max(f, Math.floor(h / beta / f) * f);
+    wb = Math.max(f, Math.floor(w / beta / f) * f);
+  } else if (hb * wb < VISION.minPixels) {
+    const beta = Math.sqrt(VISION.minPixels / (h * w));
+    hb = Math.ceil((h * beta) / f) * f;
+    wb = Math.ceil((w * beta) / f) * f;
+  }
+  return { height: hb, width: wb };
+}
+
+/**
+ * RGB-Bild schon auf smartResize-Größe ({ data Uint8 HWC, width, height }) → Patches
+ * [gridH · gridW, 3 · 2 · 16 · 16], blockweise geordnet (2×2-Blöcke), wie Qwen2VLImageProcessor.
+ */
+export function preprocessImage(rgb, { maxTokens = 256 } = {}) {
+  const { width, height } = smartResize(rgb.height, rgb.width, { maxTokens });
+  if (width !== rgb.width || height !== rgb.height) throw new Error(`Bild erst auf ${width}×${height} skalieren`);
+  const P = VISION.patch;
+  const M = VISION.merge;
+  const T = VISION.temporal;
+  const gridH = height / P;
+  const gridW = width / P;
+  const dim = 3 * T * P * P;
+  const pixels = new Float32Array(gridH * gridW * dim);
+  let row = 0;
+  for (let bh = 0; bh < gridH / M; bh++)
+    for (let bw = 0; bw < gridW / M; bw++)
+      for (let mh = 0; mh < M; mh++)
+        for (let mw = 0; mw < M; mw++) {
+          const y0 = (bh * M + mh) * P;
+          const x0 = (bw * M + mw) * P;
+          let o = row * dim;
+          for (let c = 0; c < 3; c++)
+            for (let t = 0; t < T; t++) // ein Bild = zwei gleiche „Zeitschritte“
+              for (let y = 0; y < P; y++)
+                for (let x = 0; x < P; x++) pixels[o++] = (rgb.data[((y0 + y) * width + (x0 + x)) * 3 + c] / 255 - 0.5) / 0.5;
+          row++;
+        }
+  return { pixels, gridH, gridW };
+}
+
 // ---------- Modell ----------
 
 export class Lfm3Audio {
@@ -241,8 +308,10 @@ export class Lfm3Audio {
    * ort: onnxruntime-Modul; sessions: { decoder, audio_encoder, depth_decoder, codec_decoder };
    * tokenizer: transformers.js-Tokenizer (encode/decode).
    */
-  constructor({ ort, sessions, tokenizer }) {
+  constructor({ ort, sessions, tokenizer, variant = "audio" }) {
     this.ort = ort;
+    this.omni = variant === "omni";
+    this.speech = SPEECH[variant] ?? SPEECH.audio;
     this.s = sessions;
     this.tokenizer = tokenizer;
     this.decoderInputs = new Set(sessions.decoder.inputNames);
@@ -277,7 +346,7 @@ export class Lfm3Audio {
   }
 
   /** Ein Decoder-Schritt; gibt { logits (letzte Position), hidden } und aktualisiert den Speicher. */
-  async step(state, ids, { audioFeatures = null, audioRows = 0, codes = null } = {}) {
+  async step(state, ids, { audioFeatures = null, audioRows = 0, codes = null, imageFeatures = null, imageRows = 0 } = {}) {
     const n = ids.length;
     const feeds = {
       input_ids: this.tensor("int64", BigInt64Array.from(ids, BigInt), [1, n]),
@@ -286,6 +355,8 @@ export class Lfm3Audio {
       logits_to_keep: this.tensor("int64", BigInt64Array.from([1n]), [1]),
       audio_features: this.tensor("float32", audioFeatures ?? new Float32Array(0), [audioRows, HIDDEN]),
       audio_out_codes: this.tensor("int64", codes ? BigInt64Array.from(codes, BigInt) : new BigInt64Array(0), [codes ? 1 : 0, NUM_CODEBOOKS]),
+      image_features: this.tensor("float32", imageFeatures ?? new Float32Array(0), [imageRows, HIDDEN]),
+      video_features: this.tensor("float32", new Float32Array(0), [0, HIDDEN]),
       ...state.cache,
     };
     for (const k of Object.keys(feeds)) if (!this.decoderInputs.has(k)) delete feeds[k];
@@ -305,7 +376,7 @@ export class Lfm3Audio {
 
   /** Lange Eingaben in Stücken von höchstens 1024 Tokens (WebGPU), nur reiner Text. */
   async prefill(state, ids, extra = {}) {
-    if (ids.length <= 1024 || extra.audioRows) return this.step(state, ids, extra);
+    if (ids.length <= 1024 || extra.audioRows || extra.imageRows) return this.step(state, ids, extra);
     let out;
     for (let i = 0; i < ids.length; i += 1024) out = await this.step(state, ids.slice(i, i + 1024));
     return out;
@@ -340,6 +411,43 @@ export class Lfm3Audio {
     return this.tokenizer.decode(out, { skip_special_tokens: true }).replace(/<think>[\s\S]*?<\/think>/g, "").trim();
   }
 
+  /** Text nach einem vorbereiteten Prompt (gierig), für Bildfragen. */
+  async #generateText(state, first, maxTokens) {
+    let { logits } = first;
+    const vocab = logits.length;
+    const suppress = new Set([TOKENS.audio, TOKENS.audioOut, TOKENS.audioStart, TOKENS.mixedStart, VISION.imageToken]);
+    const out = [];
+    for (let i = 0; i < maxTokens; i++) {
+      const token = argmax(logits, 0, vocab, suppress);
+      if (token === TOKENS.eos || token === TOKENS.textEnd) break;
+      out.push(token);
+      ({ logits } = await this.step(state, [token]));
+    }
+    return this.tokenizer.decode(out, { skip_special_tokens: true }).replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+  }
+
+  /** Bildmerkmale eines RGB-Bildes { data (Uint8, HWC), width, height } (nur Omni). */
+  async encodeImage(rgb, { maxTokens = 256 } = {}) {
+    const { pixels, gridH, gridW } = preprocessImage(rgb, { maxTokens });
+    const blocks = this.tensor("float32", pixels, [gridH / VISION.merge, gridW / VISION.merge, VISION.merge, VISION.merge, pixels.length / (gridH * gridW)]);
+    const out = await this.s.vision_encoder.run({ pixel_values: blocks });
+    const f = out.image_features;
+    return { features: f.data instanceof Float32Array ? f.data : Float32Array.from(f.data), rows: f.dims[0] };
+  }
+
+  /** Antwort (Text) auf eine Frage zu einem Bild (nur Omni). */
+  async askImage(rgb, question, { system = "", maxTokens = 24, maxImageTokens = 256 } = {}) {
+    if (!this.omni) throw new Error("Bilder versteht nur LFM3-Omni");
+    const { features, rows } = await this.encodeImage(rgb, { maxTokens: maxImageTokens });
+    const prompt = this.ids(imagePrompt(system, question));
+    const at = prompt.indexOf(VISION.imageToken);
+    if (at < 0) throw new Error("Tokenizer kennt <|image|> nicht");
+    const ids = [...prompt.slice(0, at), ...Array(rows).fill(VISION.imageToken), ...prompt.slice(at + 1)];
+    const state = { past: 0, cache: this.emptyCache() };
+    const first = await this.step(state, ids, { imageFeatures: features, imageRows: rows });
+    return this.#generateText(state, first, maxTokens);
+  }
+
   /** Audio-Merkmale [rows * 2048] eines 16-kHz-Clips. */
   async encode(wave16k) {
     const { data, frames } = logMel(wave16k);
@@ -351,7 +459,7 @@ export class Lfm3Audio {
   /** Spracherkennung: Text eines 16-kHz-Clips. */
   async transcribe(wave16k, { language = "German", maxTokens = 120 } = {}) {
     const { features, rows } = await this.encode(wave16k);
-    const prompt = this.ids(asrPrompt(language));
+    const prompt = this.ids(asrPrompt(language, { omni: this.omni }));
     const at = prompt.indexOf(TOKENS.audio);
     if (at < 0) throw new Error("Tokenizer kennt <|audio|> nicht");
     const ids = [...prompt.slice(0, at), ...Array(rows).fill(TOKENS.audio), ...prompt.slice(at + 1)];
@@ -372,7 +480,7 @@ export class Lfm3Audio {
   /** Sprachausgabe: 24-kHz-Ton eines Textes. onFrame(n) meldet den Fortschritt. */
   async speak(text, { language = "German", voice = "female", maxFrames = 400, seed = null, onFrame = () => {} } = {}) {
     const rng = makeRng(seed);
-    const ids = this.ids(ttsPrompt(text, { language, voice }));
+    const ids = this.ids(ttsPrompt(text, { language, voice, omni: this.omni }));
     const state = { past: 0, cache: this.emptyCache() };
     let { hidden } = await this.step(state, ids);
     const frames = [];
@@ -392,7 +500,7 @@ export class Lfm3Audio {
     const codes = new BigInt64Array(NUM_CODEBOOKS);
     const revealed = new Array(NUM_CODEBOOKS).fill(false);
     const hiddenT = this.tensor("float32", hidden instanceof Float32Array ? hidden : Float32Array.from(hidden), [1, HIDDEN]);
-    const window = history.slice(-SPEECH.repetitionWindow);
+    const window = history.slice(-this.speech.repetitionWindow);
     let start = 0;
     for (const count of MASKGIT_SCHEDULE) {
       const pick = order.slice(start, start + count);
@@ -405,7 +513,7 @@ export class Lfm3Audio {
       const logits = out.logits.data;
       const size = out.logits.dims[2];
       for (const k of pick) {
-        const code = sampleCode(logits, k * size, size, { ...SPEECH, history: window.map((fr) => fr[k]) }, rng);
+        const code = sampleCode(logits, k * size, size, { ...this.speech, history: window.map((fr) => fr[k]) }, rng);
         codes[k] = BigInt(code);
       }
       for (const k of pick) revealed[k] = true;

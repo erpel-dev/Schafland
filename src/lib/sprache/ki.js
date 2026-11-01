@@ -93,3 +93,19 @@ export function checkAnswer(raw, { products }) {
   if (text.length < 3) return null;
   return { text, products: mentionedProducts(text, products).slice(0, 4) };
 }
+
+/** Frage an LFM3-Omni zu einem Kamerabild: welches Produkt aus dem Sortiment ist zu sehen? */
+export function productImageQuestion(products) {
+  const names = [...new Set(products.map((p) => clean(p.name)))];
+  return {
+    system: "Du bist die Kasse im Kinder-Kaufladen „Schafland“. Du erkennst Produkte auf Fotos.",
+    question: `Welches Produkt aus dieser Liste ist auf dem Bild zu sehen? Antworte nur mit dem Namen aus der Liste. Wenn keins passt, antworte „unbekannt“.\nListe: ${names.join(", ")}`,
+  };
+}
+
+/** Antwort des Modells → Produkt aus dem Sortiment oder null */
+export function productFromAnswer(answer, products) {
+  if (!answer || /unbekannt|weiß nicht|keins|kein produkt/i.test(answer)) return null;
+  const exact = products.find((p) => normalize(clean(p.name)) === normalize(answer));
+  return exact ?? mentionedProducts(answer, products)[0] ?? null;
+}

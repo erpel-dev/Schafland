@@ -949,7 +949,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       });
       await openSettings(page);
       await page.click("nav >> text=Frag das Schaf");
-      check("Ohne Grafikkarte: LFM3-Audio nicht einschaltbar, mit Erklärung", (await page.locator("#audio-on").count()) === 0 && (await page.textContent(".pane")).includes("LFM3-Audio"));
+      check("Ohne Grafikkarte: LFM3-Omni nicht einschaltbar, mit Erklärung", (await page.locator("#audio-on").count()) === 0 && (await page.textContent(".pane")).includes("LFM3-Omni"));
       check("Ohne Grafikkarte: Stufe 2 nicht einschaltbar, mit Erklärung", (await page.locator("#ki-on").count()) === 0 && (await page.textContent(".pane")).includes("braucht eine Grafikkarte"));
       await page.evaluate(() => localStorage.setItem("schaf-ki-cpu", "1"));
       await page.reload();
@@ -1031,6 +1031,40 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       check("Handy: Sprechblase passt auf den Bildschirm", fits);
       await h.page.screenshot({ path: `${SHOTS}/schaf-handy.png` });
       await h.browser.close();
+
+      // LFM3-Omni (Prototyp): Grafikkarte und Modell hier nachgestellt; geprüft wird die Einbindung
+      const o = await launch("empty", { audio: wav });
+      await o.ctx.addInitScript(() => {
+        Object.defineProperty(navigator, "gpu", { value: { requestAdapter: async () => ({ features: new Set() }) } });
+        window.__schafFakeAudio = { image: async (question) => (window.__bildFrage = question, "Apfel") };
+        window.__schafFakeErkennung = async () => "Was kostet die Banane";
+      });
+      await o.page.goto(APP_URL);
+      await o.page.click("text=Laden öffnen");
+      await o.page.waitForSelector(".tile");
+      await openSettings(o.page);
+      await o.page.click("nav >> text=Frag das Schaf");
+      await o.page.click("#schaf-on");
+      check("Mit Grafikkarte: LFM3-Omni einschaltbar", (await o.page.locator("#audio-on").count()) === 1);
+      await o.page.click("#audio-on");
+      await o.page.click("text=Jetzt laden (ca. 2,6 GB)");
+      await o.page.waitForSelector("text=✓ Geladen", { timeout: 5000 }).catch(() => {});
+      check("LFM3-Omni: geladen-Anzeige", await o.page.isVisible("text=🔊 Stimme hören"));
+      await o.page.click("text=Zurück zum Laden");
+      await o.page.click("text=Scannen!");
+      await o.page.waitForSelector("button.see", { timeout: 10000 }).catch(() => {});
+      check("Scannen: Knopf „Was ist das?“", await o.page.isVisible("button.see"));
+      await o.page.waitForFunction(() => document.querySelector("video")?.videoWidth > 0, null, { timeout: 10000 }).catch(() => {});
+      await o.page.click("button.see");
+      await o.page.waitForSelector(".found .t:has-text('Apfel')", { timeout: 10000 }).catch(() => {});
+      check("Bilderkennung: Produkt erkannt und angezeigt", (await o.page.textContent(".found")).includes("Apfel"), (await o.page.textContent(".found")).replace(/\s+/g, " ").slice(0, 80));
+      const q = await o.page.evaluate(() => window.__bildFrage);
+      check("Bilderkennung: Frage nennt das Sortiment", q.includes("Banane") && q.includes("unbekannt"));
+      await o.page.screenshot({ path: `${SHOTS}/omni-bilderkennung.png` });
+      await o.page.waitForTimeout(2500);
+      check("Bilderkennung: erkanntes Produkt landet im Korb", (await cartQty(o.page, "Apfel")) >= 1);
+      check("Keine Konsolenfehler (LFM3-Omni)", !o.errors.filter((e) => !/Failed to load resource/.test(e)).length, o.errors.join(" | "));
+      await o.browser.close();
     }
 
     // ---------- 8. Offline (Service Worker) ----------

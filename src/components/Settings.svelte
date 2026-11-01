@@ -392,19 +392,19 @@
           </div>
         </div>
 
-        <h3>Prototyp: LFM3-Audio (Zuhören und Sprechen mit einem Modell)</h3>
+        <h3>Prototyp: LFM3-Omni (ein Modell zum Zuhören, Sprechen, Antworten und Sehen)</h3>
         <p class="muted">
-          Statt Whisper und der Systemstimme hört LFM3-Audio von Liquid AI zu und liest vor, mit einer natürlicheren Stimme. Was das Schaf sagt (Preise, Korb, Wissen),
-          bestimmt weiter die Kasse. Läuft nur mit Grafikkarte im Browser (WebGPU), z. B. auf aktuellen Handys mit Chrome. Download ca. 2,4 GB, empfohlen 8 GB Arbeitsspeicher.
-          Klappt etwas nicht, übernimmt automatisch der bisherige Weg.
+          LFM3-Omni von Liquid AI hört zu und liest mit natürlicher Stimme vor, beantwortet freie Fragen und erkennt beim Scannen mit „🐑 Was ist das?“ Produkte ohne Strichcode.
+          Was das Schaf über Preise und den Korb sagt, bestimmt weiter die Kasse. Läuft nur mit Grafikkarte im Browser (WebGPU), z. B. auf aktuellen Handys mit Chrome.
+          Download ca. 2,6 GB, empfohlen 8 GB Arbeitsspeicher. Klappt etwas nicht, übernimmt automatisch der bisherige Weg.
         </p>
         <div class="field">
-          <label for="audio-on">LFM3-Audio verwenden</label>
+          <label for="audio-on">LFM3-Omni verwenden</label>
           <div class="row">
             {#if gpu && !gpu.webgpu && !settings.value.audioModell}
               <span class="muted">Geht auf diesem Gerät nicht: keine Grafikkarte im Browser (WebGPU).</span>
             {:else}
-              <Toggle id="audio-on" label="LFM3-Audio verwenden" checked={settings.value.audioModell} onchange={(v) => { settings.set({ audioModell: v }); if (!v) schaf.resetAudioModel(); }} />
+              <Toggle id="audio-on" label="LFM3-Omni verwenden" checked={settings.value.audioModell} onchange={(v) => { settings.set({ audioModell: v }); if (!v) schaf.resetAudioModel(); }} />
               <span class="muted">Prototyp</span>
             {/if}
           </div>
@@ -419,7 +419,7 @@
                   <button class="big-btn light small" disabled={audioTesting} onclick={testAudioVoice}>🔊 Stimme hören</button>
                 {:else}
                   <button class="big-btn light small" disabled={schaf.audio === "lädt"} onclick={() => schaf.loadAudioModel()}>
-                    {schaf.audio === "lädt" ? `Lädt … ${Math.round(schaf.audioProgress * 100)} %` : "Jetzt laden (ca. 2,4 GB)"}
+                    {schaf.audio === "lädt" ? `Lädt … ${Math.round(schaf.audioProgress * 100)} %` : "Jetzt laden (ca. 2,6 GB)"}
                   </button>
                   <span class="muted">{schaf.audioStatus || "Am besten im WLAN und mit Ladekabel."}</span>
                 {/if}
@@ -427,7 +427,7 @@
               {#if schaf.audio === "fehler"}<p class="err">{schaf.audioError}</p>{/if}
               {#if audioTestError}<p class="err">{audioTestError}</p>{/if}
               {#if schaf.audioLastMs.asr || schaf.audioLastMs.tts}
-                <small class="muted">Zuletzt: Erkennen {(schaf.audioLastMs.asr / 1000).toFixed(1)} s, Vorlesen {(schaf.audioLastMs.tts / 1000).toFixed(1)} s</small>
+                <small class="muted">Zuletzt: Erkennen {(schaf.audioLastMs.asr / 1000).toFixed(1)} s, Vorlesen {(schaf.audioLastMs.tts / 1000).toFixed(1)} s{schaf.audioLastMs.bild ? `, Bild ${(schaf.audioLastMs.bild / 1000).toFixed(1)} s` : ""}</small>
               {/if}
             </div>
           </div>
@@ -453,7 +453,7 @@
           </div>
         </div>
         {#if settings.value.kiAn && settings.value.audioModell}
-          <p class="muted">Mit eingeschaltetem LFM3-Audio beantwortet dieses Modell auch die freien Fragen. Ein eigenes Sprachmodell wird dann nicht geladen.</p>
+          <p class="muted">Mit eingeschaltetem LFM3-Omni beantwortet dieses Modell auch die freien Fragen. Ein eigenes Sprachmodell wird dann nicht geladen.</p>
         {/if}
         {#if settings.value.kiAn && !settings.value.audioModell}
           <div class="field">

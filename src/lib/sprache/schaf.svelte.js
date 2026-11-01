@@ -12,7 +12,7 @@ import { understand } from "./verstehen.js";
 import { answer } from "./antworten.js";
 import { record } from "./aufnahme.js";
 import { speak, stopSpeaking } from "./sprechen.js";
-import { isOpenQuestion, buildMessages, checkAnswer } from "./ki.js";
+import { isOpenQuestion, buildMessages, checkAnswer, productImageQuestion, productFromAnswer } from "./ki.js";
 import { topicOf, topicProducts } from "./wissen.js";
 
 export const MODELLE = {
@@ -390,7 +390,7 @@ class FragDasSchaf {
     return settings.value.audioModell && this.audio === "bereit" && !globalThis.__schafFakeAudio;
   }
 
-  /** Lädt LFM3-Audio (Eltern-Bereich). Beim ersten Mal ca. 2,4 GB. */
+  /** Lädt LFM3-Omni (Eltern-Bereich). Beim ersten Mal ca. 2,6 GB. */
   loadAudioModel() {
     if (this.audio === "bereit") return Promise.resolve();
     if (this.#audioLoad) return this.#audioLoad;
@@ -400,6 +400,7 @@ class FragDasSchaf {
       this.audioProgress = 0;
       try {
         if (globalThis.__schafFakeAudio) {
+          // Tests: Modell ersetzt
           this.audio = "bereit";
           return;
         }
@@ -411,7 +412,7 @@ class FragDasSchaf {
       } catch (err) {
         console.warn("LFM3-Audio", err);
         this.audio = "fehler";
-        this.audioError = /WebGPU|Grafikkarte/.test(err?.message) ? "Dieses Gerät hat keine Grafikkarte im Browser (WebGPU)." : /memory|Memory|allocation|OOM|Array buffer/i.test(err?.message) ? "Zu wenig Speicher für LFM3-Audio auf diesem Gerät." : "LFM3-Audio ließ sich nicht starten: " + (err?.message ?? "").slice(0, 160);
+        this.audioError = /WebGPU|Grafikkarte/.test(err?.message) ? "Dieses Gerät hat keine Grafikkarte im Browser (WebGPU)." : /memory|Memory|allocation|OOM|Array buffer/i.test(err?.message) ? "Zu wenig Speicher für LFM3-Omni auf diesem Gerät." : "LFM3-Omni ließ sich nicht starten: " + (err?.message ?? "").slice(0, 160);
         this.resetAudioModel(true);
       } finally {
         this.#audioLoad = null;
@@ -443,6 +444,27 @@ class FragDasSchaf {
       }
     }
     await speak(text);
+  }
+
+  /** Darf die Kamera Produkte ohne Strichcode erkennen? (LFM3-Omni geladen) */
+  get canSeeProducts() {
+    return settings.value.audioModell && this.audio === "bereit";
+  }
+
+  /** Welches Produkt ist auf dem Kamerabild (ImageData)? Ergebnis: { product, answer, ms } */
+  async recognizeProduct(imageData) {
+    // eigenes Sortiment und Aktionsprodukte (gescannte Produkte haben lange Markennamen)
+    const aktion = aktionById(settings.value.aktion);
+    const pool = [...(aktion ? aktion.products : []), ...products];
+    const { system, question } = productImageQuestion(pool);
+    if (globalThis.__schafFakeAudio?.image) {
+      const answer = await globalThis.__schafFakeAudio.image(question);
+      return { product: productFromAnswer(answer, pool), answer, ms: 0 };
+    }
+    const rgba = new Uint8ClampedArray(imageData.data);
+    const out = await this.#audioCall({ type: "image", rgba, width: imageData.width, height: imageData.height, system, question });
+    this.audioLastMs = { ...this.audioLastMs, bild: out.ms };
+    return { product: productFromAnswer(out.text, pool), answer: out.text, ms: out.ms };
   }
 
   /** Probe im Eltern-Bereich */

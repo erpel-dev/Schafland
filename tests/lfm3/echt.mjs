@@ -1,15 +1,15 @@
-// Echter Test von src/lib/sprache/lfm3audio.js mit LFM3-Audio-2B (q4, auf dem Prozessor, onnxruntime-node).
-// Aufruf: node tests/lfm3/echt.mjs <modellordner> <ordner-mit-wavs-16k>
+// Echter Test von src/lib/sprache/lfm3audio.js mit LFM3-Omni-2B (q4, auf dem Prozessor, onnxruntime-node).
+// Aufruf: node tests/lfm3/echt.mjs <modellordner> <ordner-mit-wavs-16k> [<ordner-mit-produktbildern>]
 // Die WAVs heißen „<erwartetes Wort>__<Satz>.wav“. Läuft auf GitHub (.github/workflows/lfm3-audio.yml).
 import * as ort from "onnxruntime-node";
-import { AutoTokenizer, env } from "@huggingface/transformers";
+import { AutoTokenizer, RawImage, env } from "@huggingface/transformers";
 import fs from "node:fs";
 import path from "node:path";
-import { Lfm3Audio, TOKENS, asrPrompt, ttsPrompt } from "../../src/lib/sprache/lfm3audio.js";
-import { buildMessages, checkAnswer } from "../../src/lib/sprache/ki.js";
+import { Lfm3Audio, TOKENS, asrPrompt, ttsPrompt, smartResize } from "../../src/lib/sprache/lfm3audio.js";
+import { buildMessages, checkAnswer, productImageQuestion, productFromAnswer } from "../../src/lib/sprache/ki.js";
 import { products, categories } from "../../src/lib/catalog.js";
 
-const [MODEL, WAVS] = process.argv.slice(2);
+const [MODEL, WAVS, IMAGES] = process.argv.slice(2);
 const results = [];
 const check = (name, ok, detail = "") => {
   results.push(ok);
@@ -71,8 +71,8 @@ env.allowLocalModels = true;
 env.localModelPath = path.dirname(path.resolve(MODEL)) + "/";
 const tokenizer = await AutoTokenizer.from_pretrained(path.basename(MODEL));
 
-const asrIds = Array.from(tokenizer.encode(asrPrompt(), { add_special_tokens: false }), Number);
-const ttsIds = Array.from(tokenizer.encode(ttsPrompt("Hallo"), { add_special_tokens: false }), Number);
+const asrIds = Array.from(tokenizer.encode(asrPrompt("German", { omni: true }), { add_special_tokens: false }), Number);
+const ttsIds = Array.from(tokenizer.encode(ttsPrompt("Hallo", { omni: true }), { add_special_tokens: false }), Number);
 check("Tokenizer: <|audio|> ist ein Token", asrIds.filter((t) => t === TOKENS.audio).length === 1, `${asrIds.length} Tokens, Anfang ${asrIds.slice(0, 4)}`);
 check("Tokenizer: TTS endet mit <|audio_start|>", ttsIds.at(-1) === TOKENS.audioStart, `${ttsIds.slice(-3)}`);
 
@@ -84,9 +84,10 @@ const sessions = {
   audio_encoder: await ort.InferenceSession.create(onnx("audio_encoder.onnx"), opts),
   depth_decoder: await ort.InferenceSession.create(onnx("depth_decoder.onnx"), opts),
   codec_decoder: await ort.InferenceSession.create(onnx("codec_decoder.onnx"), opts),
+  vision_encoder: await ort.InferenceSession.create(onnx("vision_encoder_q8.onnx"), opts),
 };
 check("Modell geladen (q4, Prozessor)", true, secs(t));
-const model = new Lfm3Audio({ ort, sessions, tokenizer });
+const model = new Lfm3Audio({ ort, sessions, tokenizer, variant: "omni" });
 
 // 1. Spracherkennung mit gesprochenen Testsätzen
 for (const file of fs.readdirSync(WAVS).filter((f) => f.endsWith(".wav")).sort()) {
@@ -126,6 +127,24 @@ for (const q of ["Was schmeckt lecker?", "Was kann ich meiner Oma kaufen?", "Was
   // geprüft wird, was die App garantiert: kurz, ohne Zahlen; die Qualität steht im Protokoll
   check(`Frage „${q}“`, !!checked, `roh: „${raw.slice(0, 160)}“ → „${checked?.text ?? "(verworfen)"}“, Bilder: ${names} (${secs(t)})`);
 }
+
+// 4. Produkte auf Bildern erkennen (Bilder heißen wie das Produkt, z. B. Banane.png)
+let imagesOk = 0;
+const imageFiles = IMAGES ? fs.readdirSync(IMAGES).filter((f) => f.endsWith(".png")).sort() : [];
+for (const file of imageFiles) {
+  const want = file.replace(/\.png$/, "");
+  const img = (await RawImage.read(path.join(IMAGES, file))).rgb();
+  const { width, height } = smartResize(img.height, img.width, { maxTokens: 256 });
+  const resized = await img.resize(width, height, { resample: 3 });
+  const { system, question } = productImageQuestion(products);
+  t = performance.now();
+  const answer = await model.askImage({ data: resized.data, width, height }, question, { system });
+  const product = productFromAnswer(answer, products);
+  const ok = product?.name.replace(/\u00ad/g, "") === want;
+  if (ok) imagesOk++;
+  console.log(`${ok ? "PASS" : "INFO"}  Bild ${file}  — „${answer}“ → ${product?.name ?? "kein Produkt"} (${secs(t)})`);
+}
+if (imageFiles.length) check(`Bilderkennung: mindestens die Hälfte richtig`, imagesOk * 2 >= imageFiles.length, `${imagesOk}/${imageFiles.length}`);
 
 // Erkennung darf sich bei einzelnen Wörtern irren (das Schaf zeigt dann Bilder); alles andere muss klappen
 const failed = results.filter((r) => !r).length;
