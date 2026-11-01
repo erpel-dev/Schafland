@@ -23,6 +23,19 @@ export function canSpeak() {
   return !!(globalThis.speechSynthesis && (voice ?? pickVoice()));
 }
 
+/** Ausführlich, auch für die Android-App: { ok, name } */
+export async function speechStatus() {
+  if (isNativeApp) {
+    try {
+      const info = await Kiosk.speechInfo();
+      return { ok: info.available && info.german, name: info.available ? `Android-Sprachausgabe (${info.engine})${info.german ? "" : ", aber ohne deutsche Stimme"}` : "" };
+    } catch {
+      return { ok: false, name: "" };
+    }
+  }
+  return { ok: canSpeak(), name: voiceName() };
+}
+
 export function voiceName() {
   if (isNativeApp) return "Android-Sprachausgabe";
   return (voice ?? pickVoice())?.name ?? "";

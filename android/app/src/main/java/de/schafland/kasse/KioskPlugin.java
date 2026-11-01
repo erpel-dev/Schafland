@@ -42,7 +42,9 @@ public class KioskPlugin extends Plugin {
         waiting.add(action);
         if (tts != null) return;
         tts = new TextToSpeech(getContext(), status -> {
-            if (status == TextToSpeech.SUCCESS) {
+            if (status != TextToSpeech.SUCCESS) {
+                tts = null;
+            } else {
                 tts.setLanguage(Locale.GERMAN);
                 tts.setSpeechRate(0.92f);
                 tts.setPitch(1.15f);
@@ -76,6 +78,20 @@ public class KioskPlugin extends Plugin {
             String id = "schaf-" + (++utterance);
             speaking.put(id, call);
             if (tts.speak(text, TextToSpeech.QUEUE_FLUSH, new Bundle(), id) != TextToSpeech.SUCCESS) finish(id);
+        });
+    }
+
+    /** Gibt es eine Sprachausgabe mit deutscher Stimme? { available, german, engine } */
+    @PluginMethod
+    public void speechInfo(PluginCall call) {
+        withTts(() -> {
+            JSObject result = new JSObject();
+            boolean available = tts != null && tts.getDefaultEngine() != null;
+            int lang = available ? tts.isLanguageAvailable(Locale.GERMAN) : TextToSpeech.LANG_NOT_SUPPORTED;
+            result.put("available", available);
+            result.put("german", lang >= TextToSpeech.LANG_AVAILABLE);
+            result.put("engine", available ? tts.getDefaultEngine() : "");
+            call.resolve(result);
         });
     }
 

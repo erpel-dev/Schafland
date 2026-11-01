@@ -15,7 +15,7 @@
   import LabelSheet from "./LabelSheet.svelte";
   import ProductImage from "./ProductImage.svelte";
   import { schaf, MODELLE, KI_MODELLE, gpuInfo } from "../lib/sprache/schaf.svelte.js";
-  import { speak, canSpeak, voiceName } from "../lib/sprache/sprechen.js";
+  import { speak, speechStatus } from "../lib/sprache/sprechen.js";
 
   let { onClose, initialTab = "bezahlen" } = $props();
 
@@ -72,6 +72,11 @@
     settings.set({ fragModell: id });
     schaf.resetModel();
   }
+  let voice = $state(null);
+  $effect(() => {
+    if (tab === "schaf" && !voice) speechStatus().then((v) => (voice = v));
+  });
+
   // Stufe 2
   let gpu = $state(null);
   $effect(() => {
@@ -352,9 +357,13 @@
         <div class="field">
           <span class="lbl">Stimme</span>
           <div class="row">
-            {#if canSpeak()}
+            {#if voice === null}
+              <span class="muted">Prüfe Stimme …</span>
+            {:else if voice.ok}
               <button class="big-btn light small" onclick={() => speak("Hallo! Ich bin das Schaf von Schafland. Was möchtest du kaufen?")}>🔊 Probe hören</button>
-              <span class="muted">{voiceName()}</span>
+              <span class="muted">{voice.name}</span>
+            {:else if isNativeApp}
+              <span class="err">Keine deutsche Stimme gefunden{voice.name ? ` (${voice.name})` : ""}. Das Schaf antwortet dann nur in der Sprechblase. Android: Einstellungen → System → Sprache → Sprachausgabe, dort z. B. „Sprachausgabe von Google“ mit Deutsch installieren.</span>
             {:else}
               <span class="err">Keine deutsche Stimme gefunden. Das Schaf antwortet dann nur in der Sprechblase. Linux: <code>sudo apt install speech-dispatcher espeak-ng</code>, danach den Browser neu starten.</span>
             {/if}
