@@ -77,6 +77,21 @@
     if (tab === "schaf" && !voice) speechStatus().then((v) => (voice = v));
   });
 
+  // LFM3-Audio (Prototyp)
+  let audioTesting = $state(false);
+  let audioTestError = $state("");
+  async function testAudioVoice() {
+    audioTesting = true;
+    audioTestError = "";
+    try {
+      await schaf.sayWithAudioModel("Hallo! Ich bin das Schaf von Schafland. Was möchtest du kaufen?");
+    } catch (err) {
+      audioTestError = "Vorlesen ging nicht: " + (err?.message ?? err);
+    } finally {
+      audioTesting = false;
+    }
+  }
+
   // Stufe 2
   let gpu = $state(null);
   $effect(() => {
@@ -376,6 +391,47 @@
             {#if tryReply}<p class="answer">🐑 {tryReply}</p>{/if}
           </div>
         </div>
+
+        <h3>Prototyp: LFM3-Audio (Zuhören und Sprechen mit einem Modell)</h3>
+        <p class="muted">
+          Statt Whisper und der Systemstimme hört LFM3-Audio von Liquid AI zu und liest vor, mit einer natürlicheren Stimme. Was das Schaf sagt (Preise, Korb, Wissen),
+          bestimmt weiter die Kasse. Läuft nur mit Grafikkarte im Browser (WebGPU), z. B. auf aktuellen Handys mit Chrome. Download ca. 2,4 GB, empfohlen 8 GB Arbeitsspeicher.
+          Klappt etwas nicht, übernimmt automatisch der bisherige Weg.
+        </p>
+        <div class="field">
+          <label for="audio-on">LFM3-Audio verwenden</label>
+          <div class="row">
+            {#if gpu && !gpu.webgpu && !settings.value.audioModell}
+              <span class="muted">Geht auf diesem Gerät nicht: keine Grafikkarte im Browser (WebGPU).</span>
+            {:else}
+              <Toggle id="audio-on" label="LFM3-Audio verwenden" checked={settings.value.audioModell} onchange={(v) => { settings.set({ audioModell: v }); if (!v) schaf.resetAudioModel(); }} />
+              <span class="muted">Prototyp</span>
+            {/if}
+          </div>
+        </div>
+        {#if settings.value.audioModell}
+          <div class="field">
+            <span class="lbl">Modell</span>
+            <div class="stack">
+              <div class="row">
+                {#if schaf.audio === "bereit"}
+                  <span class="ok">✓ Geladen</span>
+                  <button class="big-btn light small" disabled={audioTesting} onclick={testAudioVoice}>🔊 Stimme hören</button>
+                {:else}
+                  <button class="big-btn light small" disabled={schaf.audio === "lädt"} onclick={() => schaf.loadAudioModel()}>
+                    {schaf.audio === "lädt" ? `Lädt … ${Math.round(schaf.audioProgress * 100)} %` : "Jetzt laden (ca. 2,4 GB)"}
+                  </button>
+                  <span class="muted">{schaf.audioStatus || "Am besten im WLAN und mit Ladekabel."}</span>
+                {/if}
+              </div>
+              {#if schaf.audio === "fehler"}<p class="err">{schaf.audioError}</p>{/if}
+              {#if audioTestError}<p class="err">{audioTestError}</p>{/if}
+              {#if schaf.audioLastMs.asr || schaf.audioLastMs.tts}
+                <small class="muted">Zuletzt: Erkennen {(schaf.audioLastMs.asr / 1000).toFixed(1)} s, Vorlesen {(schaf.audioLastMs.tts / 1000).toFixed(1)} s</small>
+              {/if}
+            </div>
+          </div>
+        {/if}
 
         <h3>Stufe 2: Freie Fragen mit KI</h3>
         <p class="muted">
