@@ -8,10 +8,14 @@ import "./app.css";
 import { mount } from "svelte";
 import App from "./App.svelte";
 import { settings } from "./lib/settings.svelte.js";
+import { isNativeApp } from "./lib/platform.js";
 import { scanned } from "./lib/shop.svelte.js";
 import { music } from "./lib/music.svelte.js";
 import { scanLog } from "./lib/scanlog.svelte.js";
 import { update } from "./lib/update.svelte.js";
+
+// In der Android-App die Systemschriften nehmen (siehe app.css, --emoji)
+if (isNativeApp) document.documentElement.dataset.native = "";
 
 async function boot() {
   try {

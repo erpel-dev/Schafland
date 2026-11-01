@@ -147,6 +147,10 @@ try {
   check("Zurück-Taste beendet die App nie", !!alive && (await js("1+1").catch(() => 0)) === 2);
   const keepOn = adb("shell", "dumpsys", "window").toString().includes("KEEP_SCREEN_ON");
   check("Bildschirm bleibt an (FLAG_KEEP_SCREEN_ON)", keepOn);
+  // Hängt die App an einem Dienst der Play-Dienste, beendet Android sie mit, wenn diese abstürzen
+  const conn = adb("shell", "dumpsys", "activity", "processes", "de.schafland.kasse").toString();
+  const deps = [...new Set(conn.match(/com\.google\.android\.gms\/[\w.]+Provider/g) ?? [])];
+  check("App hängt nicht an den Google-Play-Diensten", deps.length === 0, deps.join(", ") || "keine Verbindung");
 } catch (err) {
   check("Ablauf", false, err.message);
 }
