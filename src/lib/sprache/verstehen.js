@@ -164,7 +164,7 @@ export function understand(rawText, { products, categories = [], aliases = [] })
   if (!words.length) return result;
 
   // Wortgruppen aus 1–3 Wörtern, Füllwörter fallen weg
-  const STOP = new Set(["die", "der", "das", "den", "dem", "ein", "eine", "einen", "einem", "ich", "du", "wir", "bitte", "mal", "noch", "und", "auch", "was", "wie", "viel", "kostet", "kosten", "ist", "sind", "es", "gibt", "habt", "ihr", "hast", "möchte", "will", "nehme", "kaufe", "kaufen", "gern", "gerne", "hätte", "gib", "mir", "in", "korb", "von", "für", "zwei", "drei", "eins", "schaf", "liebes", "muss", "alles", "zusammen", "schön", "bei", "welche", "welches", "habt", "dir", "kann", "darf", "können", "soll"]);
+  const STOP = new Set(["die", "der", "das", "den", "dem", "ein", "eine", "einen", "einem", "ich", "du", "wir", "bitte", "mal", "noch", "und", "auch", "was", "wie", "viel", "kostet", "kosten", "ist", "sind", "es", "gibt", "habt", "ihr", "hast", "möchte", "will", "nehme", "kaufe", "kaufen", "gern", "gerne", "hätte", "gib", "mir", "in", "korb", "von", "für", "zwei", "drei", "eins", "schaf", "liebes", "muss", "alles", "zusammen", "schön", "bei", "uns", "euch", "hier", "heute", "da", "welche", "welches", "habt", "dir", "kann", "darf", "können", "soll"]);
   for (const phrases of Object.values(ABSICHT)) for (const ph of phrases) for (const w of ph.split(" ")) STOP.add(w);
   const content = words.filter((w) => !STOP.has(w));
   const grams = new Set();
@@ -199,7 +199,7 @@ export function understand(rawText, { products, categories = [], aliases = [] })
   for (const c of categories) {
     const key = normalize(c.name);
     let sc = grams.has(key) || words.includes(key) ? 1 : 0;
-    for (const w of words) if (w.length >= 3) sc = Math.max(sc, similarity(w, key));
+    for (const w of content) if (w.length >= 3) sc = Math.max(sc, similarity(w, key));
     if (sc > catScore) [category, catScore] = [c, sc];
   }
   if (catScore < (catCue ? 0.5 : 0.8)) category = null;

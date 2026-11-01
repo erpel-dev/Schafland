@@ -179,4 +179,5 @@ test("Kategorie auch ungenau gehört", () => {
   }
   // ohne Hinweis wie „bei“ keine wilde Kategorie
   assert.notEqual(hear("Ost").intent, "category");
+  assert.notEqual(hear("Was gibt es bei uns?").intent, "category");
 });

@@ -386,10 +386,14 @@
         <div class="field">
           <label for="ki-on">Freie Fragen mit KI</label>
           <div class="row">
-            <Toggle id="ki-on" label="Freie Fragen mit KI" checked={settings.value.kiAn} onchange={(v) => { settings.set({ kiAn: v }); if (!v) schaf.resetKi(); }} />
-            <span class="muted">
-              {#if gpu === null}Prüfe Grafikkarte …{:else if gpu.webgpu}Grafikkarte (WebGPU) gefunden: Antworten in wenigen Sekunden.{:else}Keine nutzbare Grafikkarte (WebGPU): nur „Klein“, Antworten dauern 10–30 Sekunden.{/if}
-            </span>
+            {#if gpu && !gpu.webgpu && !gpu.cpuErlaubt && !settings.value.kiAn}
+              <span class="muted">Geht auf diesem Gerät nicht: Es braucht eine Grafikkarte im Browser (WebGPU). Ohne sie würde eine Antwort ein bis drei Minuten dauern. Die festen Antworten (gesund, Farben, Frühstück …) gibt es trotzdem.</span>
+            {:else}
+              <Toggle id="ki-on" label="Freie Fragen mit KI" checked={settings.value.kiAn} onchange={(v) => { settings.set({ kiAn: v }); if (!v) schaf.resetKi(); }} />
+              <span class="muted">
+                {#if gpu === null}Prüfe Grafikkarte …{:else if gpu.webgpu}Grafikkarte (WebGPU) gefunden: Antworten in wenigen Sekunden.{:else if gpu.cpuErlaubt}Testbetrieb auf dem Prozessor (sehr langsam).{:else}Keine Grafikkarte (WebGPU) gefunden: ausschalten, Stufe 1 antwortet.{/if}
+              </span>
+            {/if}
           </div>
         </div>
         {#if settings.value.kiAn}
@@ -397,8 +401,8 @@
             <span class="lbl">Sprachmodell</span>
             <div class="choice-row">
               {#each Object.entries(KI_MODELLE) as [id, m] (id)}
-                <label class="opt" class:on={settings.value.kiModell === id} class:off={gpu && !gpu.webgpu && !m.cpu}>
-                  <input type="radio" name="kimodell" checked={settings.value.kiModell === id} disabled={gpu && !gpu.webgpu && !m.cpu} onchange={() => setKiModel(id)} />
+                <label class="opt" class:on={settings.value.kiModell === id}>
+                  <input type="radio" name="kimodell" checked={settings.value.kiModell === id} onchange={() => setKiModel(id)} />
                   <b>{m.name}</b><small>ca. {m.mb >= 1000 ? `${(m.mb / 1000).toFixed(1).replace(".", ",")} GB` : `${m.mb} MB`}. {m.info}</small>
                 </label>
               {/each}

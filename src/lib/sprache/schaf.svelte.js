@@ -23,12 +23,14 @@ export const MODELLE = {
 
 // Stufe 2: Sprachmodelle für freie Fragen (Liquid AI, LFM Open License: privat frei nutzbar)
 export const KI_MODELLE = {
-  klein: { id: "LiquidAI/LFM2.5-350M-ONNX", name: "Klein", mb: 300, cpu: true, info: "LFM2.5 mit 350 Mio. Parametern. Läuft auch ohne Grafikkarte, dann aber langsam (10–30 s)." },
-  gross: { id: "onnx-community/LFM3-1.7B-ONNX", name: "Groß", mb: 1200, cpu: false, info: "LFM3 mit 1,7 Mrd. Parametern. Bessere Antworten, braucht eine Grafikkarte (WebGPU) und 2 GB freien Speicher." },
+  klein: { id: "LiquidAI/LFM2.5-350M-ONNX", name: "Klein", mb: 300, info: "LFM2.5 mit 350 Mio. Parametern. Für einfache Grafikkarten." },
+  gross: { id: "onnx-community/LFM3-1.7B-ONNX", name: "Groß", mb: 1200, info: "LFM3 mit 1,7 Mrd. Parametern. Bessere Antworten, braucht 2 GB freien Grafikspeicher." },
 };
 
 /** Grafikkarte im Browser nutzbar? { webgpu, f16 } */
 export async function gpuInfo() {
+  // Nur für Tests: Sprachmodell auch auf dem Prozessor (dort 40–180 s pro Antwort, für Kinder zu langsam)
+  if (globalThis.localStorage?.getItem("schaf-ki-cpu") === "1") return { webgpu: false, f16: false, cpuErlaubt: true };
   try {
     const adapter = await navigator.gpu?.requestAdapter();
     return { webgpu: !!adapter, f16: !!adapter?.features?.has("shader-f16") };
@@ -268,7 +270,7 @@ class FragDasSchaf {
       this.kiProgress = 0;
       try {
         const gpu = await gpuInfo();
-        if (!gpu.webgpu && !model.cpu) throw new Error("Dieses Modell braucht eine Grafikkarte (WebGPU). Auf diesem Gerät „Klein“ wählen.");
+        if (!gpu.webgpu && !gpu.cpuErlaubt) throw new Error("Freie Fragen brauchen eine Grafikkarte im Browser (WebGPU). Auf diesem Gerät beantwortet Stufe 1 die Fragen.");
         const device = gpu.webgpu ? "webgpu" : "wasm";
         const dtype = device === "webgpu" && gpu.f16 && model.id.includes("LFM3") ? "q4f16" : "q4";
         await this.#kiCall({ type: "load", model: model.id, dtype, device, wasm: { wasm: abs(ortWasm), mjs: abs(ortMjs) } }, ({ loaded, total }) => {

@@ -23,6 +23,9 @@ try {
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   await page.goto(`http://localhost:${PORT}/`);
+  // GitHub-Rechner haben keine Grafikkarte: Testbetrieb auf dem Prozessor freischalten
+  await page.evaluate(() => localStorage.setItem("schaf-ki-cpu", "1"));
+  await page.reload();
   await page.click("text=Laden öffnen");
   await page.waitForSelector(".tile");
   await page.keyboard.press("Control+,");

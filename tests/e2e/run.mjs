@@ -156,6 +156,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       // Kategorie Spielzeug: eigene Bilder geladen, Namen im Korb vollständig
       await page.click(".cat:has-text('Spielzeug')");
       check("Spielzeug: 12 Produkte", (await page.locator(".tile").count()) === 12);
+      await page.waitForFunction(() => [...document.querySelectorAll(".tile img")].every((i) => i.complete), null, { timeout: 5000 }).catch(() => {});
       const broken = await page.evaluate(() => [...document.querySelectorAll(".tile img")].filter((i) => !i.complete || !i.naturalWidth).map((i) => i.src));
       check("Spielzeug: eigene Bilder geladen (Kuschelschaf, Minecraft, Rennbahn)", (await page.locator(".tile img").count()) === 6 && !broken.length, broken.join(", "));
       for (const t of await page.locator(".tile").all()) await t.click();
@@ -930,6 +931,14 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       check("Schließen", (await page.locator(".panel").count()) === 0);
 
       // Stufe 2: freie Fragen (Sprachmodell hier durch eine feste Antwort ersetzt)
+      await ctx.addInitScript(() => {
+        window.__schafFakeKiBackup = async (messages) => {
+          window.__kiPrompt = messages;
+          const q = messages.at(-1).content;
+          if (/Party/.test(q)) return "Das kostet 12 Euro.";
+          return "Äpfel und Bananen sind gesund! Eine Banane kostet 30 Cent.";
+        };
+      });
       await page.evaluate(() => {
         window.__schafFakeKi = async (messages) => {
           window.__kiPrompt = messages;
@@ -938,6 +947,13 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
           return "Äpfel und Bananen sind gesund! Eine Banane kostet 30 Cent.";
         };
       });
+      await openSettings(page);
+      await page.click("nav >> text=Frag das Schaf");
+      check("Ohne Grafikkarte: Stufe 2 nicht einschaltbar, mit Erklärung", (await page.locator("#ki-on").count()) === 0 && (await page.textContent(".pane")).includes("braucht eine Grafikkarte"));
+      await page.evaluate(() => localStorage.setItem("schaf-ki-cpu", "1"));
+      await page.reload();
+      await page.click("text=Laden öffnen");
+      await page.evaluate(() => { window.__schafFakeKi = window.__schafFakeKiBackup; });
       await openSettings(page);
       await page.click("nav >> text=Frag das Schaf");
       check("Stufe 2 ist ab Werk aus", (await page.getAttribute("#ki-on", "aria-checked")) === "false");
@@ -957,7 +973,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       check("Offene Frage: KI-Antwort", (await page.textContent(".panel .big")).trim() === "Äpfel und Bananen sind gesund!");
       check("Offene Frage: empfohlene Produkte als Bilder", (await page.locator(".choice").count()) === 2);
       const prompt = await page.evaluate(() => window.__kiPrompt[0].content);
-      check("KI bekommt Sortiment und Korb, keine Preise", prompt.includes("Obst: Apfel, Banane") && prompt.includes("Im Korb liegt schon") && !/\d+,\d\d/.test(prompt));
+      check("KI bekommt Sortiment und Korb, keine Preise", prompt.includes("Obst: Apfel, Banane") && /Im Korb liegt schon|Der Korb ist leer/.test(prompt) && !/\d+,\d\d/.test(prompt));
       await wait(400);
       await page.screenshot({ path: `${SHOTS}/schaf-ki-antwort.png` });
       await page.locator(".choice").first().click();
