@@ -202,7 +202,7 @@
                 <button class="big-btn light small" onclick={pick}>Ordner wählen …</button>
               {:else}
                 <span class="path">{music.tracks.length ? `${music.tracks.length} Lieder · ${music.songsMB.toFixed(1)} MB` : "Noch keine Lieder"}</span>
-                <label class="big-btn light small">Lieder hinzufügen …<input id="music-files" type="file" accept="audio/*,.mp3,.m4a,.ogg,.opus,.wav,.flac" multiple hidden onchange={async (e) => { await music.importFiles(e.currentTarget.files); e.currentTarget.value = ""; }} /></label>
+                <label class="big-btn light small">Lieder hinzufügen …<input id="music-files" type="file" accept="audio/*,.mp3,.m4a,.ogg,.opus,.wav,.flac" multiple hidden onchange={async (e) => { const input = e.currentTarget; await music.importFiles(input.files); input.value = ""; }} /></label>
               {/if}
             </div>
             {#if music.needsPermission}

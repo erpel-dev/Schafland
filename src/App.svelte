@@ -78,14 +78,17 @@
   onMount(() => {
     if (!isNativeApp) return;
     let listener;
-    import("@capacitor/app").then(({ App }) =>
-      App.addListener("backButton", () => {
-        if (celebrate !== null) celebrate = null;
-        else if (paying) paying = false;
-        else if (showSettings) showSettings = false;
-        else if (view === "scan") view = "shop";
-      }).then((l) => (listener = l)),
-    );
+    import("@capacitor/app")
+      .then(({ App }) =>
+        App.addListener("backButton", () => {
+          if (celebrate !== null) celebrate = null;
+          else if (paying) paying = false;
+          else if (showSettings) showSettings = false;
+          else if (view === "scan") view = "shop";
+        }),
+      )
+      .then((l) => (listener = l))
+      .catch((err) => console.warn("Zurück-Taste nicht verfügbar", err));
     return () => listener?.remove();
   });
 
