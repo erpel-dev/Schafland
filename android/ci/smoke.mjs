@@ -27,6 +27,14 @@ b = io.BytesIO(); im.save(b, "JPEG", quality=70); sys.stdout.buffer.write(b.getv
   console.log(`SCREENSHOT ${NAME}-${label} ${jpg.toString("base64")}`);
 }
 
+/** Welche Dienste der Play-Dienste hält die App gerade fest? (Diagnose) */
+function gmsInfo(when) {
+  const out = adb("shell", "dumpsys", "activity", "processes", "de.schafland.kasse").toString();
+  const lines = out.split("\n").filter((l) => /gms|Provider|Conn|stable/i.test(l)).map((l) => l.trim());
+  console.log(`  Verbindungen ${when}: ${lines.slice(0, 12).join(" | ") || "keine"}`);
+  return out;
+}
+
 // --- minimaler CDP-Client (verbindet sich neu, falls die Seite neu lädt; jede Anfrage mit Zeitlimit)
 let ws;
 let seq = 0;
@@ -91,10 +99,12 @@ const clickText = (sel, text) => js(`(() => { const el = [...document.querySelec
 try {
   const url = await connect();
   check("App startet in der WebView", true, url);
+  gmsInfo("direkt nach dem Start");
   check("läuft als Android-App", await until(`window.Capacitor?.getPlatform?.() === "android"`), await js("window.Capacitor?.getPlatform?.()").catch((e) => e.message));
   check("Startbildschirm", await until(`document.body.innerText.includes("Laden öffnen")`));
   await wait(1500);
   screenshot("1-start");
+  gmsInfo("nach dem Startbildschirm");
 
   await clickText("button", "Laden öffnen");
   check("Laden öffnen", await until(`!!document.querySelector(".tile")`));
@@ -148,7 +158,7 @@ try {
   const keepOn = adb("shell", "dumpsys", "window").toString().includes("KEEP_SCREEN_ON");
   check("Bildschirm bleibt an (FLAG_KEEP_SCREEN_ON)", keepOn);
   // Hängt die App an einem Dienst der Play-Dienste, beendet Android sie mit, wenn diese abstürzen
-  const conn = adb("shell", "dumpsys", "activity", "processes", "de.schafland.kasse").toString();
+  const conn = gmsInfo("am Ende");
   const deps = [...new Set(conn.match(/com\.google\.android\.gms\/[\w.]+Provider/g) ?? [])];
   check("App hängt nicht an den Google-Play-Diensten", deps.length === 0, deps.join(", ") || "keine Verbindung");
 } catch (err) {
