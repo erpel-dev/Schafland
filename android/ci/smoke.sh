@@ -17,6 +17,8 @@ adb shell settings put global animator_duration_scale 0
 adb shell settings put secure immersive_mode_confirmations confirmed
 adb install -r -g "$APK"            # -g: Kamera-Erlaubnis gleich erteilen
 adb logcat -c
+adb logcat -b main,system,crash -v time > logcat.txt 2>&1 &   # alles mitschreiben, der Puffer läuft sonst über
+LOGPID=$!
 adb shell am start -n "$PKG/.MainActivity"
 
 # Fernsteuerung der WebView suchen und auf localhost:9222 weiterleiten
@@ -30,10 +32,11 @@ adb forward tcp:9222 "localabstract:$SOCK"
 
 node android/ci/smoke.mjs "$NAME" || STATUS=$?
 
+sleep 1; kill $LOGPID 2>/dev/null || true
 echo "---- App-Meldungen (logcat, Auszug) ----"
-adb logcat -d | grep -E "Capacitor/Console|chromium|AndroidRuntime|FATAL|Schafland|has died" | grep -v "Native Bridge" | tail -60 || true
-echo "---- Fehler und Abstürze ----"
-adb logcat -d "*:E" | grep -vE "gms|GoogleApiManager|Finsky|Phenotype|chromium.*(font_unique|simple_file|simple_index)" | tail -60 || true
-adb logcat -d -b crash | tail -40 || true
-adb shell pidof de.schafland.kasse || echo "App läuft nicht mehr"
+grep -E "Capacitor/Console|AndroidRuntime|FATAL|F DEBUG|F/DEBUG|Schafland|schafland|lowmemorykiller|lmkd|has died|Abort message|Kamera|Camera.*(error|Error)" logcat.txt \
+  | grep -vE "Native Bridge|gms" | tail -80 || true
+echo "---- Java-Ausnahmen ----"
+grep -B2 -A25 -E "FATAL EXCEPTION|Please include Java exception|Uncaught exception" logcat.txt | grep -vE "com\.google\.android\.(gm|gms)" | head -120 || true
+adb shell pidof $PKG || echo "App läuft nicht mehr"
 exit ${STATUS:-0}
