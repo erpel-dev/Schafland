@@ -31,8 +31,17 @@ b = io.BytesIO(); im.save(b, "JPEG", quality=70); sys.stdout.buffer.write(b.getv
 let ws;
 let seq = 0;
 const pending = new Map();
+/** Weiterleitung zur Fernsteuerung der WebView (neu) einrichten; der Name hängt an der Prozessnummer. */
+function forward() {
+  try {
+    const sock = adb("shell", "cat", "/proc/net/unix").toString().match(/webview_devtools_remote_\d+/)?.[0];
+    if (sock) adb("forward", "tcp:9222", `localabstract:${sock}`);
+    return sock;
+  } catch { return null; }
+}
 async function connect() {
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 60; i++) {
+    if (i && i % 5 === 0) console.log(`  (Fernsteuerung neu verbunden: ${forward() ?? "kein Socket"})`);
     try {
       const pages = await (await fetch("http://127.0.0.1:9222/json")).json();
       const page = pages.find((p) => p.type === "page" && p.url.startsWith("https://localhost"));
@@ -60,8 +69,13 @@ async function send(method, params = {}) {
     setTimeout(() => { if (pending.delete(id)) res({ error: { message: `Zeitlimit bei ${method}` } }); }, 10000);
   });
 }
-async function js(expression) {
-  const r = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
+async function js(expression, tries = 3) {
+  let r = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
+  // abgerissene Verbindung (Emulator unter Last): neu verbinden und noch einmal
+  while (r.error?.message === "Verbindung geschlossen" && --tries > 0) {
+    await wait(1000);
+    r = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
+  }
   if (r.error) throw new Error(r.error.message);
   if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description ?? "JS-Fehler");
   return r.result?.result?.value;
