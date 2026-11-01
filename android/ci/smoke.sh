@@ -36,6 +36,9 @@ sleep 1; kill $LOGPID 2>/dev/null || true
 echo "---- App-Meldungen (logcat, Auszug) ----"
 grep -E "Capacitor/Console|AndroidRuntime|FATAL|F DEBUG|F/DEBUG|Schafland|schafland|lowmemorykiller|lmkd|has died|Abort message|Kamera|Camera.*(error|Error)" logcat.txt \
   | grep -vE "Native Bridge|gms" | tail -80 || true
+echo "---- Vor dem Ende der App ----"
+grep -B80 -m1 "WIN DEATH.*schafland" logcat.txt | grep -vE "AppsFilter|ImeTracker|CarrierSvc|ImsResolver|AiAiEcho" | tail -70 || true
+grep -E "Fatal signal|F/libc|F/DEBUG|backtrace|#0[0-9] pc|Abort message|Kill '|lmkd.*kill|Killing.*schafland" logcat.txt | head -40 || true
 echo "---- Java-Ausnahmen ----"
 grep -B2 -A25 -E "FATAL EXCEPTION|Please include Java exception|Uncaught exception" logcat.txt | grep -vE "com\.google\.android\.(gm|gms)" | head -120 || true
 adb shell pidof $PKG || echo "App läuft nicht mehr"
