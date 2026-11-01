@@ -171,3 +171,12 @@ test("Wissen: typische Kinderfragen", () => {
   // Preisfrage bleibt Preisfrage, auch mit Farbwort
   assert.match(ask("Was kostet die rote Paprika?").say, /^Die Paprika kostet/);
 });
+
+test("Kategorie auch ungenau gehört", () => {
+  for (const q of ["Was gibt es bei Oost?", "Was gibt es bei Ozt?", "Welches Gemüüse habt ihr?"]) {
+    const r = hear(q);
+    assert.equal(r.intent, "category", `${q} → ${r.intent}`);
+  }
+  // ohne Hinweis wie „bei“ keine wilde Kategorie
+  assert.notEqual(hear("Ost").intent, "category");
+});

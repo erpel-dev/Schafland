@@ -47,8 +47,7 @@ export function buildMessages(question, { products, categories = [], cart = [] }
         "- Empfiehl nur Produkte aus dem Sortiment unten, mit genau diesem Namen. Erfinde nichts dazu.\n" +
         "- Nenne keine Preise und keine Zahlen.\n" +
         "- Ist die Frage nicht zum Einkaufen, antworte kurz und lieb und frag, was das Kind kaufen möchte.\n\n" +
-        `Sortiment:\n${sortiment}\n\nWissen über das Sortiment:\n${knowledgeLines()}\n\n${korb}\n\n` +
-        "Beispiel: Frage „Was ist lecker zum Nachtisch?“ Antwort: „Zum Nachtisch passen Eis oder Muffin. Lecker!“",
+        `Sortiment:\n${sortiment}\n\nWissen über das Sortiment:\n${knowledgeLines()}\n\n${korb}`,
     },
     { role: "user", content: question },
   ];

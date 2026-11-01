@@ -63,7 +63,11 @@ try {
       reply = (await page.textContent(".panel").catch(() => "")) || "keine Antwort";
     }
     const ms = await page.evaluate(() => window.__fragDasSchaf.lastMs);
-    const ok = reply.toLowerCase().includes(expect.toLowerCase());
+    // Auch richtig: Das Schaf ist unsicher und zeigt das gemeinte Produkt als Bild zur Auswahl
+    const choices = await page.locator(".choice .nm").allTextContents().catch(() => []);
+    const wanted = expect.split(" ")[0].toLowerCase();
+    const ok = reply.toLowerCase().includes(expect.toLowerCase()) || choices.some((c) => c.toLowerCase().includes(wanted));
+    if (!reply.toLowerCase().includes(expect.toLowerCase()) && ok) reply += ` (Bilder: ${choices.join(", ")})`;
     check(`„${sentence}“`, ok, `gehört: ${heard || "—"} → ${reply} (Erkennung ${(ms / 1000).toFixed(1)} s, gesamt ${((Date.now() - t0) / 1000).toFixed(1)} s)`);
     if (errors.length) console.log("  Fehler:", errors.join(" | "));
     await ctx.close();

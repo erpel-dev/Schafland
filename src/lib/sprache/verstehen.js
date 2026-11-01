@@ -192,7 +192,17 @@ export function understand(rawText, { products, categories = [], aliases = [] })
     result.product = best.product;
   }
 
-  const category = categories.find((c) => grams.has(normalize(c.name)) || words.includes(normalize(c.name)));
+  // Kategorie auch ungenau gehört („Oost“, „Ozt“ für Obst); nach „bei …“ / „welches …“ großzügiger
+  const catCue = /\b(bei|welche|welcher|welches|habt|gibt)\b/.test(text);
+  let category = null;
+  let catScore = 0;
+  for (const c of categories) {
+    const key = normalize(c.name);
+    let sc = grams.has(key) || words.includes(key) ? 1 : 0;
+    for (const w of words) if (w.length >= 3) sc = Math.max(sc, similarity(w, key));
+    if (sc > catScore) [category, catScore] = [c, sc];
+  }
+  if (catScore < (catCue ? 0.5 : 0.8)) category = null;
 
   if (is("total") && !result.product) result.intent = "total";
   else if (result.product && (is("price") || is("have"))) result.intent = "price";
