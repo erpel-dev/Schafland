@@ -36,4 +36,11 @@
   .runner :global(.run) { animation: hop 0.3s ease-in-out infinite; }
   @keyframes hop { 50% { transform: translateY(-1rem); } }
   @keyframes pop { from { transform: scale(0.6); opacity: 0; } }
+
+  @media (max-width: 760px), (max-height: 500px) {
+    .msg { padding: 0 1rem; }
+    .msg b { font-size: clamp(2rem, 9vw, 3.2rem); }
+    .msg span { font-size: clamp(1.1rem, 4.5vw, 1.5rem); }
+    .runner :global(.run) { width: 6rem !important; height: 6rem !important; }
+  }
 </style>

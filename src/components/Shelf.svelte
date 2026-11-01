@@ -116,4 +116,28 @@
     animation: laser 1.6s ease-in-out infinite;
   }
   @keyframes laser { 50% { transform: translateY(-0.7rem); } }
+
+  /* Handy hochkant: Reiter seitlich wischen, drei Kacheln pro Zeile */
+  @media (max-width: 760px) {
+    .shelf { padding: 0.9rem 0.6rem 0.6rem; gap: 0.6rem; }
+    .cats { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -0.6rem; padding: 0 0.6rem 0.2rem; }
+    .cats::-webkit-scrollbar { display: none; }
+    .cat { flex: none; }
+    .grid { grid-template-columns: repeat(auto-fill, minmax(6.6rem, 1fr)); gap: 0.55rem; }
+    .tile { border-radius: 1.1rem; padding: 0.55rem 0.3rem 0.45rem; }
+    .scanbar { padding: 0.45rem 0.6rem; }
+    .cam { width: 4rem; height: 2.4rem; }
+  }
+  /* Handy quer: niedriger Bildschirm, kleinere Kacheln, Reiter seitlich wischen */
+  @media (max-height: 500px) {
+    .shelf { padding: 0.8rem 0.7rem 0.5rem; gap: 0.5rem; }
+    .cats { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+    .cats::-webkit-scrollbar { display: none; }
+    .cat { flex: none; padding: 0.4rem 0.6rem; }
+    .grid { grid-template-columns: repeat(auto-fill, minmax(6.8rem, 1fr)); gap: 0.5rem; }
+    .tile { padding: 0.45rem 0.3rem 0.4rem; }
+    .scanbar { padding: 0.3rem 0.6rem; }
+    .scanbar small { display: none; }
+    .cam { width: 3.6rem; height: 2.1rem; }
+  }
 </style>

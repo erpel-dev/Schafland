@@ -86,4 +86,37 @@
   .row { display: flex; justify-content: flex-end; gap: 0.8rem; }
   @keyframes fade { from { opacity: 0; } }
   @keyframes up { from { transform: translateY(1.5rem); } }
+
+  /* Handy: Fenster über die ganze Breite, QR-Code über dem Text */
+  @media (max-width: 760px) {
+    .modal { padding: 1rem; gap: 0.7rem; border-radius: 1.4rem; max-height: 96%; overflow-y: auto; }
+    h2 { font-size: 1.3rem; flex-wrap: wrap; }
+    h2 span { font-size: 1.8rem; }
+    .opts { grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); gap: 0.5rem; }
+    .opt { padding: 0.5rem 0.3rem; }
+    .opt .emoji { font-size: 1.6rem; }
+    .opt b { font-size: 1rem; }
+    .opt small { font-size: 0.75rem; }
+    .qrrow { flex-direction: column; gap: 0.6rem; padding: 0.7rem; }
+    .qrrow :global(.qr) { width: min(13rem, 70vw) !important; height: min(13rem, 70vw) !important; }
+    .txt { text-align: center; }
+    .txt b { font-size: 1.2rem; }
+    .txt p { font-size: 0.95rem; }
+    .row { flex-direction: column-reverse; }
+    .row :global(.big-btn) { width: 100%; font-size: 1.15rem; }
+  }
+  /* Handy quer: QR neben dem Text, aber kleiner */
+  @media (max-height: 500px) {
+    .modal { padding: 0.8rem 1rem; gap: 0.5rem; max-height: 96%; overflow-y: auto; }
+    h2 { font-size: 1.3rem; }
+    h2 span { font-size: 1.7rem; }
+    /* Bezahlarten als flache Zeile, damit der QR-Code groß bleiben kann */
+    .opt { padding: 0.3rem 0.6rem; flex-direction: row; justify-content: center; gap: 0.5rem; }
+    .opt .emoji { font-size: 1.4rem; }
+    .opt small { display: none; }
+    .qrrow { padding: 0.5rem; gap: 0.9rem; }
+    .qrrow :global(.qr) { width: min(11.5rem, 48vh) !important; height: min(11.5rem, 48vh) !important; }
+    .txt p { font-size: 0.9rem; }
+    .row :global(.big-btn) { font-size: 1.05rem; padding: 0.5rem 0.9rem; }
+  }
 </style>

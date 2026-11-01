@@ -416,4 +416,25 @@
     .noprint { display: none !important; }
     .settings, .body, .pane { display: block; height: auto; overflow: visible; padding: 0; }
   }
+
+  /* Handy: Reiter oben zum Wischen, Felder untereinander */
+  @media (max-width: 760px) {
+    header { padding: 0.5rem 0.7rem; }
+    header b { font-size: 1.3rem; }
+    header :global(.big-btn) { font-size: 0.95rem; padding: 0.45rem 0.7rem; }
+    .body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    nav { flex-direction: row; overflow-x: auto; padding: 0.4rem 0.5rem; scrollbar-width: none; }
+    nav::-webkit-scrollbar { display: none; }
+    nav button { flex: none; padding: 0.5rem 0.8rem; }
+    .pane { padding: 0.9rem 0.8rem 1.5rem; }
+    .field { grid-template-columns: 1fr; gap: 0.35rem; }
+    .test { flex-direction: column; align-items: flex-start; }
+    .player { grid-template-columns: auto 1fr; }
+    .player .time { grid-column: 1 / -1; }
+    .aktion { grid-template-columns: auto 1fr; }
+    .aktion :global(.toggle) { grid-column: 2; justify-self: start; }
+    .prod { grid-template-columns: 2.8rem 1fr auto; }
+    .prod .del { grid-column: 3; }
+    input[type="range"] { width: 100%; }
+  }
 </style>

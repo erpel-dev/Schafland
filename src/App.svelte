@@ -13,6 +13,7 @@
   import { unlockAudio, kaching, maeh } from "./lib/sounds.js";
   import { update } from "./lib/update.svelte.js";
   import { isNativeApp } from "./lib/platform.js";
+  import { layout } from "./lib/layout.svelte.js";
   import { onMount } from "svelte";
 
   let opened = $state(false);
@@ -120,13 +121,13 @@
 {:else}
   <div class="app">
     <TopBar onOpenSettings={openSettings} />
-    <main>
+    <main class:narrow={layout.narrow}>
       {#if view === "scan"}
         <ScanView onClose={() => (view = "shop")} />
       {:else}
         <Shelf onScan={() => (view = "scan")} />
       {/if}
-      <Cart onPay={() => (paying = true)} />
+      <Cart onPay={() => (paying = true)} compact={layout.narrow} />
     </main>
   </div>
 
@@ -147,4 +148,10 @@
 <style>
   .app { height: 100%; display: flex; flex-direction: column; }
   main { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 23rem; }
+  /* Handy hochkant: Regal über die ganze Breite, der Korb ist eine Leiste unten (Platz dafür freihalten) */
+  main.narrow { grid-template-columns: 1fr; padding-bottom: calc(4.6rem + env(safe-area-inset-bottom, 0px)); }
+  /* Handy quer: schmalerer Korb */
+  @media (max-height: 500px) and (min-width: 761px) {
+    main { grid-template-columns: 1fr 20.5rem; }
+  }
 </style>

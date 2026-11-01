@@ -3,6 +3,7 @@
   import { cart, findByEan } from "../lib/shop.svelte.js";
   import { scanLog } from "../lib/scanlog.svelte.js";
   import { settings } from "../lib/settings.svelte.js";
+  import { layout } from "../lib/layout.svelte.js";
   import { isValidEan } from "../lib/ean.js";
   import { isPressCode } from "../lib/presse.js";
   import { euro } from "../lib/money.js";
@@ -255,7 +256,7 @@
       <small>Code {lastCode}</small>
     {:else if (status === "found" || status === "added") && found}
       <span class="src">gefunden · {found.source}</span>
-      <div class="pimg"><ProductImage product={found.product} size="8rem" /></div>
+      <div class="pimg"><ProductImage product={found.product} size={layout.narrow || layout.short ? "4.2rem" : "8rem"} /></div>
       <b class="t">{found.product.name}</b>
       <small>{[found.product.brand, found.product.quantity].filter(Boolean).join(" · ")}</small>
       <div class="price">{euro(found.product.priceCents)}</div>
@@ -318,4 +319,29 @@
   .pimg :global(.shrug) { animation: shrug 0.6s ease-in-out 2; }
   @keyframes think { 50% { transform: rotate(-8deg); } }
   @keyframes shrug { 25% { transform: rotate(-10deg); } 75% { transform: rotate(10deg); } }
+
+  /* Handy hochkant: Kamera oben, Fund darunter als schmale Zeile */
+  @media (max-width: 760px) {
+    .scan { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+    .frame { width: 80%; }
+    .hint { font-size: 1.25rem; bottom: 4.4rem; }
+    .found { border-left: 0; border-top: 2px solid var(--wool-line); display: grid; grid-template-columns: 5.5rem 1fr; column-gap: 0.8rem; row-gap: 0.2rem; padding: 0.7rem; align-content: start; }
+    /* Bild links über alle Zeilen, alles andere rechts daneben */
+    .found > * { grid-column: 2; min-width: 0; }
+    .found .pimg { grid-column: 1; grid-row: 1 / span 6; height: 5.5rem; font-size: 3rem; align-self: start; }
+    .t { font-size: 1.2rem; }
+    .price { font-size: 1.8rem; }
+    .src { font-size: 0.7rem; }
+    .found :global(.big-btn), .added { font-size: 1.05rem; padding: 0.45rem 0.8rem; }
+  }
+  /* Handy quer */
+  @media (max-height: 500px) {
+    .scan { grid-template-columns: 1fr 13rem; }
+    .found { padding: 0.7rem; gap: 0.35rem; }
+    .pimg { height: 5.5rem; font-size: 3rem; }
+    .t { font-size: 1.15rem; }
+    .price { font-size: 1.7rem; }
+    .hint { font-size: 1.15rem; bottom: 3.8rem; }
+    .done { bottom: 0.6rem; font-size: 1.05rem; padding: 0.45rem 0.9rem; }
+  }
 </style>

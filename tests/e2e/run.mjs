@@ -1,7 +1,7 @@
 // Browser-Tests für Schafland. Aufruf: npm run test:e2e
 // Startet den echten Kiosk-Webserver (kiosk/server.py) mit dist/ und prüft die App in Chromium.
 // Kameras werden mit Videodateien simuliert, Open Food Facts mit festen Antworten.
-import { chromium } from "playwright";
+import { chromium, devices } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn, execSync } from "node:child_process";
@@ -40,14 +40,16 @@ const section = (name) => !ONLY || ONLY.split(",").includes(name);
 const PRODUCT = { status: 1, product: { product_name_de: "Vollmilch-Schokolade", brands: "Beispielmarke", quantity: "100 g",
   image_front_small_url: "https://images.openfoodfacts.org/x/front.jpg", categories_tags: ["en:sweet-snacks", "en:chocolates"] } };
 
-async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, touch = false, camera = true, fakeDir = true, noPicker = false, offFail = false, offMode = null, googleDown = false, cams = 1, rear = false } = {}) {
+async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, touch = false, camera = true, fakeDir = true, noPicker = false, offFail = false, offMode = null, googleDown = false, cams = 1, rear = false, device = null } = {}) {
   // Mit Video-Datei kennt Chromium nur eine Kamera; mehrere Kameras zeigen ein Testbild
   const args = cams > 1
     ? [`--use-fake-device-for-media-stream=device-count=${cams}`, "--autoplay-policy=no-user-gesture-required"]
     : ["--use-fake-device-for-media-stream", `--use-file-for-fake-video-capture=${Q}/${cam}.y4m`, "--autoplay-policy=no-user-gesture-required"];
   args.push(camera ? "--use-fake-ui-for-media-stream" : "--deny-permission-prompts");
   const browser = await chromium.launch({ args });
-  const ctx = await browser.newContext({ viewport, hasTouch: touch, isMobile: false, permissions: camera ? ["camera"] : [] });
+  const ctx = await browser.newContext(device
+    ? { ...device, permissions: camera ? ["camera"] : [] }
+    : { viewport, hasTouch: touch, isMobile: false, permissions: camera ? ["camera"] : [] });
   const errors = [];
   await ctx.route(/open(food|beauty|products)facts\.org\/api/, (route) => {
     const url = route.request().url();
@@ -782,6 +784,67 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       });
       check(`Layout ${w}×${h}: alles im Bild`, !m.out.length && !m.scroll, JSON.stringify(m));
       await page.screenshot({ path: `${SHOTS}/layout-${w}x${h}.png` });
+      await browser.close();
+    }
+
+    // ---------- Smartphones (Android-App) ----------
+    for (const [name, device] of section("handy") ? [["Pixel 7 hochkant", devices["Pixel 7"]], ["Galaxy S8 hochkant", devices["Galaxy S8"]], ["Pixel 7 quer", devices["Pixel 7 landscape"]]] : []) {
+      const { browser, page, errors } = await launch("own", { device });
+      const portrait = device.viewport.width < device.viewport.height;
+      const offscreen = () => page.evaluate(() => {
+        const out = [];
+        if (document.documentElement.scrollWidth > innerWidth + 1) out.push("Seite seitlich scrollbar");
+        for (const el of document.querySelectorAll("button, .tile")) {
+          const r = el.getBoundingClientRect();
+          if (!r.width || el.closest(".cats, nav, .grid, .lines, .tracks, .pane")) continue;
+          if (r.right > innerWidth + 1 || r.bottom > innerHeight + 1 || r.left < -1) out.push((el.textContent || el.getAttribute("aria-label") || "").trim().slice(0, 20));
+        }
+        return out;
+      });
+      await page.goto(APP_URL);
+      await page.tap("text=Laden öffnen");
+      for (const n of ["Apfel", "Banane", "Banane"]) await page.locator(".tile").filter({ hasText: n }).first().tap();
+      let bad = await offscreen();
+      check(`${name}: Kasse ohne Überstand`, !bad.length, bad.join(", "));
+      const tiles = await page.evaluate(() => [...document.querySelectorAll(".tile")].filter((t) => { const r = t.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; }).length);
+      check(`${name}: mindestens 8 Kacheln auf einen Blick`, tiles >= 8, `${tiles} Kacheln`);
+      if (portrait) {
+        check(`${name}: Korb als Leiste unten mit Summe`, (await page.textContent(".bar")).replace(/\s+/g, " ").includes("3 Sachen") && (await page.textContent(".bar-total")).replace(/\s/g, " ") === "1,10 €");
+        await page.tap(".bar-info");
+        await page.locator(".sheet .ln:has-text('Banane') button[aria-label='Eins mehr']").tap();
+        check(`${name}: Korb-Blatt öffnen und Menge ändern`, (await page.textContent(".bar-total")).replace(/\s/g, " ") === "1,40 €", await page.textContent(".bar-total"));
+        await page.tap(".sheet-close");
+        check(`${name}: Korb-Blatt schließt`, (await page.locator(".sheet").count()) === 0);
+      } else {
+        const cut = await page.evaluate(() => [...document.querySelectorAll(".ln .name")].filter((e) => e.scrollHeight > e.clientHeight + 4 || /\S\s\S/.test(e.innerText.replace(/\n/g, " ")) && e.innerText.includes("\n") && !e.textContent.includes("\u00ad")).map((e) => e.innerText));
+        check(`${name}: Korb rechts, Namen nicht zerhackt`, (await page.locator(".bar").count()) === 0 && !cut.length, cut.join(" | "));
+      }
+      // Scannen: Kamera und Fund passen ins Bild, Bild überdeckt keinen Text
+      await page.tap("text=Scannen!");
+      await page.locator(".found .t:has-text('Apfel')").waitFor({ timeout: 15000 });
+      const overlap = await page.evaluate(() => { const a = document.querySelector(".found .pimg").getBoundingClientRect(); const b = document.querySelector(".found .t").getBoundingClientRect(); return !(a.right <= b.left + 1 || a.bottom <= b.top + 1 || b.right <= a.left + 1 || b.bottom <= a.top + 1); });
+      bad = await offscreen();
+      check(`${name}: Scannen ohne Überstand, Bild neben dem Namen`, !bad.length && !overlap, [...bad, overlap ? "Bild überdeckt Namen" : ""].filter(Boolean).join(", "));
+      await page.tap("text=✓ Fertig gescannt");
+      // Bezahlen
+      await page.tap(portrait ? ".bar-pay" : ".pay");
+      const qr = await page.evaluate(() => { const r = document.querySelector(".modal .qr").getBoundingClientRect(); return { w: Math.round(r.width), inside: r.bottom <= innerHeight && r.right <= innerWidth }; });
+      bad = await offscreen();
+      check(`${name}: QR-Code groß genug und ganz zu sehen`, qr.w >= 140 && qr.inside && !bad.length, `${qr.w} px ${bad.join(", ")}`);
+      check(`${name}: QR-Code lesbar`, (await readQr(page, ".modal .qr"))?.startsWith("Danke für Ihren Einkauf"));
+      await page.tap("text=Bezahlt! Neuer Einkauf");
+      await page.locator(".party").waitFor();
+      await page.locator(".party").tap();
+      // Eltern-Bereich
+      await openSettings(page);
+      bad = await offscreen();
+      const navScroll = await page.evaluate(() => { const n = document.querySelector("nav"); return getComputedStyle(n).flexDirection; });
+      check(`${name}: Eltern-Bereich bedienbar`, !bad.length && (portrait ? navScroll === "row" : true), bad.join(", "));
+      await page.tap("nav >> text=Aktionen");
+      await page.tap("#aktion-weihnachten");
+      check(`${name}: Aktion einschalten geht`, (await page.evaluate(() => document.documentElement.dataset.aktion)) === "weihnachten");
+      await page.screenshot({ path: `${SHOTS}/handy-${name.replace(/\s+/g, "-")}.png` });
+      check(`Keine Konsolenfehler (${name})`, !errors.length, errors.join(" | "));
       await browser.close();
     }
 

@@ -55,7 +55,7 @@ jobs:
         working-directory: android
         env:
           SCHAFLAND_KEYSTORE_PASSWORD: ${{ secrets.SCHAFLAND_KEYSTORE_PASSWORD }}
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: ./gradlew assembleRelease assembleDebug --no-daemon --stacktrace
 
       - name: APK benennen
         run: |
@@ -69,3 +69,55 @@ jobs:
           name: schafland-apk
           path: out/*.apk
           retention-days: 60
+
+      # Debug-APK nur für den Emulator-Test (erlaubt die Fernsteuerung der WebView)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: schafland-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
+
+  # Startet die APK im Android-Emulator und bedient sie (android/ci/smoke.mjs)
+  emulator:
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Tablet
+            profile: pixel_tablet
+          - name: Handy
+            profile: pixel_7
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: schafland-debug-apk
+          path: apk
+
+      - name: Bildverkleinerung für die Screenshots
+        run: pip install --quiet pillow
+
+      - name: KVM für den Emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: App im Emulator testen (${{ matrix.name }})
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: ${{ matrix.profile }}
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back emulated -camera-front emulated
+          script: android/ci/smoke.sh apk/app-debug.apk ${{ matrix.name }}

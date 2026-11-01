@@ -85,4 +85,17 @@
     width: 2.8rem; height: 2.8rem; border-radius: 50%; flex: none;
     display: grid; place-items: center; font-size: 1.3rem; background: #fff;
   }
+
+  /* Handy: kompakte Kopfzeile, Musik nur als Knöpfe */
+  @media (max-width: 760px), (max-height: 500px) {
+    header { height: 3.6rem; padding: 0 0.7rem; gap: 0.5rem; }
+    .brand :global(.logo) { width: 2.6rem !important; height: 2.6rem !important; }
+    b { font-size: 1.6rem; }
+    small { font-size: 0.8rem; }
+    .music .title { display: none; }
+    .round { width: 2.5rem; height: 2.5rem; }
+  }
+  @media (max-width: 420px) {
+    small { display: none; }
+  }
 </style>
