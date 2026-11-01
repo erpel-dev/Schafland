@@ -40,8 +40,11 @@ const section = (name) => !ONLY || ONLY.split(",").includes(name);
 const PRODUCT = { status: 1, product: { product_name_de: "Vollmilch-Schokolade", brands: "Beispielmarke", quantity: "100 g",
   image_front_small_url: "https://images.openfoodfacts.org/x/front.jpg", categories_tags: ["en:sweet-snacks", "en:chocolates"] } };
 
-async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, touch = false, camera = true, fakeDir = true, noPicker = false, offFail = false, offMode = null, googleDown = false } = {}) {
-  const args = ["--use-fake-device-for-media-stream", `--use-file-for-fake-video-capture=${Q}/${cam}.y4m`, "--autoplay-policy=no-user-gesture-required"];
+async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, touch = false, camera = true, fakeDir = true, noPicker = false, offFail = false, offMode = null, googleDown = false, cams = 1, rear = false } = {}) {
+  // Mit Video-Datei kennt Chromium nur eine Kamera; mehrere Kameras zeigen ein Testbild
+  const args = cams > 1
+    ? [`--use-fake-device-for-media-stream=device-count=${cams}`, "--autoplay-policy=no-user-gesture-required"]
+    : ["--use-fake-device-for-media-stream", `--use-file-for-fake-video-capture=${Q}/${cam}.y4m`, "--autoplay-policy=no-user-gesture-required"];
   args.push(camera ? "--use-fake-ui-for-media-stream" : "--deny-permission-prompts");
   const browser = await chromium.launch({ args });
   const ctx = await browser.newContext({ viewport, hasTouch: touch, isMobile: false, permissions: camera ? ["camera"] : [] });
@@ -92,6 +95,11 @@ async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, 
     const files = names.map((name) => ({ kind: "file", name, getFile: async () => new File([await (await fetch("/__qa/" + encodeURIComponent(name))).blob()], name, { type: "audio/mpeg" }) }));
     window.showDirectoryPicker = async () => ({ kind: "directory", name: "QA-Musik", async *values() { for (const f of files) yield f; }, queryPermission: async () => "granted", requestPermission: async () => "granted" });
   }, [names, fakeDir, noPicker]);
+  // Tablet-Rückkamera: die Test-Kamera meldet sich als "environment"
+  if (rear) await ctx.addInitScript(() => {
+    const orig = MediaStreamTrack.prototype.getSettings;
+    MediaStreamTrack.prototype.getSettings = function () { return { ...orig.call(this), facingMode: "environment" }; };
+  });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
   page.on("console", (m) => { if (m.type() === "error") errors.push("console: " + m.text()); });
@@ -370,6 +378,42 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
         check("Scan-Protokoll: Buch mit dem Hauptcode gesucht", (await page.textContent(".log code")).trim().startsWith("9783161484100"), await page.textContent(".log code"));
       }
       check("Keine Konsolenfehler (Buch hochkant)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+    if (section("scan")) {
+      // Tablet mit Vorder- und Rückkamera (Testbild statt Barcode: hier geht es nur ums Umschalten)
+      const { browser, page, errors } = await launch("own", { cams: 2 });
+      await openShop(page);
+      await page.click("text=Scannen!");
+      await page.waitForFunction(() => document.querySelector("video")?.readyState >= 2, null, { timeout: 15000 });
+      await page.locator("button.switch").waitFor({ timeout: 5000 }).catch(() => {});
+      check("Webcam/Frontkamera wird gespiegelt angezeigt", (await page.locator("video.mirror").count()) === 1);
+      check("Zwei Kameras: Knopf „Kamera“ zum Umschalten", (await page.locator("button.switch").count()) === 1);
+      const camId = () => page.evaluate(() => document.querySelector("video")?.srcObject?.getVideoTracks()[0]?.getSettings().deviceId);
+      const camLabel = () => page.evaluate(() => document.querySelector("video")?.srcObject?.getVideoTracks()[0]?.label);
+      const before = await camId();
+      if (await page.locator("button.switch").count()) await page.click("button.switch");
+      await wait(1500);
+      const after = await camId();
+      const afterLabel = await camLabel();
+      check("Umschalten wechselt die Kamera", before && after && before !== after, `${before?.slice(0, 8)} → ${after?.slice(0, 8)} (${afterLabel})`);
+      await page.click("text=✓ Fertig gescannt");
+      await page.reload();
+      await openShop(page);
+      await page.click("text=Scannen!");
+      await page.waitForFunction(() => document.querySelector("video")?.readyState >= 2, null, { timeout: 15000 });
+      // Der Test-Browser vergibt bei jedem Laden neue Kennungen; wiedergefunden wird sie über den Namen
+      await wait(1000);
+      check("Gewählte Kamera nach Neustart gemerkt", (await camLabel()) === afterLabel, `${await camLabel()} / erwartet ${afterLabel}`);
+      check("Keine Konsolenfehler (zwei Kameras)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+    if (section("scan")) {
+      const { browser, page } = await launch("own", { rear: true });
+      await openShop(page);
+      await page.click("text=Scannen!");
+      await page.locator(".found .t:has-text('Apfel')").waitFor({ timeout: 15000 });
+      check("Rückkamera (Tablet) wird nicht gespiegelt", (await page.locator("video.mirror").count()) === 0 && (await page.locator("video").count()) === 1);
       await browser.close();
     }
     if (section("scan")) {
@@ -675,12 +719,26 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await openSettings(page);
       await page.click("nav >> text=Musik");
       const input = page.locator("#music-files");
-      check("Ohne Ordner-API: Auswahl über Dateifeld", (await input.count()) === 1);
-      try {
-        await input.setInputFiles(`${Q}/musik`);
-        await page.waitForSelector(".tracks button", { timeout: 5000 });
-        check("Dateifeld-Rückfall listet die Lieder", (await page.locator(".tracks button").count()) === 4);
-      } catch (e) { check("Dateifeld-Rückfall listet die Lieder", false, e.message.split("\n")[0]); }
+      check("Ohne Ordner-API (Android-App): „Lieder hinzufügen“", (await input.count()) === 1 && (await input.getAttribute("webkitdirectory")) === null);
+      const songs = fs.readdirSync(`${Q}/musik`).map((f) => `${Q}/musik/${f}`);
+      await input.setInputFiles(songs);
+      await page.waitForSelector(".tracks button", { timeout: 5000 });
+      check("Importierte Lieder erscheinen", (await page.locator(".tracks .track").count()) === 4, `${await page.locator(".tracks .track").count()} Lieder`);
+      await input.setInputFiles(songs.slice(0, 2));
+      await wait(500);
+      check("Dasselbe Lied nicht doppelt", (await page.locator(".tracks .track").count()) === 4);
+      await page.reload();
+      await page.click("text=Laden öffnen");
+      await openSettings(page);
+      await page.click("nav >> text=Musik");
+      await page.waitForSelector(".tracks .track", { timeout: 5000 }).catch(() => {});
+      check("Lieder nach Neustart noch da (in der App gespeichert)", (await page.locator(".tracks .track").count()) === 4);
+      await page.locator(".tracks .track").first().locator("button").first().click();
+      await wait(1500);
+      check("Gespeichertes Lied spielt", (await page.textContent(".now b")).includes("Kurz"), await page.textContent(".now b"));
+      await page.locator(".tracks .track .del").last().click();
+      await wait(400);
+      check("Lied entfernen", (await page.locator(".tracks .track").count()) === 3);
       await browser.close();
     }
 

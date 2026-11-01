@@ -135,6 +135,7 @@
       loopTimer = setTimeout(tick, 110); // höchstens ca. 9 Bilder pro Sekunde
     }
 
+    // Gewählte Kamera genau nehmen; fehlt sie (anderes Gerät, abgesteckt), die Rückkamera bzw. Webcam
     async function startCamera(deviceId) {
       stream?.getTracks().forEach((t) => t.stop());
       try {
@@ -144,7 +145,7 @@
             width: { ideal: 640 },
             height: { ideal: 480 },
             // gemerkte Kamera, sonst die Rückkamera (Tablet) bzw. die einzige Webcam
-            ...(deviceId ? { deviceId: { ideal: deviceId } } : { facingMode: "environment" }),
+            ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: "environment" }),
           },
         });
         if (stopped) return stream.getTracks().forEach((t) => t.stop());
@@ -157,11 +158,21 @@
         // Erst nach der Erlaubnis verrät der Browser alle Kameras
         cameras = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
         current = info.deviceId ?? deviceId ?? null;
+        // Gemerkte Kamera unter neuer Kennung wiederfinden (über ihren Namen)
+        const wanted = settings.value.cameraLabel && cameras.find((c) => c.label === settings.value.cameraLabel);
+        if (wanted && wanted.deviceId !== current && !relabeled) {
+          relabeled = true;
+          settings.set({ cameraId: wanted.deviceId });
+          return startCamera(wanted.deviceId);
+        }
         if (!looping) {
           looping = true;
           tick();
         }
       } catch (err) {
+        if (deviceId && (err?.name === "OverconstrainedError" || err?.name === "NotFoundError")) {
+          return startCamera(null);
+        }
         camState = "error";
         camError =
           err?.name === "NotAllowedError"
@@ -173,12 +184,14 @@
     }
     let looping = false;
     let current = null;
+    let relabeled = false;
     switchCamera = () => {
       if (cameras.length < 2) return;
       const i = cameras.findIndex((c) => c.deviceId === current);
-      const next = cameras[(i + 1) % cameras.length].deviceId;
-      settings.set({ cameraId: next });
-      startCamera(next);
+      const next = cameras[(i + 1) % cameras.length];
+      settings.set({ cameraId: next.deviceId, cameraLabel: next.label || null });
+      relabeled = true;
+      startCamera(next.deviceId);
     };
     startCamera(settings.value.cameraId);
 

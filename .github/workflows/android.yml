@@ -37,7 +37,7 @@ jobs:
           java-version: 21
           cache: gradle
 
-      - uses: android-actions/setup-android@v3
+      # Das Android-SDK ist auf den GitHub-Rechnern vorinstalliert ($ANDROID_HOME)
 
       - name: Signaturschlüssel aus den Secrets (falls hinterlegt)
         env:
