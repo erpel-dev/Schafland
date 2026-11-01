@@ -1,0 +1,58 @@
+# Prototyp „Frag das Schaf“ mit LFM3-Audio: prüft die JavaScript-Umsetzung (src/lib/sprache/lfm3audio.js)
+# mit dem echten Modell. GitHub-Rechner haben keine Grafikkarte, daher läuft hier die q4-Fassung auf
+# dem Prozessor (onnxruntime-node); im Browser nimmt die App die q4f16-Fassung auf der Grafikkarte.
+name: LFM3-Audio
+
+on:
+  push:
+    branches: [lfm3-audio, main]
+    paths: ["src/lib/sprache/lfm3audio.js", "tests/lfm3/**", ".github/workflows/lfm3-audio.yml"]
+  workflow_dispatch:
+
+jobs:
+  echt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Abhängigkeiten
+        run: |
+          npm ci
+          sudo apt-get install -y -qq ffmpeg libttspico-utils >/dev/null || sudo apt-get install -y -qq ffmpeg espeak-ng >/dev/null
+          pip install --quiet huggingface_hub
+
+      - name: Modell laden (q4, ca. 2,7 GB)
+        run: |
+          python - <<'EOF'
+          from huggingface_hub import snapshot_download
+          snapshot_download("LiquidAI/LFM3-Audio-2B-ONNX", local_dir="lfm3-audio", allow_patterns=[
+              "*.json", "*.jinja", "audio_tokenizer/*",
+              "onnx/decoder_q4.onnx*", "onnx/audio_encoder.onnx*", "onnx/depth_decoder.onnx*", "onnx/codec_decoder.onnx*"])
+          EOF
+          du -sh lfm3-audio
+
+      - name: Gesprochene Fragen (16 kHz)
+        run: |
+          mkdir -p wavs
+          say() { pico2wave -l de-DE -w /tmp/s.wav "$2" 2>/dev/null || espeak-ng -v de -s 140 -w /tmp/s.wav "$2"; ffmpeg -loglevel error -y -i /tmp/s.wav -af "apad=pad_dur=0.5" -ar 16000 -ac 1 -sample_fmt s16 "wavs/$1__$2.wav"; }
+          say "Banane" "Was kostet die Banane"
+          say "Brezel" "Ich nehme eine Brezel"
+          say "Obst" "Was gibt es bei Obst"
+          say "gelb" "Welches Obst ist gelb"
+          say "Schokolade" "Was kostet die Schokolade"
+
+      - name: Spracherkennung und Sprachausgabe mit LFM3-Audio
+        run: node tests/lfm3/echt.mjs lfm3-audio wavs
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lfm3-sprachausgabe
+          path: tts-*.wav
+          retention-days: 14
