@@ -79,8 +79,14 @@ async function load(post) {
   model = new Lfm3Audio({ ort, sessions, tokenizer });
 }
 
+let stop = false;
+
 self.onmessage = async ({ data }) => {
   const { id, type } = data;
+  if (type === "stop") {
+    stop = true;
+    return self.postMessage({ id, type: "stopped" });
+  }
   const post = (msg, transfer) => self.postMessage({ id, ...msg }, transfer ?? []);
   try {
     if (type === "load") {
@@ -91,6 +97,12 @@ self.onmessage = async ({ data }) => {
     if (type === "transcribe") {
       const t0 = performance.now();
       const text = await model.transcribe(data.audio);
+      return post({ type: "text", text, ms: Math.round(performance.now() - t0) });
+    }
+    if (type === "chat") {
+      const t0 = performance.now();
+      stop = false;
+      const text = await model.chat(data.messages, { onText: (t) => post({ type: "token", text: t }), shouldStop: () => stop });
       return post({ type: "text", text, ms: Math.round(performance.now() - t0) });
     }
     if (type === "speak") {

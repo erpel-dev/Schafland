@@ -34,6 +34,12 @@ export function ttsPrompt(text, { language = "German", voice = "female" } = {}) 
   return `${TOKENS.bos}<|im_start|>system\nPerform TTS in ${language} using a ${voice} voice.<|im_end|>\n<|im_start|>user\n${text}<|im_end|>\n<|im_start|>assistant\n<|audio_start|>`;
 }
 
+/** Text-Chat (Antwort als Text, ohne Sprache), wie der „chat“-Modus der Referenz: Denken leer vorgegeben. */
+export function chatPrompt(system, user) {
+  const sys = system ? `<|im_start|>system\n${system}<|im_end|>\n` : "";
+  return `${TOKENS.bos}${sys}<|im_start|>user\n${user}<|im_end|>\n<|im_start|>assistant\n<think></think>`;
+}
+
 // ---------- Merkmale ----------
 
 export const numFrames = (n) => {
@@ -295,6 +301,43 @@ export class Lfm3Audio {
     }
     state.past += n;
     return { logits: out.logits.data, hidden: out.hidden_states.data };
+  }
+
+  /** Lange Eingaben in Stücken von höchstens 1024 Tokens (WebGPU), nur reiner Text. */
+  async prefill(state, ids, extra = {}) {
+    if (ids.length <= 1024 || extra.audioRows) return this.step(state, ids, extra);
+    let out;
+    for (let i = 0; i < ids.length; i += 1024) out = await this.step(state, ids.slice(i, i + 1024));
+    return out;
+  }
+
+  /**
+   * Antwort als Text auf eine Frage (Stufe 2 mit demselben Modell). messages: [{role, content}] mit
+   * höchstens einer System- und einer Nutzer-Nachricht. onText bekommt den Text, während er entsteht.
+   */
+  async chat(messages, { maxTokens = 90, onText = () => {}, shouldStop = () => false } = {}) {
+    const system = messages.find((m) => m.role === "system")?.content ?? "";
+    const user = messages.filter((m) => m.role === "user").at(-1)?.content ?? "";
+    const ids = this.ids(chatPrompt(system, user));
+    const state = { past: 0, cache: this.emptyCache() };
+    let { logits } = await this.prefill(state, ids);
+    const vocab = logits.length;
+    const suppress = new Set([TOKENS.audio, TOKENS.audioOut, TOKENS.audioStart, TOKENS.mixedStart]);
+    const out = [];
+    const recent = [];
+    for (let i = 0; i < maxTokens && !shouldStop(); i++) {
+      // leichte Wiederholungsstrafe gegen Endlosschleifen kleiner Modelle
+      const scores = Float32Array.from(logits.subarray ? logits.subarray(0, vocab) : logits.slice(0, vocab));
+      for (const t of new Set(recent)) scores[t] = scores[t] < 0 ? scores[t] * 1.1 : scores[t] / 1.1;
+      const token = argmax(scores, 0, vocab, suppress);
+      if (token === TOKENS.eos || token === TOKENS.textEnd) break;
+      out.push(token);
+      recent.push(token);
+      if (recent.length > 32) recent.shift();
+      onText(this.tokenizer.decode(out, { skip_special_tokens: true }));
+      ({ logits } = await this.step(state, [token]));
+    }
+    return this.tokenizer.decode(out, { skip_special_tokens: true }).replace(/<think>[\s\S]*?<\/think>/g, "").trim();
   }
 
   /** Audio-Merkmale [rows * 2048] eines 16-kHz-Clips. */

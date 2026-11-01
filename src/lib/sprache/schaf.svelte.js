@@ -141,7 +141,7 @@ class FragDasSchaf {
         await this.loadModel();
       }
       // Stufe 2 im Hintergrund vorbereiten (aus dem Speicher, wenn schon einmal geladen)
-      if (settings.value.kiAn && this.ki === "aus") this.loadKi();
+      if (settings.value.kiAn && this.ki === "aus" && !this.kiViaAudio) this.loadKi();
       this.phase = "listening";
       this.#recording = await record({ onLevel: (l) => (this.level = l) });
       const { audio, heardVoice } = await this.#recording.done;
@@ -215,7 +215,7 @@ class FragDasSchaf {
   async hear(text) {
     const { result, reply } = this.#resolve(text);
     // Stufe 2: offene Fragen an das Sprachmodell, wenn es eingeschaltet und geladen ist
-    if (settings.value.kiAn && this.ki === "bereit" && isOpenQuestion(result)) {
+    if (settings.value.kiAn && (this.ki === "bereit" || this.kiViaAudio) && isOpenQuestion(result)) {
       this.heard = text;
       this.reply = { say: "", streaming: true };
       this.phase = "answer";
@@ -342,6 +342,17 @@ class FragDasSchaf {
       onText(raw);
       return checkAnswer(raw, { products: this.pool });
     }
+    // Ist LFM3-Audio geladen, antwortet es selbst: kein zweites Sprachmodell nötig
+    if (this.kiViaAudio) {
+      const timer = setTimeout(() => this.#audioCall({ type: "stop" }).catch(() => {}), 30000);
+      try {
+        const out = await this.#audioCall({ type: "chat", messages: $state.snapshot(messages) }, (e) => onText(e.text));
+        this.kiLastMs = out.ms;
+        return checkAnswer(out.text, { products: this.pool });
+      } finally {
+        clearTimeout(timer);
+      }
+    }
     const timer = setTimeout(() => this.#kiCall({ type: "stop" }).catch(() => {}), 30000);
     try {
       const out = await this.#kiCall({ type: "generate", messages: $state.snapshot(messages), maxNewTokens: 90 }, (e) => {
@@ -361,7 +372,7 @@ class FragDasSchaf {
       this.#audioWorker.onmessage = ({ data }) => {
         const p = this.#audioPending.get(data.id);
         if (!p) return;
-        if (["progress", "status", "frame"].includes(data.type)) return p.onEvent?.(data);
+        if (["progress", "status", "frame", "token"].includes(data.type)) return p.onEvent?.(data);
         this.#audioPending.delete(data.id);
         if (data.type === "error") p.reject(new Error(data.message));
         else p.resolve(data);
@@ -372,6 +383,11 @@ class FragDasSchaf {
       this.#audioPending.set(id, { resolve, reject, onEvent });
       this.#audioWorker.postMessage({ id, ...msg }, msg.audio ? [msg.audio.buffer] : []);
     });
+  }
+
+  /** Beantwortet LFM3-Audio die freien Fragen? (dann wird kein eigenes Stufe-2-Modell geladen) */
+  get kiViaAudio() {
+    return settings.value.audioModell && this.audio === "bereit" && !globalThis.__schafFakeAudio;
   }
 
   /** Lädt LFM3-Audio (Eltern-Bereich). Beim ersten Mal ca. 2,4 GB. */

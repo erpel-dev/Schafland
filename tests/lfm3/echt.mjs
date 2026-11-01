@@ -6,6 +6,8 @@ import { AutoTokenizer, env } from "@huggingface/transformers";
 import fs from "node:fs";
 import path from "node:path";
 import { Lfm3Audio, TOKENS, asrPrompt, ttsPrompt } from "../../src/lib/sprache/lfm3audio.js";
+import { buildMessages, checkAnswer } from "../../src/lib/sprache/ki.js";
+import { products, categories } from "../../src/lib/catalog.js";
 
 const [MODEL, WAVS] = process.argv.slice(2);
 const results = [];
@@ -113,6 +115,16 @@ for (const [say, expect] of [
   t = performance.now();
   const back = await model.transcribe(resample(wave, 24000, 16000));
   check(`Rundlauf: Erkennung der eigenen Sprachausgabe`, back.toLowerCase().includes(expect), `„${back}“ (${secs(t)})`);
+}
+
+// 3. Freie Fragen mit demselben Modell (Stufe 2 ohne zweites Modell)
+for (const q of ["Was schmeckt lecker?", "Was kann ich meiner Oma kaufen?", "Was essen Schafe?", "Welches Obst ist rund?", "Was brauche ich für einen Kuchen?"]) {
+  t = performance.now();
+  const raw = await model.chat(buildMessages(q, { products, categories }));
+  const checked = checkAnswer(raw, { products });
+  const names = checked?.products.map((p) => p.name.replace(/\u00ad/g, "")).join(", ") || "—";
+  // geprüft wird, was die App garantiert: kurz, ohne Zahlen; die Qualität steht im Protokoll
+  check(`Frage „${q}“`, !!checked, `roh: „${raw.slice(0, 160)}“ → „${checked?.text ?? "(verworfen)"}“, Bilder: ${names} (${secs(t)})`);
 }
 
 // Erkennung darf sich bei einzelnen Wörtern irren (das Schaf zeigt dann Bilder); alles andere muss klappen

@@ -452,7 +452,10 @@
             {/if}
           </div>
         </div>
-        {#if settings.value.kiAn}
+        {#if settings.value.kiAn && settings.value.audioModell}
+          <p class="muted">Mit eingeschaltetem LFM3-Audio beantwortet dieses Modell auch die freien Fragen. Ein eigenes Sprachmodell wird dann nicht geladen.</p>
+        {/if}
+        {#if settings.value.kiAn && !settings.value.audioModell}
           <div class="field">
             <span class="lbl">Sprachmodell</span>
             <div class="choice-row">
