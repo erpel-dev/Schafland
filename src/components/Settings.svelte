@@ -14,7 +14,7 @@
   import QrCode from "./QrCode.svelte";
   import LabelSheet from "./LabelSheet.svelte";
   import ProductImage from "./ProductImage.svelte";
-  import { schaf, MODELLE } from "../lib/sprache/schaf.svelte.js";
+  import { schaf, MODELLE, KI_MODELLE, gpuInfo } from "../lib/sprache/schaf.svelte.js";
   import { speak, canSpeak, voiceName } from "../lib/sprache/sprechen.js";
 
   let { onClose, initialTab = "bezahlen" } = $props();
@@ -72,6 +72,33 @@
     settings.set({ fragModell: id });
     schaf.resetModel();
   }
+  // Stufe 2
+  let gpu = $state(null);
+  $effect(() => {
+    if (tab === "schaf" && !gpu) gpuInfo().then((g) => (gpu = g));
+  });
+  function setKiModel(id) {
+    settings.set({ kiModell: id });
+    schaf.resetKi();
+  }
+  let kiQuestion = $state("Was ist gesund?");
+  let kiAnswer = $state("");
+  let kiAsking = $state(false);
+  async function tryKi() {
+    kiAsking = true;
+    kiAnswer = "";
+    try {
+      await schaf.loadKi();
+      if (schaf.ki !== "bereit") return;
+      const r = await schaf.askKi(kiQuestion, (raw) => (kiAnswer = raw));
+      kiAnswer = r ? r.text + (r.products.length ? `  (Bilder: ${r.products.map((p) => p.name.replace(/\u00ad/g, "")).join(", ")})` : "") : "(keine brauchbare Antwort – das Schaf würde einfach antworten)";
+    } catch (err) {
+      kiAnswer = "Fehler: " + (err?.message ?? err);
+    } finally {
+      kiAsking = false;
+    }
+  }
+
   let tryText = $state("Was kostet die Banane?");
   let tryReply = $derived(tryText.trim() ? schaf.preview(tryText).reply.say : "");
   let aliasHeard = $state("");
@@ -339,6 +366,56 @@
           {#if tryReply}<p class="answer">🐑 {tryReply}</p>{/if}
         </div>
 
+        <h3>Stufe 2: Freie Fragen mit KI</h3>
+        <p class="muted">
+          Für Fragen wie „Was ist gesund?“, „Was passt zum Frühstück?“ oder „Welches Obst ist gelb?“ nutzt das Schaf ein kleines Sprachmodell (LFM von Liquid AI), das ebenfalls nur auf diesem Gerät läuft.
+          Es darf nur Produkte aus dem Laden empfehlen und nennt keine Preise; die empfohlenen Produkte erscheinen als Bilder zum Antippen.
+          Einfache Fragen (Preis, „Ich möchte …“, Summe) beantwortet weiter die schnelle Stufe 1.
+        </p>
+        <div class="field">
+          <label for="ki-on">Freie Fragen mit KI</label>
+          <div class="row">
+            <Toggle id="ki-on" label="Freie Fragen mit KI" checked={settings.value.kiAn} onchange={(v) => { settings.set({ kiAn: v }); if (!v) schaf.resetKi(); }} />
+            <span class="muted">
+              {#if gpu === null}Prüfe Grafikkarte …{:else if gpu.webgpu}Grafikkarte (WebGPU) gefunden: Antworten in wenigen Sekunden.{:else}Keine nutzbare Grafikkarte (WebGPU): nur „Klein“, Antworten dauern 10–30 Sekunden.{/if}
+            </span>
+          </div>
+        </div>
+        {#if settings.value.kiAn}
+          <div class="field">
+            <span class="lbl">Sprachmodell</span>
+            <div class="choice-row">
+              {#each Object.entries(KI_MODELLE) as [id, m] (id)}
+                <label class="opt" class:on={settings.value.kiModell === id} class:off={gpu && !gpu.webgpu && !m.cpu}>
+                  <input type="radio" name="kimodell" checked={settings.value.kiModell === id} disabled={gpu && !gpu.webgpu && !m.cpu} onchange={() => setKiModel(id)} />
+                  <b>{m.name}</b><small>ca. {m.mb >= 1000 ? `${(m.mb / 1000).toFixed(1).replace(".", ",")} GB` : `${m.mb} MB`}. {m.info}</small>
+                </label>
+              {/each}
+            </div>
+            <div class="row">
+              {#if schaf.ki === "bereit"}
+                <span class="ok">✓ Geladen ({schaf.kiDevice === "webgpu" ? "Grafikkarte" : schaf.kiDevice === "wasm" ? "Prozessor" : schaf.kiDevice})</span>
+              {:else}
+                <button class="big-btn light small" disabled={schaf.ki === "lädt"} onclick={() => schaf.loadKi()}>
+                  {schaf.ki === "lädt" ? `Lädt … ${Math.round(schaf.kiProgress * 100)} %` : "Jetzt laden"}
+                </button>
+                <span class="muted">Großer Download; am besten im WLAN. Danach offline nutzbar.</span>
+              {/if}
+            </div>
+            {#if schaf.ki === "fehler"}<p class="err">{schaf.kiError}</p>{/if}
+          </div>
+          <div class="field">
+            <label for="ki-try">KI ausprobieren</label>
+            <div class="row">
+              <input id="ki-try" bind:value={kiQuestion} onkeydown={(e) => e.key === "Enter" && tryKi()} />
+              <button class="big-btn light small" disabled={kiAsking || !kiQuestion.trim()} onclick={tryKi}>{kiAsking ? "…" : "Fragen"}</button>
+            </div>
+            {#if kiAnswer}<p class="answer ki-answer">🐑 {kiAnswer}</p>{/if}
+            {#if schaf.kiLastMs}<small class="muted">Letzte Antwort: {(schaf.kiLastMs / 1000).toFixed(1)} s</small>{/if}
+          </div>
+          <p class="muted">Lizenz: LFM Open License v1.0 (für private Nutzung frei). Kinder sollten die KI-Antworten nicht allein als Wissen nehmen; das Schaf ist ein Spielkamerad.</p>
+        {/if}
+
         <h3>Aussprache des Kindes</h3>
         <p class="muted">Wenn das Kind ein Produkt anders ausspricht, hier eintragen, z. B. „Nane“ → Banane. Das Schaf versteht ähnliche Wörter auch so schon; Einträge hier gelten sicher.</p>
         {#each settings.value.sprachAliases ?? [] as a (a.heard)}
@@ -355,13 +432,14 @@
 
         <h3>Zuletzt gefragt</h3>
         {#each schaf.log as e (e.at)}
-          <div class="log" class:ok={!!e.product || ["category", "total", "hello", "thanks"].includes(e.intent)}>
+          <div class="log" class:ok={!!e.product || ["category", "total", "hello", "thanks", "ki"].includes(e.intent)}>
             <div class="loghead"><b>„{e.text || "(nichts verstanden)"}“</b><small>{when(e.at)}</small></div>
             <small>
               {#if e.intent === "gewählt"}Kind hat danach {e.product} angetippt
                 {#if e.text && !(settings.value.sprachAliases ?? []).some((a) => a.heard === e.text.toLowerCase())}
                   · <button class="link" onclick={() => addAlias(e.text, e.productId)}>„{e.text}“ als {e.product} merken</button>
                 {/if}
+              {:else if e.intent === "ki"}KI: „{e.answer}“
               {:else if e.product}verstanden: {e.product}{:else if e.intent === "category"}Frage nach {e.category}{:else if e.intent === "total"}Frage nach der Summe{:else if e.intent === "hello" || e.intent === "thanks"}Gruß{:else}nichts Passendes gefunden{/if}
             </small>
           </div>
@@ -472,6 +550,7 @@
   .choice-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
   .opt { display: flex; flex-direction: column; padding: 0.6rem 0.9rem; border-radius: 0.9rem; background: #fff; border: 2px solid var(--wool-line); cursor: pointer; min-width: 12rem; }
   .opt.on { border-color: var(--grass); }
+  .opt.off { opacity: 0.45; cursor: not-allowed; }
   .opt input { position: absolute; opacity: 0; pointer-events: none; }
   .ok { color: var(--grass-dark); font-weight: 800; }
   .answer { background: #fff; border-radius: 0.9rem; padding: 0.6rem 0.9rem; margin: 0.3rem 0 0; font-weight: 700; }

@@ -36,7 +36,11 @@
           <button class="btn mic" onclick={() => schaf.ask()}>🎤 Nochmal</button>
         {:else if schaf.reply}
           {#if schaf.heard}<small class="heard">Du hast gesagt: „{schaf.heard}“</small>{/if}
-          <p class="big">{schaf.reply.say}</p>
+          {#if schaf.reply.streaming && !schaf.reply.say}
+            <p class="big">Hmm, ich überlege <span class="dots"><i>.</i><i>.</i><i>.</i></span></p>
+          {:else}
+            <p class="big" class:streaming={schaf.reply.streaming}>{schaf.reply.say}</p>
+          {/if}
           {#if schaf.reply.choices?.length}
             <div class="choices">
               {#each schaf.reply.choices as p (p.id)}
@@ -48,12 +52,14 @@
               {/each}
             </div>
           {/if}
+          {#if !schaf.reply.streaming}
           <div class="actions">
             {#if schaf.reply.offerAdd}
               <button class="btn yes" onclick={() => schaf.confirmAdd(schaf.reply.offerAdd)}>🧺 Ja, in den Korb</button>
             {/if}
             <button class="btn mic" onclick={() => schaf.ask()}>🎤 {schaf.reply.retry ? "Nochmal sagen" : "Noch eine Frage"}</button>
           </div>
+          {/if}
         {/if}
       </div>
     </div>
@@ -86,6 +92,7 @@
   }
   .big { font-family: var(--f-display); font-weight: 800; font-size: 1.55rem; line-height: 1.2; margin: 0; }
   .heard { color: var(--ink-soft); }
+  .streaming::after { content: "▍"; animation: blink 0.8s infinite; color: var(--grass); }
   small { color: var(--ink-soft); }
   .meter { height: 0.8rem; background: var(--wool-2); border-radius: 99px; overflow: hidden; }
   .meter div { height: 100%; background: var(--grass); transition: width 0.2s; }

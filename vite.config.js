@@ -40,6 +40,8 @@ export default defineConfig({
         globIgnores: ["**/ort-wasm-*"],
         runtimeCaching: [
           { urlPattern: /\/assets\/ort-wasm-[^/]+$/, handler: "CacheFirst", options: { cacheName: "spracherkennung" } },
+          // Stufe 2 mit Grafikkarte: WebGPU-Laufzeit vom CDN, einmal geladen auch offline
+          { urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/onnxruntime-web@/, handler: "CacheFirst", options: { cacheName: "sprachmodell-laufzeit", cacheableResponse: { statuses: [0, 200] } } },
         ],
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
         // Produktbilder von Open Food Facts landen ohnehin in IndexedDB

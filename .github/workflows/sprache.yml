@@ -5,7 +5,7 @@ name: Frag das Schaf
 on:
   push:
     branches: [main, frag-das-schaf]
-    paths: ["src/lib/sprache/**", "src/components/FragDasSchaf.svelte", "tests/e2e/sprache-echt.mjs", ".github/workflows/sprache.yml", "package-lock.json"]
+    paths: ["src/lib/sprache/**", "src/components/FragDasSchaf.svelte", "tests/e2e/sprache-echt.mjs", "tests/e2e/ki-echt.mjs", ".github/workflows/sprache.yml", "package-lock.json"]
   workflow_dispatch:
 
 jobs:
@@ -47,3 +47,26 @@ jobs:
 
       - name: Spracherkennung testen (${{ matrix.model }})
         run: node tests/e2e/sprache-echt.mjs wavs ${{ matrix.model }}
+
+  # Stufe 2: kleines Sprachmodell (ohne Grafikkarte, wie auf einem einfachen Laptop)
+  ki:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Abhängigkeiten
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: App bauen
+        run: npx vite build
+
+      - name: Freie Fragen mit dem Sprachmodell testen
+        run: node tests/e2e/ki-echt.mjs

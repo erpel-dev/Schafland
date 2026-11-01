@@ -738,7 +738,8 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await page.click("nav >> text=Musik");
       await page.waitForSelector(".tracks .track", { timeout: 5000 }).catch(() => {});
       check("Lieder nach Neustart noch da (in der App gespeichert)", (await page.locator(".tracks .track").count()) === 4);
-      await page.locator(".tracks .track").first().locator("button").first().click();
+      // Reihenfolge der importierten Lieder ist nicht festgelegt: gezielt ein heiles Lied wählen
+      await page.locator(".tracks .track", { hasText: "Kurz" }).first().locator("button").first().click();
       await wait(1500);
       check("Gespeichertes Lied spielt", (await page.textContent(".now b")).includes("Kurz"), await page.textContent(".now b"));
       await page.locator(".tracks .track .del").last().click();
@@ -926,6 +927,42 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       check("Kategorie: Schaf zählt auf", (await page.textContent(".panel .big")).startsWith("Bei Obst gibt es"));
       await page.click(".panel .x");
       check("Schließen", (await page.locator(".panel").count()) === 0);
+
+      // Stufe 2: freie Fragen (Sprachmodell hier durch eine feste Antwort ersetzt)
+      await page.evaluate(() => {
+        window.__schafFakeKi = async (messages) => {
+          window.__kiPrompt = messages;
+          const q = messages.at(-1).content;
+          if (/Party/.test(q)) return "Das kostet 12 Euro.";
+          return "Äpfel und Bananen sind gesund! Eine Banane kostet 30 Cent.";
+        };
+      });
+      await openSettings(page);
+      await page.click("nav >> text=Frag das Schaf");
+      check("Stufe 2 ist ab Werk aus", (await page.getAttribute("#ki-on", "aria-checked")) === "false");
+      await page.click("#ki-on");
+      await page.click("text=Jetzt laden >> nth=-1").catch(() => {});
+      await page.waitForSelector("text=✓ Geladen (test)", { timeout: 5000 }).catch(() => {});
+      await page.fill("#ki-try", "Was ist gesund?");
+      await page.click("button:has-text('Fragen')");
+      await page.waitForSelector(".ki-answer:has-text('gesund')", { timeout: 5000 }).catch(() => {});
+      const kiTry = (await page.textContent(".ki-answer").catch(() => "")) ?? "";
+      check("Eltern: KI ausprobieren, Preis-Satz entfernt", kiTry.includes("Äpfel und Bananen sind gesund!") && !kiTry.includes("30 Cent") && kiTry.includes("Apfel, Banane"), kiTry);
+      await page.screenshot({ path: `${SHOTS}/schaf-ki-eltern.png`, fullPage: true });
+      await page.click("text=Zurück zum Laden");
+      await page.evaluate(() => window.__fragDasSchaf.hear("Was ist gesund?"));
+      check("Offene Frage: KI-Antwort", (await page.textContent(".panel .big")).trim() === "Äpfel und Bananen sind gesund!");
+      check("Offene Frage: empfohlene Produkte als Bilder", (await page.locator(".choice").count()) === 2);
+      const prompt = await page.evaluate(() => window.__kiPrompt[0].content);
+      check("KI bekommt Sortiment und Korb, keine Preise", prompt.includes("Obst: Apfel, Banane") && prompt.includes("Im Korb liegt schon") && !/\d+,\d\d/.test(prompt));
+      await page.screenshot({ path: `${SHOTS}/schaf-ki-antwort.png` });
+      await page.locator(".choice").first().click();
+      check("KI-Bild antippen: Preis aus der Kasse", (await page.textContent(".panel .big")).includes("Der Apfel kostet 50 Cent"));
+      await page.evaluate(() => window.__fragDasSchaf.hear("Was soll ich für eine Party kaufen?"));
+      check("Unbrauchbare KI-Antwort (nur Preis): Antwort von Stufe 1", !(await page.textContent(".panel .big")).includes("12 Euro"), await page.textContent(".panel .big"));
+      await page.evaluate(() => window.__fragDasSchaf.hear("Was kostet die Birne?"));
+      check("Einfache Frage bleibt bei Stufe 1", (await page.textContent(".panel .big")).includes("Die Birne kostet 60 Cent"));
+      await page.click(".panel .x");
 
       // Eltern: Protokoll und Aussprache merken
       await openSettings(page);

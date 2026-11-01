@@ -17,6 +17,8 @@ const DEFAULTS = {
   fragSchaf: false, // „Frag das Schaf“: Fragen per Sprache (lädt beim ersten Mal das Erkennungsmodell)
   fragModell: "base", // base (genau) | tiny (schnell)
   sprachAliases: [], // [{ heard, productId }]: so spricht das Kind ein Produkt aus
+  kiAn: false, // Stufe 2: freie Fragen mit Sprachmodell
+  kiModell: "klein", // klein (LFM2.5-350M) | gross (LFM3-1.7B)
 };
 
 class Settings {
