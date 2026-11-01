@@ -1,6 +1,9 @@
 package de.schafland.kasse;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebView;
@@ -23,8 +26,11 @@ public class MainActivity extends BridgeActivity {
         bridge.addWebViewListener(new WebViewListener() {
             @Override
             public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
-                android.util.Log.w("Schafland", "Darstellung abgestürzt, starte neu");
-                recreate();
+                android.util.Log.w("Schafland", "Darstellung beendet (Absturz: " + detail.didCrash() + "), starte neu");
+                // Laut Android-Doku: tote WebView entfernen und zerstören, Neustart erst danach
+                if (view.getParent() instanceof ViewGroup) ((ViewGroup) view.getParent()).removeView(view);
+                view.destroy();
+                new Handler(Looper.getMainLooper()).post(MainActivity.this::recreate);
                 return true;
             }
         });

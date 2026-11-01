@@ -32,7 +32,8 @@ node android/ci/smoke.mjs "$NAME" || STATUS=$?
 
 echo "---- App-Meldungen (logcat, Auszug) ----"
 adb logcat -d | grep -E "Capacitor/Console|chromium|AndroidRuntime|FATAL|Schafland|has died" | grep -v "Native Bridge" | tail -60 || true
-echo "---- Abstürze ----"
+echo "---- Fehler und Abstürze ----"
+adb logcat -d "*:E" | grep -vE "gms|GoogleApiManager|Finsky|Phenotype|chromium.*(font_unique|simple_file|simple_index)" | tail -60 || true
 adb logcat -d -b crash | tail -40 || true
 adb shell pidof de.schafland.kasse || echo "App läuft nicht mehr"
 exit ${STATUS:-0}
