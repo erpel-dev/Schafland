@@ -115,7 +115,7 @@ Das gewählte Passwort als Secret `SCHAFLAND_KEYSTORE_PASSWORD`. Den Schlüssel 
 - **Kassenbons:** Die letzten 30 Einkäufe.
 - **Scan-Protokoll:** Die letzten 50 Scans mit Code und den Antworten der Datenbanken. Hilft, wenn etwas nicht erkannt wird.
 
-Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.12.0 vom 02.11.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
+Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.13.0 vom 02.11.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
 
 **Updates:** `git pull` und die Kasse neu starten. Die Kasse speichert sich für den Offline-Betrieb zwischen und zeigt beim Start zuerst kurz die alte Version. Sobald die neue geladen ist, wechselt sie automatisch: sofort, solange der Startbildschirm zu sehen ist, sonst nach dem nächsten Bezahlen, damit nie mitten im Spiel neu geladen wird.
 
@@ -138,7 +138,8 @@ Eltern-Bereich → **Frag das Schaf** einschalten. Dann gibt es neben „Scannen
 - **Vorlesen:** Browser: deutsche Stimme des Systems (Windows hat sie dabei; Linux: `sudo apt install speech-dispatcher espeak-ng`, danach Browser neu starten). Android-App: Androids Sprachausgabe. Ohne Stimme antwortet das Schaf nur in der Sprechblase.
 - **Tempo:** Auf dem alten Notebook dauert das Erkennen 1–3 Sekunden; auf sehr langsamen Geräten „Schnell“ wählen.
 - **Stufe 2, freie Fragen mit KI (optional):** Im Eltern-Bereich unter „Frag das Schaf“ zuschaltbar. Offene Fragen wie „Was ist gesund?“, „Was passt zum Frühstück?“ oder „Welches Obst ist gelb?“ beantwortet dann ein kleines Sprachmodell von Liquid AI, ebenfalls nur auf dem Gerät. Beide Modelle brauchen WebGPU, also eine Grafikkarte, die der Browser nutzen kann (ohne sie dauerte eine Antwort im Test 40–180 Sekunden): „Klein“ (LFM2.5, 350 Mio. Parameter, ca. 300 MB) für einfache Grafikkarten, „Groß“ (LFM3, 1,7 Mrd. Parameter, ca. 1,2 GB) für bessere Antworten. Das Modell bekommt nur das Sortiment und den Korb. Seine Antwort wird geprüft: Sätze mit Zahlen oder Preisen fliegen raus, genannte Produkte erscheinen als Bilder zum Antippen (mit dem echten Preis der Kasse). Einfache Fragen beantwortet weiter Stufe 1. Lizenz der Modelle: LFM Open License v1.0, privat frei nutzbar.
-- **Tests:** `tests/unit/sprache.test.js`, `tests/unit/ki.test.js` (Verstehen, Antworten, keine Fehlzuordnung von Alltagswörtern), Abschnitt `schaf` in `npm run test:e2e` (Mikrofon, Ablauf, Eltern-Bereich, Handy) und `.github/workflows/sprache.yml` mit echter Spracherkennung, gesprochenen Testsätzen und dem echten kleinen Sprachmodell (`tests/e2e/ki-echt.mjs`).
+- **Prototyp LFM3-Audio (optional, nur mit Grafikkarte):** Im Eltern-Bereich unter „Frag das Schaf“ → „LFM3-Audio verwenden“. Dann hört LFM3-Audio-2B von Liquid AI zu und liest mit natürlicher Stimme vor; was das Schaf sagt, bestimmt weiter die Kasse. Download ca. 2,4 GB, gedacht für aktuelle Handys/PCs mit Chrome (WebGPU) und 8 GB Arbeitsspeicher. Scheitert es, übernehmen Whisper und die Systemstimme. Umsetzung: `src/lib/sprache/lfm3audio.js` (portiert aus Liquids Referenz `onnx-export`), Test mit dem echten Modell: `.github/workflows/lfm3-audio.yml`; dort lassen sich unter „Artifacts“ auch Hörproben der Sprachausgabe herunterladen.
+- **Tests:** `tests/unit/sprache.test.js`, `tests/unit/ki.test.js`, `tests/unit/lfm3audio.test.js` (Verstehen, Antworten, keine Fehlzuordnung von Alltagswörtern), Abschnitt `schaf` in `npm run test:e2e` (Mikrofon, Ablauf, Eltern-Bereich, Handy) und `.github/workflows/sprache.yml` mit echter Spracherkennung, gesprochenen Testsätzen und dem echten kleinen Sprachmodell (`tests/e2e/ki-echt.mjs`).
 
 ## Scannen: so funktioniert es
 
