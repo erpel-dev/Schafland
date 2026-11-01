@@ -19,6 +19,7 @@ const DEFAULTS = {
   sprachAliases: [], // [{ heard, productId }]: so spricht das Kind ein Produkt aus
   kiAn: false, // Stufe 2: freie Fragen mit Sprachmodell
   kiModell: "klein", // klein (LFM2.5-350M) | gross (LFM3-1.7B)
+  audioModell: false, // Prototyp: LFM3-Audio hört zu und liest vor (nur mit Grafikkarte)
 };
 
 class Settings {

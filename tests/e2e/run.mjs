@@ -949,6 +949,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       });
       await openSettings(page);
       await page.click("nav >> text=Frag das Schaf");
+      check("Ohne Grafikkarte: LFM3-Audio nicht einschaltbar, mit Erklärung", (await page.locator("#audio-on").count()) === 0 && (await page.textContent(".pane")).includes("LFM3-Audio"));
       check("Ohne Grafikkarte: Stufe 2 nicht einschaltbar, mit Erklärung", (await page.locator("#ki-on").count()) === 0 && (await page.textContent(".pane")).includes("braucht eine Grafikkarte"));
       await page.evaluate(() => localStorage.setItem("schaf-ki-cpu", "1"));
       await page.reload();

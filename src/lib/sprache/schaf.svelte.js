@@ -63,6 +63,18 @@ class FragDasSchaf {
   #kiPending = new Map();
   #kiLoad = null;
 
+  // LFM3-Audio (Prototyp): zuhören und vorlesen mit einem Modell, nur mit Grafikkarte
+  audio = $state("aus"); // aus | lädt | bereit | fehler
+  audioProgress = $state(0);
+  audioStatus = $state("");
+  audioError = $state("");
+  audioLastMs = $state({ asr: 0, tts: 0 });
+  #audioWorker = null;
+  #audioSeq = 0;
+  #audioPending = new Map();
+  #audioLoad = null;
+  #player = null;
+
   #worker = null;
   #seq = 0;
   #pending = new Map();
@@ -123,7 +135,8 @@ class FragDasSchaf {
     this.heard = "";
     this.#pauseMusic();
     try {
-      if (!this.modelReady) {
+      const lfm3 = settings.value.audioModell && this.audio === "bereit";
+      if (!lfm3 && !this.modelReady) {
         this.phase = "loading";
         await this.loadModel();
       }
@@ -138,7 +151,22 @@ class FragDasSchaf {
       if (heardVoice && audio.length > 1600) {
         this.phase = "thinking";
         const fake = globalThis.__schafFakeErkennung;
-        const out = fake ? { text: await fake(audio), ms: 0 } : await this.#call({ type: "transcribe", audio });
+        let out = null;
+        if (fake) out = { text: await fake(audio), ms: 0 };
+        else if (lfm3) {
+          // LFM3-Audio hört zu; klappt es nicht, übernimmt Whisper
+          out = await this.#audioCall({ type: "transcribe", audio: audio.slice() }).then((o) => {
+            this.audioLastMs = { ...this.audioLastMs, asr: o.ms };
+            return o;
+          }, (err) => {
+            console.warn("LFM3-Audio: Erkennung", err);
+            return null;
+          });
+        }
+        if (!out) {
+          if (!this.modelReady) await this.loadModel();
+          out = await this.#call({ type: "transcribe", audio });
+        }
         text = out.text;
         this.lastMs = out.ms;
       }
@@ -199,7 +227,7 @@ class FragDasSchaf {
         if (ki) {
           this.reply = { say: ki.text, choices: ki.products, ki: true };
           this.#remember({ text, intent: "ki", product: ki.products.map((p) => p.name.replace(/\u00ad/g, "")).join(", ") || null, answer: ki.text });
-          await speak(ki.text);
+          await this.#say(ki.text);
           if (this.phase === "answer") this.#resumeMusic();
           return this.reply;
         }
@@ -216,7 +244,7 @@ class FragDasSchaf {
     this.reply = reply;
     this.phase = "answer";
     this.#remember({ text, intent: result.intent, product: result.product?.name.replace(/\u00ad/g, "") ?? null, category: result.category?.name ?? null });
-    await speak(reply.say);
+    await this.#say(reply.say);
     if (this.phase === "answer") this.#resumeMusic();
     return reply;
   }
@@ -227,7 +255,7 @@ class FragDasSchaf {
     cart.add(product);
     const reply = answer({ intent: "add", product, candidates: [] });
     this.reply = reply;
-    await speak(reply.say);
+    await this.#say(reply.say);
   }
 
   /** Bild aus der Auswahl angetippt: wie „Was kostet …?“. Die Eltern sehen die Zuordnung im Protokoll. */
@@ -236,7 +264,7 @@ class FragDasSchaf {
     const reply = answer({ intent: "product", product, candidates: [] });
     this.reply = reply;
     if (heard) this.#remember({ text: heard, intent: "gewählt", product: product.name.replace(/\u00ad/g, ""), productId: product.id });
-    await speak(reply.say);
+    await this.#say(reply.say);
   }
 
   #kiCall(msg, onEvent) {
@@ -327,7 +355,109 @@ class FragDasSchaf {
     }
   }
 
+  #audioCall(msg, onEvent) {
+    if (!this.#audioWorker) {
+      this.#audioWorker = new Worker(new URL("./audiomodell.worker.js", import.meta.url), { type: "module" });
+      this.#audioWorker.onmessage = ({ data }) => {
+        const p = this.#audioPending.get(data.id);
+        if (!p) return;
+        if (["progress", "status", "frame"].includes(data.type)) return p.onEvent?.(data);
+        this.#audioPending.delete(data.id);
+        if (data.type === "error") p.reject(new Error(data.message));
+        else p.resolve(data);
+      };
+    }
+    const id = ++this.#audioSeq;
+    return new Promise((resolve, reject) => {
+      this.#audioPending.set(id, { resolve, reject, onEvent });
+      this.#audioWorker.postMessage({ id, ...msg }, msg.audio ? [msg.audio.buffer] : []);
+    });
+  }
+
+  /** Lädt LFM3-Audio (Eltern-Bereich). Beim ersten Mal ca. 2,4 GB. */
+  loadAudioModel() {
+    if (this.audio === "bereit") return Promise.resolve();
+    if (this.#audioLoad) return this.#audioLoad;
+    this.#audioLoad = (async () => {
+      this.audio = "lädt";
+      this.audioError = "";
+      this.audioProgress = 0;
+      try {
+        if (globalThis.__schafFakeAudio) {
+          this.audio = "bereit";
+          return;
+        }
+        await this.#audioCall({ type: "load" }, (e) => {
+          if (e.type === "progress") this.audioProgress = e.total ? e.loaded / e.total : 0;
+          if (e.type === "status") this.audioStatus = e.text;
+        });
+        this.audio = "bereit";
+      } catch (err) {
+        console.warn("LFM3-Audio", err);
+        this.audio = "fehler";
+        this.audioError = /WebGPU|Grafikkarte/.test(err?.message) ? "Dieses Gerät hat keine Grafikkarte im Browser (WebGPU)." : /memory|Memory|allocation|OOM|Array buffer/i.test(err?.message) ? "Zu wenig Speicher für LFM3-Audio auf diesem Gerät." : "LFM3-Audio ließ sich nicht starten: " + (err?.message ?? "").slice(0, 160);
+        this.resetAudioModel(true);
+      } finally {
+        this.#audioLoad = null;
+        this.audioStatus = "";
+      }
+    })();
+    return this.#audioLoad;
+  }
+
+  resetAudioModel(keepError = false) {
+    this.#audioWorker?.terminate();
+    this.#audioWorker = null;
+    this.#audioPending.clear();
+    this.#audioLoad = null;
+    if (!keepError) this.audio = "aus";
+  }
+
+  /** Vorlesen: mit LFM3-Audio, wenn eingeschaltet und geladen, sonst mit der Stimme des Systems. */
+  async #say(text) {
+    if (settings.value.audioModell && this.audio === "bereit" && !globalThis.__schafFakeAudio) {
+      try {
+        const out = await this.#audioCall({ type: "speak", text });
+        this.audioLastMs = { ...this.audioLastMs, tts: out.ms };
+        if (this.phase === "idle") return;
+        await this.#play(out.wave, 24000);
+        return;
+      } catch (err) {
+        console.warn("LFM3-Audio: Vorlesen", err);
+      }
+    }
+    await speak(text);
+  }
+
+  /** Probe im Eltern-Bereich */
+  async sayWithAudioModel(text) {
+    const out = await this.#audioCall({ type: "speak", text });
+    this.audioLastMs = { ...this.audioLastMs, tts: out.ms };
+    await this.#play(out.wave, 24000);
+  }
+
+  async #play(wave, rate) {
+    const ctx = new AudioContext();
+    const buf = ctx.createBuffer(1, wave.length, rate);
+    buf.copyToChannel(wave, 0);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    this.#player = { ctx, src };
+    await new Promise((resolve) => {
+      src.onended = resolve;
+      src.start();
+    });
+    ctx.close().catch(() => {});
+    this.#player = null;
+  }
+
   close() {
+    try {
+      this.#player?.src.stop();
+    } catch {
+      // schon zu Ende
+    }
     if (this.ki === "bereit") this.#kiCall({ type: "stop" }).catch(() => {});
     this.#recording?.stop();
     stopSpeaking();
