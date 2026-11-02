@@ -47,9 +47,11 @@ export function buildMessages(question, { products, categories = [], cart = [] }
         "- Empfiehl nur Produkte aus dem Sortiment unten, mit genau diesem Namen. Erfinde nichts dazu.\n" +
         "- Nenne keine Preise und keine Zahlen.\n" +
         "- Ist die Frage nicht zum Einkaufen, antworte kurz und lieb und frag, was das Kind kaufen möchte.\n\n" +
-        `Sortiment:\n${sortiment}\n\nWissen über das Sortiment:\n${knowledgeLines()}\n\n${korb}`,
+        `Sortiment:\n${sortiment}\n\nWissen über das Sortiment:\n${knowledgeLines()}`,
     },
-    { role: "user", content: question },
+    // Der Korb steht bei der Frage: so bleibt der lange Systemteil gleich und das Modell kann ihn
+    // einmal vorrechnen und behalten (Präfix-Speicher in lfm3audio.js)
+    { role: "user", content: `(${korb}) ${question}` },
   ];
 }
 

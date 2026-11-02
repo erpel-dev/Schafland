@@ -5,7 +5,7 @@ name: LFM3-Omni
 
 on:
   push:
-    branches: [lfm3-audio, main]
+    branches: [lfm3-audio, main, ki-tests]
     paths: ["src/lib/sprache/lfm3audio.js", "src/lib/sprache/ki.js", "tests/lfm3/**", ".github/workflows/lfm3-audio.yml"]
   workflow_dispatch:
 

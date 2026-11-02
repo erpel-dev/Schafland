@@ -973,7 +973,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await page.evaluate(() => window.__fragDasSchaf.hear("Was schmeckt lecker?"));
       check("Offene Frage: KI-Antwort", (await page.textContent(".panel .big")).trim() === "Äpfel und Bananen sind gesund!");
       check("Offene Frage: empfohlene Produkte als Bilder", (await page.locator(".choice").count()) === 2);
-      const prompt = await page.evaluate(() => window.__kiPrompt[0].content);
+      const prompt = await page.evaluate(() => window.__kiPrompt.map((m) => m.content).join("\n"));
       check("KI bekommt Sortiment und Korb, keine Preise", prompt.includes("Obst: Apfel, Banane") && /Im Korb liegt schon|Der Korb ist leer/.test(prompt) && !/\d+,\d\d/.test(prompt));
       await wait(400);
       await page.screenshot({ path: `${SHOTS}/schaf-ki-antwort.png` });
@@ -997,7 +997,6 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       check("Späte KI-Antwort einer abgebrochenen Frage wird verworfen", (await page.textContent(".panel .big")).includes("Die Birne kostet 60 Cent"), await page.textContent(".panel .big"));
       await page.click(".panel .x");
       await page.evaluate(() => { window.__schafFakeKi = window.__schafFakeKiBackup; });
-      await page.click(".panel .x");
 
       // Eltern: Protokoll und Aussprache merken
       await openSettings(page);

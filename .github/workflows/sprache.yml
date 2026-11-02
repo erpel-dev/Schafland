@@ -4,7 +4,7 @@ name: Frag das Schaf
 
 on:
   push:
-    branches: [main, frag-das-schaf]
+    branches: [main, frag-das-schaf, ki-tests]
     paths: ["src/lib/sprache/**", "src/components/FragDasSchaf.svelte", "tests/e2e/sprache-echt.mjs", "tests/e2e/ki-echt.mjs", ".github/workflows/sprache.yml", "package-lock.json"]
   workflow_dispatch:
 

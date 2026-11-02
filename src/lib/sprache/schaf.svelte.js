@@ -108,24 +108,50 @@ class FragDasSchaf {
   }
 
   /** Lädt das Erkennungsmodell (beim ersten Mal aus dem Internet, danach aus dem Speicher). */
-  async loadModel() {
+  loadModel() {
     if (globalThis.__schafFakeErkennung) return void (this.modelReady = true); // Tests ohne Modell
-    const model = MODELLE[settings.value.fragModell] ?? MODELLE.base;
-    this.progress = 0;
-    await this.#call({ type: "load", model: model.id, wasm: { wasm: abs(ortWasm), mjs: abs(ortMjs) } }, ({ loaded, total }) => {
-      this.progress = total ? loaded / total : 0;
-    });
-    this.modelReady = true;
-    this.progress = 1;
+    if (this.modelReady) return Promise.resolve();
+    // nur einmal gleichzeitig (Vorladen und erste Frage können sich treffen)
+    this.#modelLoad ??= (async () => {
+      const model = MODELLE[settings.value.fragModell] ?? MODELLE.base;
+      this.progress = 0;
+      await this.#call({ type: "load", model: model.id, wasm: { wasm: abs(ortWasm), mjs: abs(ortMjs) } }, ({ loaded, total }) => {
+        this.progress = total ? loaded / total : 0;
+      });
+      this.modelReady = true;
+      this.progress = 1;
+    })().finally(() => (this.#modelLoad = null));
+    return this.#modelLoad;
   }
+  #modelLoad = null;
 
   /** Modell neu laden, z. B. nach einem Wechsel zwischen „Genau“ und „Schnell“. */
   resetModel() {
     this.#worker?.terminate();
     this.#worker = null;
     rejectAll(this.#pending, "Spracherkennung wird neu gestartet");
+    this.#modelLoad = null;
     this.modelReady = false;
   }
+
+  /**
+   * Beim Öffnen des Ladens: eingeschaltete Modelle im Hintergrund laden, damit die erste Frage nicht
+   * wartet. LFM3-Omni nur, wenn es schon einmal heruntergeladen wurde (kein 2,6-GB-Download nebenbei).
+   */
+  warmUp(delayMs = 2500) {
+    if (!settings.value.fragSchaf || this.#warm) return;
+    this.#warm = true;
+    setTimeout(async () => {
+      try {
+        if (settings.value.audioModell && this.audio === "aus" && (await omniCached())) await this.loadAudioModel();
+        if (!this.modelReady && !(settings.value.audioModell && this.audio === "bereit")) await this.loadModel();
+        if (settings.value.kiAn && this.ki === "aus" && !this.kiViaAudio) await this.loadKi();
+      } catch (err) {
+        console.warn("Vorladen", err);
+      }
+    }, delayMs);
+  }
+  #warm = false;
 
   /** Knopf „Frag das Schaf“: zuhören, verstehen, antworten. Nochmal tippen beendet das Zuhören. */
   async ask() {
@@ -593,6 +619,16 @@ class FragDasSchaf {
   #resumeMusic() {
     if (this.#musicWasOn) music.play();
     this.#musicWasOn = false;
+  }
+}
+
+/** Liegt LFM3-Omni schon im Browser-Speicher? */
+async function omniCached() {
+  try {
+    const cache = await caches.open("lfm3-omni-v1");
+    return (await cache.keys()).some((r) => r.url.includes("decoder_q4f16.onnx_data"));
+  } catch {
+    return false;
   }
 }
 

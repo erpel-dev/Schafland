@@ -244,11 +244,12 @@
       const crop = grab(Math.round((w - side) / 2), Math.round((h - side) / 2), side, side);
       const full = grab(0, 0, w, h);
       const { product, candidates, tries } = await schaf.recognizeProduct({ crop, full });
-      if (!alive) return; // inzwischen „Fertig gescannt“: nichts mehr in den Korb legen
+      scanLog.add({
         code: "Kamerabild",
         result: product ? `erkannt: ${product.name}` : candidates.length ? "unsicher" : "nicht erkannt",
         trace: [...tries.map((t) => `${t.what}: „${t.answer}“`), `${((Date.now() - t0) / 1000).toFixed(1)} s`],
       });
+      if (!alive) return; // inzwischen „Fertig gescannt“: nichts mehr in den Korb legen
       if (product) {
         beep();
         found = { product, source: "Bilderkennung" };

@@ -55,6 +55,7 @@
     keepAwake();
     // In der APK sorgt Android für das Vollbild
     if (!isNativeApp) document.documentElement.requestFullscreen?.().catch(() => {});
+    schaf.warmUp();
     await music.regainPermission();
     if (settings.value.musicAutoplay && music.tracks.length) music.play();
   }

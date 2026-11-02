@@ -21,9 +21,9 @@ test("Prompt enthält Sortiment und Regeln, keine Preise", () => {
   assert.equal(m.length, 2);
   assert.match(m[0].content, /Obst: Apfel, Banane, Birne/);
   assert.match(m[0].content, /Kaiserbrötchen/); // ohne weiches Trennzeichen
-  assert.match(m[0].content, /Im Korb liegt schon: 2× Banane/);
+  assert.match(m[1].content, /^\(Im Korb liegt schon: 2× Banane\.\) Was ist gesund\?$/);
   assert.doesNotMatch(m[0].content, /\d+,\d\d|€/);
-  assert.equal(m[1].content, "Was ist gesund?");
+
 });
 
 test("Erwähnte Produkte finden", () => {

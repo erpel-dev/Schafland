@@ -119,14 +119,20 @@ for (const [say, expect] of [
 }
 
 // 3. Freie Fragen mit demselben Modell (Stufe 2 ohne zweites Modell)
-for (const q of ["Was schmeckt lecker?", "Was kann ich meiner Oma kaufen?", "Was essen Schafe?", "Welches Obst ist rund?", "Was brauche ich für einen Kuchen?"]) {
+const chatTimes = [];
+for (const q of ["Was schmeckt lecker?", "Was kann ich meiner Oma kaufen?", "Was essen Schafe?", "Welches Obst ist rund?", "Was brauche ich für einen Kuchen?", "Was schmeckt lecker?"]) {
   t = performance.now();
   const raw = await model.chat(buildMessages(q, { products, categories }));
   const checked = checkAnswer(raw, { products });
   const names = checked?.products.map((p) => p.name.replace(/\u00ad/g, "")).join(", ") || "—";
   // geprüft wird, was die App garantiert: kurz, ohne Zahlen; die Qualität steht im Protokoll
+  chatTimes.push({ q, raw, ms: performance.now() - t });
   check(`Frage „${q}“`, !!checked, `roh: „${raw.slice(0, 160)}“ → „${checked?.text ?? "(verworfen)"}“, Bilder: ${names} (${secs(t)})`);
 }
+
+// Präfix-Speicher: Die erste Frage rechnet den Systemteil, die späteren nicht mehr; gleiche Frage → gleiche Antwort
+check("Präfix-Speicher: gleiche Frage, gleiche Antwort", chatTimes[0].raw === chatTimes.at(-1).raw, `„${chatTimes[0].raw}“ / „${chatTimes.at(-1).raw}“`);
+check("Präfix-Speicher: spätere Fragen schneller", chatTimes.at(-1).ms < chatTimes[0].ms, `erste ${(chatTimes[0].ms / 1000).toFixed(1)} s, gleiche später ${(chatTimes.at(-1).ms / 1000).toFixed(1)} s`);
 
 // 4. Produkte auf Bildern erkennen, mit demselben Ablauf wie die App (schaf.recognizeProduct):
 //    Bildmitte mit Sortimentsliste → Bildmitte frei benennen → ganzes Bild mit Liste

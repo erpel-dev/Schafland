@@ -48,6 +48,10 @@ func handler(site fs.FS) http.Handler {
 		}
 		// Immer frisch ausliefern: nur so findet der Offline-Speicher der App neue Versionen
 		w.Header().Set("Cache-Control", "no-cache")
+		// „cross-origin isolated“: Spracherkennung darf mehrere Prozessorkerne nutzen.
+		// credentialless: Produktbilder anderer Server laden weiter (ohne Cookies).
+		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
+		w.Header().Set("Cross-Origin-Embedder-Policy", "credentialless")
 		files.ServeHTTP(w, r)
 	})
 }
