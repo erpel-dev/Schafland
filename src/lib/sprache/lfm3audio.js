@@ -333,6 +333,19 @@ export class Lfm3Audio {
     return Array.from(this.tokenizer.encode(text, { add_special_tokens: false }), Number);
   }
 
+  /** Neue Erzeugung: Speicher der vorigen freigeben (es läuft immer nur eine) */
+  newState() {
+    if (this.lastState) this.release(this.lastState);
+    this.lastState = { past: 0, cache: this.emptyCache() };
+    return this.lastState;
+  }
+
+  /** Zwischenspeicher einer fertigen Erzeugung freigeben (auf der Grafikkarte sonst ein Leck) */
+  release(state) {
+    for (const t of Object.values(state.cache)) t?.dispose?.();
+    state.cache = {};
+  }
+
   emptyCache() {
     const cache = {};
     const fp16 = this.cacheType === "float16";
@@ -390,7 +403,7 @@ export class Lfm3Audio {
     const system = messages.find((m) => m.role === "system")?.content ?? "";
     const user = messages.filter((m) => m.role === "user").at(-1)?.content ?? "";
     const ids = this.ids(chatPrompt(system, user));
-    const state = { past: 0, cache: this.emptyCache() };
+    const state = this.newState();
     let { logits } = await this.prefill(state, ids);
     const vocab = logits.length;
     const suppress = new Set([TOKENS.audio, TOKENS.audioOut, TOKENS.audioStart, TOKENS.mixedStart]);
@@ -443,7 +456,7 @@ export class Lfm3Audio {
     const at = prompt.indexOf(VISION.imageToken);
     if (at < 0) throw new Error("Tokenizer kennt <|image|> nicht");
     const ids = [...prompt.slice(0, at), ...Array(rows).fill(VISION.imageToken), ...prompt.slice(at + 1)];
-    const state = { past: 0, cache: this.emptyCache() };
+    const state = this.newState();
     const first = await this.step(state, ids, { imageFeatures: features, imageRows: rows });
     return this.#generateText(state, first, maxTokens);
   }
@@ -463,7 +476,7 @@ export class Lfm3Audio {
     const at = prompt.indexOf(TOKENS.audio);
     if (at < 0) throw new Error("Tokenizer kennt <|audio|> nicht");
     const ids = [...prompt.slice(0, at), ...Array(rows).fill(TOKENS.audio), ...prompt.slice(at + 1)];
-    const state = { past: 0, cache: this.emptyCache() };
+    const state = this.newState();
     let { logits } = await this.step(state, ids, { audioFeatures: features, audioRows: rows });
     const vocab = logits.length;
     const suppress = new Set([TOKENS.audio, TOKENS.audioOut, TOKENS.audioStart, TOKENS.mixedStart]);
@@ -481,7 +494,7 @@ export class Lfm3Audio {
   async speak(text, { language = "German", voice = "female", maxFrames = 400, seed = null, onFrame = () => {} } = {}) {
     const rng = makeRng(seed);
     const ids = this.ids(ttsPrompt(text, { language, voice, omni: this.omni }));
-    const state = { past: 0, cache: this.emptyCache() };
+    const state = this.newState();
     let { hidden } = await this.step(state, ids);
     const frames = [];
     for (let f = 0; f < maxFrames; f++) {

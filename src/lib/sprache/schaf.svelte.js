@@ -374,9 +374,13 @@ class FragDasSchaf {
         if (!p) return;
         if (["progress", "status", "frame", "token"].includes(data.type)) return p.onEvent?.(data);
         this.#audioPending.delete(data.id);
-        if (data.type === "error") p.reject(new Error(data.message));
-        else p.resolve(data);
+        if (data.type === "error") {
+          p.reject(new Error(data.message));
+          // Speicher der Rechen-Engine übergelaufen: Modell im Hintergrund neu starten (aus dem Browser-Speicher)
+          if (/memory access out of bounds|out of memory|Aborted|RuntimeError|unreachable/i.test(data.message)) this.#restartAudioModel(data.message);
+        } else p.resolve(data);
       };
+      this.#audioWorker.onerror = (e) => this.#restartAudioModel(e.message ?? "Absturz");
     }
     const id = ++this.#audioSeq;
     return new Promise((resolve, reject) => {
@@ -422,6 +426,17 @@ class FragDasSchaf {
     return this.#audioLoad;
   }
 
+  audioRestarts = $state(0);
+
+  #restartAudioModel(reason) {
+    if (this.audio !== "bereit") return;
+    console.warn("LFM3-Omni neu starten:", reason);
+    this.audioRestarts++;
+    for (const p of this.#audioPending.values()) p.reject(new Error("Modell wird neu gestartet"));
+    this.resetAudioModel();
+    setTimeout(() => this.loadAudioModel(), 500);
+  }
+
   resetAudioModel(keepError = false) {
     this.#audioWorker?.terminate();
     this.#audioWorker = null;
@@ -432,7 +447,7 @@ class FragDasSchaf {
 
   /** Vorlesen: mit LFM3-Audio, wenn eingeschaltet und geladen, sonst mit der Stimme des Systems. */
   async #say(text) {
-    if (settings.value.audioModell && this.audio === "bereit" && !globalThis.__schafFakeAudio) {
+    if (settings.value.audioModell && settings.value.omniStimme && this.audio === "bereit" && !globalThis.__schafFakeAudio) {
       try {
         const out = await this.#audioCall({ type: "speak", text });
         this.audioLastMs = { ...this.audioLastMs, tts: out.ms };

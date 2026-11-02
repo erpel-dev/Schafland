@@ -86,7 +86,7 @@
     try {
       await schaf.sayWithAudioModel("Hallo! Ich bin das Schaf von Schafland. Was möchtest du kaufen?");
     } catch (err) {
-      audioTestError = "Vorlesen ging nicht: " + (err?.message ?? err);
+      audioTestError = /memory|Speicher|neu gestartet/i.test(err?.message ?? "") ? "Der Speicher der Grafik-Rechnung ist übergelaufen. Das Modell startet neu (dauert etwas), danach nochmal versuchen." : "Vorlesen ging nicht: " + (err?.message ?? err);
     } finally {
       audioTesting = false;
     }
@@ -425,6 +425,11 @@
                 {/if}
               </div>
               {#if schaf.audio === "fehler"}<p class="err">{schaf.audioError}</p>{/if}
+              {#if schaf.audioRestarts}<small class="muted">Nach einem Speicherüberlauf neu gestartet ({schaf.audioRestarts}×).</small>{/if}
+              <div class="row">
+                <Toggle id="omni-stimme" label="Natürliche Stimme" checked={settings.value.omniStimme} onchange={(v) => settings.set({ omniStimme: v })} />
+                <span class="muted">Natürliche Stimme von LFM3-Omni zum Vorlesen. Klingt schöner, braucht aber pro Satz etliche Sekunden. Aus: die schnelle Stimme des Systems.</span>
+              </div>
               {#if audioTestError}<p class="err">{audioTestError}</p>{/if}
               {#if schaf.audioLastMs.asr || schaf.audioLastMs.tts}
                 <small class="muted">Zuletzt: Erkennen {(schaf.audioLastMs.asr / 1000).toFixed(1)} s, Vorlesen {(schaf.audioLastMs.tts / 1000).toFixed(1)} s{schaf.audioLastMs.bild ? `, Bild ${(schaf.audioLastMs.bild / 1000).toFixed(1)} s` : ""}</small>

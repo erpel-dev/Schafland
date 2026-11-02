@@ -23,6 +23,17 @@ ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardw
 
 let model = null;
 
+/** present_conv.N / present.N.key / .value → auf der Grafikkarte lassen (24 Schichten) */
+function cacheOutputsOnGpu() {
+  const map = {};
+  for (let i = 0; i < 24; i++) {
+    map[`present_conv.${i}`] = "gpu-buffer";
+    map[`present.${i}.key`] = "gpu-buffer";
+    map[`present.${i}.value`] = "gpu-buffer";
+  }
+  return map;
+}
+
 /** Datei aus dem Browser-Speicher oder (beim ersten Mal) aus dem Internet, mit Fortschritt. */
 async function file(name, onBytes) {
   const cache = await caches.open(CACHE);
@@ -75,6 +86,12 @@ async function load(post) {
       executionProviders: ["webgpu"],
       externalData: [{ path: data, data: dataBytes }],
       graphOptimizationLevel: "all",
+      // Browser-Speicher (wasm) ist knapp: keine wachsenden Vorrats-Speicher auf dem Prozessor …
+      enableCpuMemArena: false,
+      enableMemPattern: false,
+      // … und die Zwischenspeicher des Decoders bleiben auf der Grafikkarte, statt bei jedem Schritt
+      // hin- und herkopiert zu werden
+      ...(role === "decoder" ? { preferredOutputLocation: cacheOutputsOnGpu() } : {}),
     });
   }
   model = new Lfm3Audio({ ort, sessions, tokenizer, variant: "omni" });

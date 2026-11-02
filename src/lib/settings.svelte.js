@@ -19,7 +19,8 @@ const DEFAULTS = {
   sprachAliases: [], // [{ heard, productId }]: so spricht das Kind ein Produkt aus
   kiAn: false, // Stufe 2: freie Fragen mit Sprachmodell
   kiModell: "klein", // klein (LFM2.5-350M) | gross (LFM3-1.7B)
-  audioModell: false, // Prototyp: LFM3-Audio hört zu und liest vor (nur mit Grafikkarte)
+  audioModell: false, // Prototyp: LFM3-Omni hört zu, antwortet, erkennt Bilder (nur mit Grafikkarte)
+  omniStimme: false, // LFM3-Omni liest auch vor (natürlich, aber langsam); sonst Stimme des Systems
 };
 
 class Settings {
