@@ -77,6 +77,9 @@ class FragDasSchaf {
 
   #worker = null;
   #seq = 0;
+  #turn = 0; // jede Frage bekommt eine Nummer; späte Ergebnisse einer alten Frage werden verworfen
+  #kiGen = 0;
+  #audioGen = 0;
   #pending = new Map();
   #recording = null;
   #musicWasOn = false;
@@ -120,7 +123,7 @@ class FragDasSchaf {
   resetModel() {
     this.#worker?.terminate();
     this.#worker = null;
-    this.#pending.clear();
+    rejectAll(this.#pending, "Spracherkennung wird neu gestartet");
     this.modelReady = false;
   }
 
@@ -128,8 +131,10 @@ class FragDasSchaf {
   async ask() {
     if (this.phase === "listening") return this.#recording?.stop();
     if (this.phase === "loading" || this.phase === "thinking") return;
+    const turn = ++this.#turn;
     unlockAudio();
     stopSpeaking();
+    this.#stopPlayer();
     this.error = "";
     this.reply = null;
     this.heard = "";
@@ -143,10 +148,11 @@ class FragDasSchaf {
       // Stufe 2 im Hintergrund vorbereiten (aus dem Speicher, wenn schon einmal geladen)
       if (settings.value.kiAn && this.ki === "aus" && !this.kiViaAudio) this.loadKi();
       this.phase = "listening";
+      if (turn !== this.#turn) return;
       this.#recording = await record({ onLevel: (l) => (this.level = l) });
       const { audio, heardVoice } = await this.#recording.done;
       this.#recording = null;
-      if (this.phase !== "listening") return; // inzwischen geschlossen
+      if (turn !== this.#turn || this.phase !== "listening") return; // inzwischen geschlossen
       let text = "";
       if (heardVoice && audio.length > 1600) {
         this.phase = "thinking";
@@ -170,9 +176,10 @@ class FragDasSchaf {
         text = out.text;
         this.lastMs = out.ms;
       }
-      if (this.phase !== "thinking" && this.phase !== "listening") return;
-      await this.hear(text);
+      if (turn !== this.#turn) return;
+      await this.hear(text, turn);
     } catch (err) {
+      if (turn !== this.#turn) return;
       console.warn("Frag das Schaf", err);
       this.phase = "error";
       this.error = describe(err);
@@ -212,7 +219,7 @@ class FragDasSchaf {
   }
 
   /** Versteht einen Satz und antwortet (auch für Tests: ohne Mikrofon). */
-  async hear(text) {
+  async hear(text, turn = ++this.#turn) {
     const { result, reply } = this.#resolve(text);
     // Stufe 2: offene Fragen an das Sprachmodell, wenn es eingeschaltet und geladen ist
     if (settings.value.kiAn && (this.ki === "bereit" || this.kiViaAudio) && isOpenQuestion(result)) {
@@ -221,9 +228,9 @@ class FragDasSchaf {
       this.phase = "answer";
       try {
         const ki = await this.askKi(text, (raw) => {
-          if (this.reply?.streaming) this.reply = { say: raw, streaming: true };
+          if (turn === this.#turn && this.reply?.streaming) this.reply = { say: raw, streaming: true };
         });
-        if (this.phase !== "answer") return;
+        if (turn !== this.#turn || this.phase !== "answer") return;
         if (ki) {
           this.reply = { say: ki.text, choices: ki.products, ki: true };
           this.#remember({ text, intent: "ki", product: ki.products.map((p) => p.name.replace(/\u00ad/g, "")).join(", ") || null, answer: ki.text });
@@ -234,6 +241,7 @@ class FragDasSchaf {
       } catch (err) {
         console.warn("Sprachmodell", err);
       }
+      if (turn !== this.#turn) return;
       // nichts Brauchbares: Antwort aus Stufe 1
     }
     if (reply.added) {
@@ -253,7 +261,7 @@ class FragDasSchaf {
   async confirmAdd(product) {
     pop();
     cart.add(product);
-    const reply = answer({ intent: "add", product, candidates: [] });
+    const reply = { ...answer({ intent: "add", product, candidates: [] }), picked: true };
     this.reply = reply;
     await this.#say(reply.say);
   }
@@ -261,7 +269,7 @@ class FragDasSchaf {
   /** Bild aus der Auswahl angetippt: wie „Was kostet …?“. Die Eltern sehen die Zuordnung im Protokoll. */
   async choose(product) {
     const heard = this.heard;
-    const reply = answer({ intent: "product", product, candidates: [] });
+    const reply = { ...answer({ intent: "product", product, candidates: [] }), picked: true };
     this.reply = reply;
     if (heard) this.#remember({ text: heard, intent: "gewählt", product: product.name.replace(/\u00ad/g, ""), productId: product.id });
     await this.#say(reply.say);
@@ -291,6 +299,7 @@ class FragDasSchaf {
     if (this.ki === "bereit") return Promise.resolve();
     if (globalThis.__schafFakeKi) return void (this.ki = "bereit", (this.kiDevice = "test")); // Tests ohne Modell
     if (this.#kiLoad) return this.#kiLoad;
+    const gen = this.#kiGen;
     this.#kiLoad = (async () => {
       const model = KI_MODELLE[settings.value.kiModell] ?? KI_MODELLE.klein;
       this.ki = "lädt";
@@ -304,26 +313,29 @@ class FragDasSchaf {
         await this.#kiCall({ type: "load", model: model.id, dtype, device, wasm: { wasm: abs(ortWasm), mjs: abs(ortMjs) } }, ({ loaded, total }) => {
           this.kiProgress = total ? loaded / total : 0;
         });
+        if (gen !== this.#kiGen) return;
         this.kiDevice = device;
         this.ki = "bereit";
       } catch (err) {
+        if (gen !== this.#kiGen) return; // inzwischen abgeschaltet oder gewechselt
         console.warn("Sprachmodell", err);
         this.ki = "fehler";
         this.kiError = describeKi(err);
         this.#ki?.terminate();
         this.#ki = null;
-        this.#kiPending.clear();
+        rejectAll(this.#kiPending, "Sprachmodell gestoppt");
       } finally {
-        this.#kiLoad = null;
+        if (gen === this.#kiGen) this.#kiLoad = null;
       }
     })();
     return this.#kiLoad;
   }
 
   resetKi() {
+    this.#kiGen++;
     this.#ki?.terminate();
     this.#ki = null;
-    this.#kiPending.clear();
+    rejectAll(this.#kiPending, "Sprachmodell wird neu gestartet");
     this.#kiLoad = null;
     this.ki = "aus";
   }
@@ -398,6 +410,7 @@ class FragDasSchaf {
   loadAudioModel() {
     if (this.audio === "bereit") return Promise.resolve();
     if (this.#audioLoad) return this.#audioLoad;
+    const gen = this.#audioGen;
     this.#audioLoad = (async () => {
       this.audio = "lädt";
       this.audioError = "";
@@ -412,15 +425,19 @@ class FragDasSchaf {
           if (e.type === "progress") this.audioProgress = e.total ? e.loaded / e.total : 0;
           if (e.type === "status") this.audioStatus = e.text;
         });
+        if (gen !== this.#audioGen) return;
         this.audio = "bereit";
       } catch (err) {
+        if (gen !== this.#audioGen) return; // inzwischen abgeschaltet
         console.warn("LFM3-Audio", err);
         this.audio = "fehler";
         this.audioError = /WebGPU|Grafikkarte/.test(err?.message) ? "Dieses Gerät hat keine Grafikkarte im Browser (WebGPU)." : /memory|Memory|allocation|OOM|Array buffer/i.test(err?.message) ? "Zu wenig Speicher für LFM3-Omni auf diesem Gerät." : "LFM3-Omni ließ sich nicht starten: " + (err?.message ?? "").slice(0, 160);
         this.resetAudioModel(true);
       } finally {
-        this.#audioLoad = null;
-        this.audioStatus = "";
+        if (gen === this.#audioGen) {
+          this.#audioLoad = null;
+          this.audioStatus = "";
+        }
       }
     })();
     return this.#audioLoad;
@@ -432,15 +449,15 @@ class FragDasSchaf {
     if (this.audio !== "bereit") return;
     console.warn("LFM3-Omni neu starten:", reason);
     this.audioRestarts++;
-    for (const p of this.#audioPending.values()) p.reject(new Error("Modell wird neu gestartet"));
     this.resetAudioModel();
     setTimeout(() => this.loadAudioModel(), 500);
   }
 
   resetAudioModel(keepError = false) {
+    if (!keepError) this.#audioGen++;
     this.#audioWorker?.terminate();
     this.#audioWorker = null;
-    this.#audioPending.clear();
+    rejectAll(this.#audioPending, "Modell wird neu gestartet");
     this.#audioLoad = null;
     if (!keepError) this.audio = "aus";
   }
@@ -526,13 +543,20 @@ class FragDasSchaf {
     this.#player = null;
   }
 
-  close() {
+  #stopPlayer() {
     try {
       this.#player?.src.stop();
     } catch {
       // schon zu Ende
     }
+  }
+
+  close() {
+    this.#turn++;
+    this.#stopPlayer();
     if (this.ki === "bereit") this.#kiCall({ type: "stop" }).catch(() => {});
+    // LFM3-Omni schreibt evtl. noch an einer Antwort: anhalten, damit die nächste Frage nicht wartet
+    if (this.kiViaAudio) this.#audioCall({ type: "stop" }).catch(() => {});
     this.#recording?.stop();
     stopSpeaking();
     this.phase = "idle";
@@ -570,6 +594,12 @@ class FragDasSchaf {
     if (this.#musicWasOn) music.play();
     this.#musicWasOn = false;
   }
+}
+
+/** Offene Anfragen an einen beendeten Hintergrundprozess beantworten, damit nichts ewig wartet. */
+function rejectAll(pending, why) {
+  for (const p of pending.values()) p.reject(new Error(why));
+  pending.clear();
 }
 
 function describe(err) {
