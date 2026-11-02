@@ -21,7 +21,7 @@ jobs:
           cache: npm
 
       - name: Abhängigkeiten
-        run: npm ci
+        run: ok=; for i in 1 2 3; do npm ci && ok=1 && break; echo "npm ci fehlgeschlagen, neuer Versuch"; sleep 15; done; [ -n "$ok" ]
 
       - name: Unit-Tests
         run: npm test

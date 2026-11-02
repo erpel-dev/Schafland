@@ -23,7 +23,7 @@ jobs:
 
       - name: Abhängigkeiten
         run: |
-          npm ci
+          ok=; for i in 1 2 3; do npm ci && ok=1 && break; echo "npm ci fehlgeschlagen, neuer Versuch"; sleep 15; done; [ -n "$ok" ]
           sudo apt-get install -y -qq ffmpeg libttspico-utils fonts-noto-color-emoji >/dev/null || sudo apt-get install -y -qq ffmpeg espeak-ng fonts-noto-color-emoji >/dev/null
           npx playwright install --with-deps chromium
           pip install --quiet huggingface_hub
