@@ -143,9 +143,13 @@ class FragDasSchaf {
     this.#warm = true;
     setTimeout(async () => {
       try {
-        if (settings.value.audioModell && this.audio === "aus" && (await omniCached())) await this.loadAudioModel();
-        if (!this.modelReady && !(settings.value.audioModell && this.audio === "bereit")) await this.loadModel();
-        if (settings.value.kiAn && this.ki === "aus" && !this.kiViaAudio) await this.loadKi();
+        if (settings.value.audioModell) {
+          // Nur LFM3-Omni vorladen (sonst wird der Speicher knapp); nicht nach einem Absturz beim Laden
+          if (this.audio === "aus" && !omniCrashed() && (await omniCached())) await this.loadAudioModel();
+          return;
+        }
+        if (!this.modelReady) await this.loadModel();
+        if (settings.value.kiAn && this.ki === "aus") await this.loadKi();
       } catch (err) {
         console.warn("Vorladen", err);
       }
@@ -437,13 +441,18 @@ class FragDasSchaf {
     if (this.audio === "bereit") return Promise.resolve();
     if (this.#audioLoad) return this.#audioLoad;
     const gen = this.#audioGen;
+    // Platz schaffen: Whisper und das eigene Sprachmodell gehen solange aus dem Speicher
+    this.resetModel();
+    this.resetKi();
     this.#audioLoad = (async () => {
       this.audio = "lädt";
+      markOmniLoading(true);
       this.audioError = "";
       this.audioProgress = 0;
       try {
         if (globalThis.__schafFakeAudio) {
           // Tests: Modell ersetzt
+          markOmniLoading(false);
           this.audio = "bereit";
           return;
         }
@@ -452,8 +461,10 @@ class FragDasSchaf {
           if (e.type === "status") this.audioStatus = e.text;
         });
         if (gen !== this.#audioGen) return;
+        markOmniLoading(false);
         this.audio = "bereit";
       } catch (err) {
+        markOmniLoading(false);
         if (gen !== this.#audioGen) return; // inzwischen abgeschaltet
         console.warn("LFM3-Audio", err);
         this.audio = "fehler";
@@ -481,6 +492,7 @@ class FragDasSchaf {
 
   resetAudioModel(keepError = false) {
     if (!keepError) this.#audioGen++;
+    if (!keepError) markOmniLoading(false);
     this.#audioWorker?.terminate();
     this.#audioWorker = null;
     rejectAll(this.#audioPending, "Modell wird neu gestartet");
@@ -619,6 +631,26 @@ class FragDasSchaf {
   #resumeMusic() {
     if (this.#musicWasOn) music.play();
     this.#musicWasOn = false;
+  }
+}
+
+// Absturzschutz: Stürzt der Browser beim Laden von LFM3-Omni ab (Speicher), bleibt diese Markierung
+// stehen. Beim nächsten Start lädt die App das Modell dann nicht automatisch (sonst Absturzschleife).
+const OMNI_FLAG = "schafland-omni-laedt";
+function markOmniLoading(on) {
+  try {
+    if (on) localStorage.setItem(OMNI_FLAG, String(Date.now()));
+    else localStorage.removeItem(OMNI_FLAG);
+  } catch {
+    // privat/gesperrt: dann eben ohne Schutz
+  }
+}
+/** Ist der Browser beim letzten Laden von LFM3-Omni abgestürzt? */
+export function omniCrashed() {
+  try {
+    return !!localStorage.getItem(OMNI_FLAG);
+  } catch {
+    return false;
   }
 }
 

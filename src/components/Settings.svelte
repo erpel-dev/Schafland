@@ -14,7 +14,7 @@
   import QrCode from "./QrCode.svelte";
   import LabelSheet from "./LabelSheet.svelte";
   import ProductImage from "./ProductImage.svelte";
-  import { schaf, MODELLE, KI_MODELLE, gpuInfo } from "../lib/sprache/schaf.svelte.js";
+  import { schaf, MODELLE, KI_MODELLE, gpuInfo, omniCrashed } from "../lib/sprache/schaf.svelte.js";
   import { speak, speechStatus } from "../lib/sprache/sprechen.js";
 
   let { onClose, initialTab = "bezahlen" } = $props();
@@ -396,7 +396,8 @@
         <p class="muted">
           LFM3-Omni von Liquid AI hört zu und liest mit natürlicher Stimme vor, beantwortet freie Fragen und erkennt beim Scannen mit „🐑 Was ist das?“ Produkte ohne Strichcode.
           Was das Schaf über Preise und den Korb sagt, bestimmt weiter die Kasse. Läuft nur mit Grafikkarte im Browser (WebGPU), z. B. auf aktuellen Handys mit Chrome.
-          Download ca. 2,6 GB, empfohlen 8 GB Arbeitsspeicher. Klappt etwas nicht, übernimmt automatisch der bisherige Weg.
+          Download ca. 2,6 GB; im Arbeitsspeicher zunächst ca. 1,9 GB (Sprachausgabe und Bilderkennung kommen erst bei Bedarf dazu). Empfohlen 8 GB Arbeitsspeicher.
+          Klappt etwas nicht, übernimmt automatisch der bisherige Weg.
         </p>
         <div class="field">
           <label for="audio-on">LFM3-Omni verwenden</label>
@@ -425,6 +426,12 @@
                 {/if}
               </div>
               {#if schaf.audio === "fehler"}<p class="err">{schaf.audioError}</p>{/if}
+              {#if schaf.audio !== "bereit" && schaf.audio !== "lädt" && omniCrashed()}
+                <p class="err">
+                  Beim letzten Laden ist der Browser abgestürzt, vermutlich war der Arbeitsspeicher zu knapp. Deshalb lädt die App LFM3-Omni nicht mehr von selbst.
+                  Tipp: andere Apps und Browser-Tabs schließen, dann hier „Jetzt laden“ tippen. Klappt es wieder nicht, LFM3-Omni ausschalten.
+                </p>
+              {/if}
               {#if schaf.audioRestarts}<small class="muted">Nach einem Speicherüberlauf neu gestartet ({schaf.audioRestarts}×).</small>{/if}
               <div class="row">
                 <Toggle id="omni-stimme" label="Natürliche Stimme" checked={settings.value.omniStimme} onchange={(v) => settings.set({ omniStimme: v })} />
