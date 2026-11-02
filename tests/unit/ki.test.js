@@ -43,3 +43,20 @@ test("Antwort prüfen: keine Preise, kurz, nur echte Produkte", () => {
   assert.ok(long.text.length <= 222);
   assert.equal(checkAnswer("<|im_start|>Hallo! Was möchtest du kaufen?<|im_end|>", { products }).text, "Hallo! Was möchtest du kaufen?");
 });
+
+import { matchImageAnswer } from "../../src/lib/sprache/ki.js";
+
+test("Bilderkennung: Antworten zu Spielzeug zuordnen", () => {
+  const name = (a) => matchImageAnswer(a, products).product?.name.replace(/­/g, "") ?? null;
+  assert.equal(name("Banane"), "Banane");
+  assert.equal(name("Spielzeugbanane"), "Banane");
+  assert.equal(name("Eine Tomate aus Plastik."), "Tomate");
+  assert.equal(name("Holzapfel"), "Apfel");
+  assert.equal(name("Plastikgurke"), "Gurke");
+  assert.equal(name("Erdbeere"), "Erdbeeren");
+  assert.equal(name("Möhre"), "Karotte");
+  assert.equal(name("Brokkoli aus Filz"), "Brokkoli");
+  assert.equal(name("unbekannt"), null);
+  assert.equal(name("Ein Ball"), null);
+  assert.equal(name(""), null);
+});

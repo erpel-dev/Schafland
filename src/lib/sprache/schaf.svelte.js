@@ -12,7 +12,7 @@ import { understand } from "./verstehen.js";
 import { answer } from "./antworten.js";
 import { record } from "./aufnahme.js";
 import { speak, stopSpeaking } from "./sprechen.js";
-import { isOpenQuestion, buildMessages, checkAnswer, productImageQuestion, productFromAnswer } from "./ki.js";
+import { isOpenQuestion, buildMessages, checkAnswer, productImageQuestion, productImageFreeQuestion, matchImageAnswer } from "./ki.js";
 import { topicOf, topicProducts } from "./wissen.js";
 
 export const MODELLE = {
@@ -374,9 +374,13 @@ class FragDasSchaf {
         if (!p) return;
         if (["progress", "status", "frame", "token"].includes(data.type)) return p.onEvent?.(data);
         this.#audioPending.delete(data.id);
-        if (data.type === "error") p.reject(new Error(data.message));
-        else p.resolve(data);
+        if (data.type === "error") {
+          p.reject(new Error(data.message));
+          // Speicher der Rechen-Engine übergelaufen: Modell im Hintergrund neu starten (aus dem Browser-Speicher)
+          if (/memory access out of bounds|out of memory|Aborted|RuntimeError|unreachable/i.test(data.message)) this.#restartAudioModel(data.message);
+        } else p.resolve(data);
       };
+      this.#audioWorker.onerror = (e) => this.#restartAudioModel(e.message ?? "Absturz");
     }
     const id = ++this.#audioSeq;
     return new Promise((resolve, reject) => {
@@ -422,6 +426,17 @@ class FragDasSchaf {
     return this.#audioLoad;
   }
 
+  audioRestarts = $state(0);
+
+  #restartAudioModel(reason) {
+    if (this.audio !== "bereit") return;
+    console.warn("LFM3-Omni neu starten:", reason);
+    this.audioRestarts++;
+    for (const p of this.#audioPending.values()) p.reject(new Error("Modell wird neu gestartet"));
+    this.resetAudioModel();
+    setTimeout(() => this.loadAudioModel(), 500);
+  }
+
   resetAudioModel(keepError = false) {
     this.#audioWorker?.terminate();
     this.#audioWorker = null;
@@ -432,7 +447,7 @@ class FragDasSchaf {
 
   /** Vorlesen: mit LFM3-Audio, wenn eingeschaltet und geladen, sonst mit der Stimme des Systems. */
   async #say(text) {
-    if (settings.value.audioModell && this.audio === "bereit" && !globalThis.__schafFakeAudio) {
+    if (settings.value.audioModell && settings.value.omniStimme && this.audio === "bereit" && !globalThis.__schafFakeAudio) {
       try {
         const out = await this.#audioCall({ type: "speak", text });
         this.audioLastMs = { ...this.audioLastMs, tts: out.ms };
@@ -451,20 +466,41 @@ class FragDasSchaf {
     return settings.value.audioModell && this.audio === "bereit";
   }
 
-  /** Welches Produkt ist auf dem Kamerabild (ImageData)? Ergebnis: { product, answer, ms } */
-  async recognizeProduct(imageData) {
+  /**
+   * Welches Produkt ist auf dem Kamerabild? images: { crop, full } (ImageData; crop = Bildmitte).
+   * Versuche: Mitte mit Sortimentsliste → Mitte frei benennen → ganzes Bild mit Liste.
+   * Ergebnis: { product, candidates, tries: [{ what, answer }], ms }
+   */
+  async recognizeProduct({ crop, full }) {
     // eigenes Sortiment und Aktionsprodukte (gescannte Produkte haben lange Markennamen)
     const aktion = aktionById(settings.value.aktion);
     const pool = [...(aktion ? aktion.products : []), ...products];
-    const { system, question } = productImageQuestion(pool);
-    if (globalThis.__schafFakeAudio?.image) {
-      const answer = await globalThis.__schafFakeAudio.image(question);
-      return { product: productFromAnswer(answer, pool), answer, ms: 0 };
+    const t0 = performance.now();
+    const tries = [];
+    const candidates = [];
+    const attempts = [
+      ["Bildmitte, Liste", crop, productImageQuestion(pool)],
+      ["Bildmitte, frei", crop, productImageFreeQuestion()],
+      ["ganzes Bild, Liste", full, productImageQuestion(pool)],
+    ];
+    for (const [what, image, { system, question }] of attempts) {
+      if (!image) continue;
+      let answer;
+      if (globalThis.__schafFakeAudio?.image) answer = await globalThis.__schafFakeAudio.image(question, what);
+      else {
+        const out = await this.#audioCall({ type: "image", rgba: new Uint8ClampedArray(image.data), width: image.width, height: image.height, system, question });
+        answer = out.text;
+      }
+      tries.push({ what, answer });
+      const m = matchImageAnswer(answer, pool);
+      if (m.product) {
+        this.audioLastMs = { ...this.audioLastMs, bild: Math.round(performance.now() - t0) };
+        return { product: m.product, candidates: m.candidates, tries, ms: performance.now() - t0 };
+      }
+      for (const c of m.candidates) if (!candidates.includes(c)) candidates.push(c);
     }
-    const rgba = new Uint8ClampedArray(imageData.data);
-    const out = await this.#audioCall({ type: "image", rgba, width: imageData.width, height: imageData.height, system, question });
-    this.audioLastMs = { ...this.audioLastMs, bild: out.ms };
-    return { product: productFromAnswer(out.text, pool), answer: out.text, ms: out.ms };
+    this.audioLastMs = { ...this.audioLastMs, bild: Math.round(performance.now() - t0) };
+    return { product: null, candidates: candidates.slice(0, 3), tries, ms: performance.now() - t0 };
   }
 
   /** Probe im Eltern-Bereich */

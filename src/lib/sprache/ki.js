@@ -2,7 +2,7 @@
 // Einfache Fragen (Preis, „ich möchte …“, Summe, Kategorie) beantwortet weiter Stufe 1 — schnell und
 // sicher. Das Modell bekommt nur offene Fragen und darf nur über das Sortiment sprechen. Seine Antwort
 // wird geprüft: keine Preise (die zeigt die Kasse selbst), nur Produkte aus dem Laden, kurz.
-import { normalize, keysFor } from "./verstehen.js";
+import { normalize, keysFor, understand } from "./verstehen.js";
 import { knowledgeLines } from "./wissen.js";
 
 // Wörter, an denen man eine offene Frage erkennt
@@ -94,18 +94,48 @@ export function checkAnswer(raw, { products }) {
   return { text, products: mentionedProducts(text, products).slice(0, 4) };
 }
 
-/** Frage an LFM3-Omni zu einem Kamerabild: welches Produkt aus dem Sortiment ist zu sehen? */
+/** Fragen an LFM3-Omni zu einem Kamerabild. Im Kaufladen ist fast alles Spielzeug (Plastik, Holz, Filz). */
+const BILD_SYSTEM =
+  "Du bist die Kasse im Kinder-Kaufladen „Schafland“. Auf den Fotos sind meist Spielsachen: Obst, Gemüse und Essen aus Plastik, Holz oder Filz. " +
+  "Sag, welches Lebensmittel oder Ding das Spielzeug darstellt.";
+
+/** Erste Frage: Auswahl aus dem Sortiment */
 export function productImageQuestion(products) {
   const names = [...new Set(products.map((p) => clean(p.name)))];
   return {
-    system: "Du bist die Kasse im Kinder-Kaufladen „Schafland“. Du erkennst Produkte auf Fotos.",
-    question: `Welches Produkt aus dieser Liste ist auf dem Bild zu sehen? Antworte nur mit dem Namen aus der Liste. Wenn keins passt, antworte „unbekannt“.\nListe: ${names.join(", ")}`,
+    system: BILD_SYSTEM,
+    question: `Welches Produkt aus dieser Liste ist auf dem Bild zu sehen (auch als Spielzeug)? Antworte nur mit dem Namen aus der Liste. Wenn keins passt, antworte „unbekannt“.\nListe: ${names.join(", ")}`,
   };
 }
 
-/** Antwort des Modells → Produkt aus dem Sortiment oder null */
-export function productFromAnswer(answer, products) {
-  if (!answer || /unbekannt|weiß nicht|keins|kein produkt/i.test(answer)) return null;
+/** Zweite Frage, wenn die Liste nicht half: frei benennen, die Kasse ordnet es selbst zu */
+export function productImageFreeQuestion() {
+  return {
+    system: BILD_SYSTEM,
+    question: "Was ist auf dem Bild? Wenn es Spielzeug-Essen ist: welches Essen stellt es dar? Antworte mit einem einzigen deutschen Wort.",
+  };
+}
+
+// Wörter, die nur sagen, woraus das Spielzeug ist („Spielzeugbanane aus Plastik“ → „banane“)
+const MATERIAL = /\b(spielzeug|plastik|kunststoff|holz|filz|stoff|attrappe|deko|modell|aus|eine?r?s?|das|der|die|ist|sieht|wie|bild|foto)\b|spielzeug|plastik|holz/g;
+
+/**
+ * Antwort des Modells → { product, candidates }: sicher erkanntes Produkt oder Vorschläge zum Antippen.
+ */
+export function matchImageAnswer(answer, products) {
+  const none = { product: null, candidates: [] };
+  if (!answer || /unbekannt|weiß nicht|keins|kein produkt|nicht erkennen/i.test(answer)) return none;
   const exact = products.find((p) => normalize(clean(p.name)) === normalize(answer));
-  return exact ?? mentionedProducts(answer, products)[0] ?? null;
+  if (exact) return { product: exact, candidates: [] };
+  const named = mentionedProducts(answer, products);
+  if (named.length) return { product: named[0], candidates: named.slice(1, 3) };
+  const plain = normalize(answer).replace(MATERIAL, " ").replace(/\s+/g, " ").trim();
+  if (!plain) return none;
+  const r = understand(plain, { products });
+  return { product: r.product, candidates: r.product ? [] : r.candidates.slice(0, 3) };
+}
+
+/** Kurzform für alte Aufrufer: nur das sichere Produkt */
+export function productFromAnswer(answer, products) {
+  return matchImageAnswer(answer, products).product;
 }
