@@ -34,34 +34,70 @@ function cacheOutputsOnGpu() {
   return map;
 }
 
-/** Datei aus dem Browser-Speicher oder (beim ersten Mal) aus dem Internet, mit Fortschritt. */
-async function file(name, onBytes) {
+/** Datei in den Browser-Speicher holen (gestreamt, ohne Kopie im Arbeitsspeicher), mit Fortschritt. */
+async function download(name, onBytes) {
   const cache = await caches.open(CACHE);
   const url = BASE + name;
-  let res = await cache.match(url);
-  if (!res) {
-    const net = await fetch(url);
-    if (!net.ok) throw new Error(`${name}: HTTP ${net.status}`);
-    const total = +net.headers.get("content-length") || 0;
-    const reader = net.body.getReader();
-    const parts = [];
-    let loaded = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      parts.push(value);
-      loaded += value.length;
-      onBytes(loaded, total);
-    }
-    const blob = new Blob(parts);
-    await cache.put(url, new Response(blob, { headers: { "content-length": String(blob.size) } }));
-    res = await cache.match(url);
+  const hit = await cache.match(url, { ignoreVary: true });
+  if (hit) {
+    const size = +hit.headers.get("content-length") || 0;
+    onBytes(size, size);
+    return;
   }
-  const buf = new Uint8Array(await res.arrayBuffer());
-  onBytes(buf.length, buf.length);
-  return buf;
+  const net = await fetch(url);
+  if (!net.ok) throw new Error(`${name}: HTTP ${net.status}`);
+  const total = +net.headers.get("content-length") || 0;
+  let loaded = 0;
+  const counted = net.body.pipeThrough(
+    new TransformStream({
+      transform(chunk, ctrl) {
+        loaded += chunk.length;
+        onBytes(loaded, total);
+        ctrl.enqueue(chunk);
+      },
+    }),
+  );
+  await cache.put(url, new Response(counted, { headers: { "content-length": String(total) } }));
 }
 
+/** Datei aus dem Browser-Speicher lesen */
+async function read(name) {
+  const cache = await caches.open(CACHE);
+  const res = await cache.match(BASE + name, { ignoreVary: true });
+  if (!res) throw new Error(`${name} fehlt im Browser-Speicher`);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+let tokenizer = null;
+const sessions = {};
+
+/** Einen Teil des Modells starten (nur wenn gebraucht: spart Arbeitsspeicher). */
+async function ensure(role, post) {
+  if (sessions[role]) return;
+  const [graph, data] = FILES[role];
+  post?.({ type: "status", text: `Starte ${role} …` });
+  let graphBytes = await read(graph);
+  let dataBytes = await read(data);
+  sessions[role] = await ort.InferenceSession.create(graphBytes, {
+    executionProviders: ["webgpu"],
+    externalData: [{ path: data, data: dataBytes }],
+    graphOptimizationLevel: "all",
+    // Browser-Speicher (wasm) ist knapp: keine wachsenden Vorrats-Speicher auf dem Prozessor …
+    enableCpuMemArena: false,
+    enableMemPattern: false,
+    // … und die Zwischenspeicher des Decoders bleiben auf der Grafikkarte, statt bei jedem Schritt
+    // hin- und herkopiert zu werden
+    ...(role === "decoder" ? { preferredOutputLocation: cacheOutputsOnGpu() } : {}),
+  });
+  // Kopien sofort freigeben, bevor der nächste große Teil gelesen wird
+  graphBytes = dataBytes = null;
+  await new Promise((r) => setTimeout(r, 0));
+}
+
+/**
+ * Laden: alle Dateien in den Browser-Speicher holen (für offline), aber nur Decoder und Audio-Encoder
+ * starten (ca. 1,9 GB). Sprachausgabe (Tiefen-Decoder, Codec) und Bilder starten erst bei Bedarf.
+ */
 async function load(post) {
   if (model) return;
   if (!navigator.gpu || !(await navigator.gpu.requestAdapter())) throw new Error("Keine Grafikkarte (WebGPU) im Browser");
@@ -76,24 +112,13 @@ async function load(post) {
     }
     post({ type: "progress", loaded: l, total: t, file: name });
   };
-  const tokenizer = await AutoTokenizer.from_pretrained(REPO);
-  const sessions = {};
-  for (const [role, [graph, data]] of Object.entries(FILES)) {
-    const graphBytes = await file(graph, progress(graph));
-    const dataBytes = await file(data, progress(data));
-    post({ type: "status", text: `Starte ${role} …` });
-    sessions[role] = await ort.InferenceSession.create(graphBytes, {
-      executionProviders: ["webgpu"],
-      externalData: [{ path: data, data: dataBytes }],
-      graphOptimizationLevel: "all",
-      // Browser-Speicher (wasm) ist knapp: keine wachsenden Vorrats-Speicher auf dem Prozessor …
-      enableCpuMemArena: false,
-      enableMemPattern: false,
-      // … und die Zwischenspeicher des Decoders bleiben auf der Grafikkarte, statt bei jedem Schritt
-      // hin- und herkopiert zu werden
-      ...(role === "decoder" ? { preferredOutputLocation: cacheOutputsOnGpu() } : {}),
-    });
+  for (const [graph, data] of Object.values(FILES)) {
+    await download(graph, progress(graph));
+    await download(data, progress(data));
   }
+  tokenizer = await AutoTokenizer.from_pretrained(REPO);
+  await ensure("decoder", post);
+  await ensure("audio_encoder", post);
   model = new Lfm3Audio({ ort, sessions, tokenizer, variant: "omni" });
 }
 
@@ -124,6 +149,7 @@ self.onmessage = async ({ data }) => {
       return post({ type: "text", text, ms: Math.round(performance.now() - t0) });
     }
     if (type === "image") {
+      await ensure("vision_encoder", post);
       // Kamerabild (RGBA) auf die Größe bringen, die das Modell erwartet
       const t0 = performance.now();
       const { width, height } = smartResize(data.height, data.width, { maxTokens: data.maxTokens ?? 256 });
@@ -142,6 +168,8 @@ self.onmessage = async ({ data }) => {
       return post({ type: "text", text, ms: Math.round(performance.now() - t0) });
     }
     if (type === "speak") {
+      await ensure("depth_decoder", post);
+      await ensure("codec_decoder", post);
       const t0 = performance.now();
       const wave = await model.speak(data.text, { voice: data.voice ?? "female", onFrame: (n) => post({ type: "frame", n }) });
       return post({ type: "audio", wave, ms: Math.round(performance.now() - t0) }, [wave.buffer]);

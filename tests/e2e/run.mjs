@@ -1063,6 +1063,36 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await o.page.click("text=Jetzt laden (ca. 2,6 GB)");
       await o.page.waitForSelector("text=✓ Geladen", { timeout: 5000 }).catch(() => {});
       check("LFM3-Omni: geladen-Anzeige", await o.page.isVisible("text=🔊 Stimme hören"));
+      // Absturzschutz: blieb die Lade-Markierung stehen (Browser beim Laden abgestürzt), lädt die App
+      // LFM3-Omni beim nächsten Start nicht von selbst und erklärt es im Eltern-Bereich
+      check("LFM3-Omni: nach erfolgreichem Laden keine Absturz-Markierung", (await o.page.evaluate(() => localStorage.getItem("schafland-omni-laedt"))) === null);
+      const crash = await o.browser.newContext({ viewport: { width: 1280, height: 800 }, permissions: ["camera", "microphone"] });
+      await crash.addInitScript(() => {
+        Object.defineProperty(navigator, "gpu", { value: { requestAdapter: async () => ({ features: new Set() }) } });
+        window.__schafFakeAudio = { image: async () => "Apfel" };
+        // „schon heruntergeladen“, damit das Vorladen ohne Schutz wirklich laden würde
+        caches.open("lfm3-omni-v1").then((c) => c.put("https://huggingface.co/x/decoder_q4f16.onnx_data", new Response("x")));
+        if (!sessionStorage.getItem("gesetzt")) {
+          localStorage.setItem("schafland-omni-laedt", "1");
+          sessionStorage.setItem("gesetzt", "1");
+        }
+      });
+      const cp = await crash.newPage();
+      await cp.goto(APP_URL);
+      await cp.click("text=Laden öffnen");
+      await openSettings(cp);
+      await cp.click("nav >> text=Frag das Schaf");
+      await cp.click("#schaf-on");
+      await cp.click("#audio-on");
+      await cp.click("text=Zurück zum Laden");
+      await cp.reload();
+      await cp.click("text=Laden öffnen");
+      await wait(3500);
+      const autoLoaded = await cp.evaluate(() => window.__fragDasSchaf.audio);
+      await openSettings(cp);
+      await cp.click("nav >> text=Frag das Schaf");
+      check("Nach Absturz beim Laden: kein automatisches Laden, Hinweis für Eltern", autoLoaded === "aus" && (await cp.textContent(".pane")).includes("Browser abgestürzt"), `Zustand ${autoLoaded}`);
+      await crash.close();
       await o.page.click("text=Zurück zum Laden");
       // Abbrechen, während das Schaf noch zuhört/überlegt, und neu fragen: alte Erkennung wird verworfen
       await o.page.evaluate(() => {
