@@ -12,7 +12,7 @@ import { understand } from "./verstehen.js";
 import { answer } from "./antworten.js";
 import { record } from "./aufnahme.js";
 import { speak, stopSpeaking } from "./sprechen.js";
-import { isOpenQuestion, buildMessages, checkAnswer, productImageQuestion, productFromAnswer } from "./ki.js";
+import { isOpenQuestion, buildMessages, checkAnswer, productImageQuestion, productImageFreeQuestion, matchImageAnswer } from "./ki.js";
 import { topicOf, topicProducts } from "./wissen.js";
 
 export const MODELLE = {
@@ -451,20 +451,41 @@ class FragDasSchaf {
     return settings.value.audioModell && this.audio === "bereit";
   }
 
-  /** Welches Produkt ist auf dem Kamerabild (ImageData)? Ergebnis: { product, answer, ms } */
-  async recognizeProduct(imageData) {
+  /**
+   * Welches Produkt ist auf dem Kamerabild? images: { crop, full } (ImageData; crop = Bildmitte).
+   * Versuche: Mitte mit Sortimentsliste → Mitte frei benennen → ganzes Bild mit Liste.
+   * Ergebnis: { product, candidates, tries: [{ what, answer }], ms }
+   */
+  async recognizeProduct({ crop, full }) {
     // eigenes Sortiment und Aktionsprodukte (gescannte Produkte haben lange Markennamen)
     const aktion = aktionById(settings.value.aktion);
     const pool = [...(aktion ? aktion.products : []), ...products];
-    const { system, question } = productImageQuestion(pool);
-    if (globalThis.__schafFakeAudio?.image) {
-      const answer = await globalThis.__schafFakeAudio.image(question);
-      return { product: productFromAnswer(answer, pool), answer, ms: 0 };
+    const t0 = performance.now();
+    const tries = [];
+    const candidates = [];
+    const attempts = [
+      ["Bildmitte, Liste", crop, productImageQuestion(pool)],
+      ["Bildmitte, frei", crop, productImageFreeQuestion()],
+      ["ganzes Bild, Liste", full, productImageQuestion(pool)],
+    ];
+    for (const [what, image, { system, question }] of attempts) {
+      if (!image) continue;
+      let answer;
+      if (globalThis.__schafFakeAudio?.image) answer = await globalThis.__schafFakeAudio.image(question, what);
+      else {
+        const out = await this.#audioCall({ type: "image", rgba: new Uint8ClampedArray(image.data), width: image.width, height: image.height, system, question });
+        answer = out.text;
+      }
+      tries.push({ what, answer });
+      const m = matchImageAnswer(answer, pool);
+      if (m.product) {
+        this.audioLastMs = { ...this.audioLastMs, bild: Math.round(performance.now() - t0) };
+        return { product: m.product, candidates: m.candidates, tries, ms: performance.now() - t0 };
+      }
+      for (const c of m.candidates) if (!candidates.includes(c)) candidates.push(c);
     }
-    const rgba = new Uint8ClampedArray(imageData.data);
-    const out = await this.#audioCall({ type: "image", rgba, width: imageData.width, height: imageData.height, system, question });
-    this.audioLastMs = { ...this.audioLastMs, bild: out.ms };
-    return { product: productFromAnswer(out.text, pool), answer: out.text, ms: out.ms };
+    this.audioLastMs = { ...this.audioLastMs, bild: Math.round(performance.now() - t0) };
+    return { product: null, candidates: candidates.slice(0, 3), tries, ms: performance.now() - t0 };
   }
 
   /** Probe im Eltern-Bereich */

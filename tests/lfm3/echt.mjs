@@ -6,7 +6,7 @@ import { AutoTokenizer, RawImage, env } from "@huggingface/transformers";
 import fs from "node:fs";
 import path from "node:path";
 import { Lfm3Audio, TOKENS, asrPrompt, ttsPrompt, smartResize } from "../../src/lib/sprache/lfm3audio.js";
-import { buildMessages, checkAnswer, productImageQuestion, productFromAnswer } from "../../src/lib/sprache/ki.js";
+import { buildMessages, checkAnswer, productImageQuestion, productImageFreeQuestion, matchImageAnswer } from "../../src/lib/sprache/ki.js";
 import { products, categories } from "../../src/lib/catalog.js";
 
 const [MODEL, WAVS, IMAGES] = process.argv.slice(2);
@@ -128,23 +128,43 @@ for (const q of ["Was schmeckt lecker?", "Was kann ich meiner Oma kaufen?", "Was
   check(`Frage „${q}“`, !!checked, `roh: „${raw.slice(0, 160)}“ → „${checked?.text ?? "(verworfen)"}“, Bilder: ${names} (${secs(t)})`);
 }
 
-// 4. Produkte auf Bildern erkennen (Bilder heißen wie das Produkt, z. B. Banane.png)
-let imagesOk = 0;
-const imageFiles = IMAGES ? fs.readdirSync(IMAGES).filter((f) => f.endsWith(".png")).sort() : [];
-for (const file of imageFiles) {
-  const want = file.replace(/\.png$/, "");
-  const img = (await RawImage.read(path.join(IMAGES, file))).rgb();
+// 4. Produkte auf Bildern erkennen, mit demselben Ablauf wie die App (schaf.recognizeProduct):
+//    Bildmitte mit Sortimentsliste → Bildmitte frei benennen → ganzes Bild mit Liste
+async function ask(img, { system, question }) {
   const { width, height } = smartResize(img.height, img.width, { maxTokens: 256 });
   const resized = await img.resize(width, height, { resample: 3 });
-  const { system, question } = productImageQuestion(products);
-  t = performance.now();
-  const answer = await model.askImage({ data: resized.data, width, height }, question, { system });
-  const product = productFromAnswer(answer, products);
-  const ok = product?.name.replace(/\u00ad/g, "") === want;
-  if (ok) imagesOk++;
-  console.log(`${ok ? "PASS" : "INFO"}  Bild ${file}  — „${answer}“ → ${product?.name ?? "kein Produkt"} (${secs(t)})`);
+  return model.askImage({ data: resized.data, width, height }, question, { system });
 }
-if (imageFiles.length) check(`Bilderkennung: mindestens die Hälfte richtig`, imagesOk * 2 >= imageFiles.length, `${imagesOk}/${imageFiles.length}`);
+let imagesOk = 0;
+let hardOk = 0;
+let hard = 0;
+const imageFiles = IMAGES ? fs.readdirSync(IMAGES).filter((f) => f.endsWith(".png")).sort() : [];
+for (const file of imageFiles) {
+  const want = file.replace(/(-schwer)?\.png$/, "");
+  const full = (await RawImage.read(path.join(IMAGES, file))).rgb();
+  const side = Math.round(Math.min(full.width, full.height) * 0.75);
+  const crop = await full.crop([Math.round((full.width - side) / 2), Math.round((full.height - side) / 2), Math.round((full.width + side) / 2) - 1, Math.round((full.height + side) / 2) - 1]);
+  t = performance.now();
+  const tries = [];
+  let result = { product: null, candidates: [] };
+  for (const [what, img, q] of [["Mitte/Liste", crop, productImageQuestion(products)], ["Mitte/frei", crop, productImageFreeQuestion()], ["ganz/Liste", full, productImageQuestion(products)]]) {
+    const answer = await ask(img, q);
+    tries.push(`${what}: „${answer}“`);
+    result = matchImageAnswer(answer, products);
+    if (result.product) break;
+  }
+  const got = result.product?.name.replace(/\u00ad/g, "");
+  const ok = got === want;
+  if (ok) imagesOk++;
+  if (file.includes("-schwer")) {
+    hard++;
+    if (ok) hardOk++;
+  }
+  console.log(`${ok ? "PASS" : "INFO"}  Bild ${file}  — ${tries.join(" · ")} → ${got ?? "kein Produkt"} (${secs(t)})`);
+}
+if (imageFiles.length) {
+  check("Bilderkennung: mindestens drei Viertel richtig", imagesOk * 4 >= imageFiles.length * 3, `${imagesOk}/${imageFiles.length}, davon schwer ${hardOk}/${hard}`);
+}
 
 // Erkennung darf sich bei einzelnen Wörtern irren (das Schaf zeigt dann Bilder); alles andere muss klappen
 const failed = results.filter((r) => !r).length;

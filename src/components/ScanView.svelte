@@ -217,36 +217,62 @@
 
   // Produkte ohne Strichcode: Bild an LFM3-Omni („Was ist das?“)
   let seeing = $state(false);
+  let maybe = $state([]); // Vorschläge, wenn das Modell unsicher ist
   async function whatIsThis() {
     if (seeing || !video?.videoWidth) return;
     seeing = true;
     clearTimeout(addTimer);
     status = "seeing";
     found = null;
+    maybe = [];
+    const t0 = Date.now();
     try {
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0);
-      const t0 = Date.now();
-      const { product, answer } = await schaf.recognizeProduct(ctx.getImageData(0, 0, canvas.width, canvas.height));
-      scanLog.add({ code: "Kamerabild", result: product ? `erkannt: ${product.name}` : "nicht erkannt", trace: [`LFM3-Omni: „${answer}“`, `${((Date.now() - t0) / 1000).toFixed(1)} s`] });
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      const grab = (sx, sy, sw, sh) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = sw;
+        canvas.height = sh;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+        return ctx.getImageData(0, 0, sw, sh);
+      };
+      // Kinder halten die Sache in die Mitte (Wolke): dort ausschneiden, damit sie groß genug ist
+      const side = Math.round(Math.min(w, h) * 0.75);
+      const crop = grab(Math.round((w - side) / 2), Math.round((h - side) / 2), side, side);
+      const full = grab(0, 0, w, h);
+      const { product, candidates, tries } = await schaf.recognizeProduct({ crop, full });
+      scanLog.add({
+        code: "Kamerabild",
+        result: product ? `erkannt: ${product.name}` : candidates.length ? "unsicher" : "nicht erkannt",
+        trace: [...tries.map((t) => `${t.what}: „${t.answer}“`), `${((Date.now() - t0) / 1000).toFixed(1)} s`],
+      });
       if (product) {
         beep();
         found = { product, source: "Bilderkennung" };
         status = "found";
         addTimer = setTimeout(addFound, AUTO_ADD_MS * 2);
+      } else if (candidates.length) {
+        maybe = candidates;
+        status = "maybe";
       } else {
         status = "notseen";
         nope();
       }
     } catch (err) {
       console.warn("Bilderkennung", err);
+      scanLog.add({ code: "Kamerabild", result: "Fehler", trace: [`${err?.message ?? err}`, `${((Date.now() - t0) / 1000).toFixed(1)} s`] });
       status = "notseen";
     } finally {
       seeing = false;
     }
+  }
+
+  function pickMaybe(product) {
+    found = { product, source: "Bilderkennung" };
+    status = "found";
+    maybe = [];
+    addFound();
   }
 
   function addFound() {
@@ -292,6 +318,16 @@
       <div class="pimg"><Sheep size="6rem" class="think" /></div>
       <b class="t">Ich schaue genau hin …</b>
       <small>Halte die Sache ruhig in die Kamera.</small>
+    {:else if status === "maybe"}
+      <b class="t">Ist es eins davon?</b>
+      <div class="maybe">
+        {#each maybe as p (p.id)}
+          <button class="maybe-item" onclick={() => pickMaybe(p)}>
+            <ProductImage product={p} size="2.8rem" />
+            <span>{p.name}</span>
+          </button>
+        {/each}
+      </div>
     {:else if status === "notseen"}
       <div class="pimg"><Sheep size="6rem" class="shrug" /></div>
       <b class="t">Das erkenne ich nicht.</b>
@@ -343,6 +379,8 @@
     background: var(--sky); color: var(--sky-ink); font-weight: 800; font-size: 1.05rem;
   }
   .see:disabled { opacity: 0.7; }
+  .maybe { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr)); gap: 0.5rem; }
+  .maybe-item { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; padding: 0.5rem; border-radius: 1rem; background: var(--wool); border: 2px solid var(--wool-line); font-weight: 800; }
   .frame { position: relative; width: 26rem; max-width: 80%; aspect-ratio: 16 / 9; }
   .wool {
     position: absolute; inset: -1.8rem; border-radius: 3.5rem; padding: 1.8rem;
