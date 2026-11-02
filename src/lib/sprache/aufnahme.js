@@ -8,7 +8,7 @@ const SAMPLE_RATE = 16000;
  * onLevel(0…1): Lautstärke für die Anzeige.
  * Ergebnis: { done: Promise<{ audio: Float32Array, heardVoice: boolean }>, stop() }
  */
-export async function record({ onLevel = () => {}, maxMs = 8000, silenceMs = 1100, noVoiceMs = 5000 } = {}) {
+export async function record({ onLevel = () => {}, maxMs = 8000, silenceMs = 850, noVoiceMs = 5000 } = {}) {
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
   });

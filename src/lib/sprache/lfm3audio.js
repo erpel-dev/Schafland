@@ -44,6 +44,12 @@ export function ttsPrompt(text, { language = "German", voice = "female", omni = 
   return `${TOKENS.bos}<|im_start|>system\nPerform TTS in ${language} using a ${voice} voice.<|im_end|>\n<|im_start|>user\n${text}<|im_end|>\n<|im_start|>assistant\n${think(omni)}<|audio_start|>`;
 }
 
+/** Anfang jedes Prompts bis einschließlich Systemteil (für den Präfix-Speicher) */
+export function prefixText(system) {
+  return `${TOKENS.bos}${system ? `<|im_start|>system\n${system}<|im_end|>\n` : ""}`;
+}
+const PREFIXES = 3;
+
 /** Bild + Frage (nur Omni) */
 export function imagePrompt(system, question) {
   const sys = system ? `<|im_start|>system\n${system}<|im_end|>\n` : "";
@@ -411,23 +417,38 @@ export class Lfm3Audio {
   }
 
   /**
-   * Präfix-Speicher: Der lange Systemteil (Sortiment, Wissen) ist bei jeder Frage gleich. Er wird
-   * einmal gerechnet; jede Frage startet von einer Kopie dieses Zustands (die Tensoren werden nur
-   * gelesen, nie verändert, und bleiben deshalb erhalten).
+   * Präfix-Speicher: Der lange Systemteil (Sortiment, Wissen, Bild-Liste) ist bei jeder Frage gleich.
+   * Er wird einmal gerechnet; jede Frage startet von einer Kopie dieses Zustands (die Tensoren werden
+   * nur gelesen, nie verändert, und bleiben deshalb erhalten). Bis zu PREFIXES Systemteile bleiben
+   * gleichzeitig im Speicher (Chat, Bild mit Liste, Bild frei).
    */
   async #fromPrefix(system) {
-    const text = `${TOKENS.bos}${system ? `<|im_start|>system\n${system}<|im_end|>\n` : ""}`;
-    if (this.prefix?.text !== text) {
-      if (this.prefix) for (const t of this.prefix.keep) t?.dispose?.();
-      if (this.lastState) this.release(this.lastState);
-      this.lastState = null;
+    const text = prefixText(system);
+    this.prefixes ??= new Map();
+    let hit = this.prefixes.get(text);
+    if (this.lastState) this.release(this.lastState);
+    this.lastState = null;
+    if (hit) this.prefixes.delete(text); // nach hinten: zuletzt benutzt
+    else {
+      while (this.prefixes.size >= PREFIXES) {
+        const [oldest, old] = this.prefixes.entries().next().value;
+        for (const t of old.keep) t?.dispose?.();
+        this.prefixes.delete(oldest);
+      }
       const st = { past: 0, cache: this.emptyCache() };
       await this.prefill(st, this.ids(text));
-      this.prefix = { text, past: st.past, cache: st.cache, keep: new Set(Object.values(st.cache)) };
+      hit = { text, past: st.past, cache: st.cache, keep: new Set(Object.values(st.cache)) };
     }
-    if (this.lastState) this.release(this.lastState);
-    this.lastState = { past: this.prefix.past, cache: { ...this.prefix.cache }, keep: this.prefix.keep };
+    this.prefixes.set(text, hit);
+    this.lastState = { past: hit.past, cache: { ...hit.cache }, keep: hit.keep };
     return this.lastState;
+  }
+
+  /** Systemteil vorab rechnen (Aufwärmen nach dem Laden), ohne eine Antwort zu erzeugen. */
+  async warmPrefix(system) {
+    await this.#fromPrefix(system);
+    this.release(this.lastState);
+    this.lastState = null;
   }
 
   /** Neue Erzeugung: Speicher der vorigen freigeben (es läuft immer nur eine) */
@@ -501,7 +522,7 @@ export class Lfm3Audio {
     const system = messages.find((m) => m.role === "system")?.content ?? "";
     const user = messages.filter((m) => m.role === "user").at(-1)?.content ?? "";
     const state = await this.#fromPrefix(system);
-    const rest = chatPrompt(system, user).slice(this.prefix.text.length);
+    const rest = chatPrompt(system, user).slice(prefixText(system).length);
     let { logits } = await this.prefill(state, this.ids(rest));
     const vocab = logits.length;
     const suppress = new Set([TOKENS.audio, TOKENS.audioOut, TOKENS.audioStart, TOKENS.mixedStart]);
@@ -550,11 +571,12 @@ export class Lfm3Audio {
   async askImage(rgb, question, { system = "", maxTokens = 24, maxImageTokens = 256 } = {}) {
     if (!this.omni) throw new Error("Bilder versteht nur LFM3-Omni");
     const { features, rows } = await this.encodeImage(rgb, { maxTokens: maxImageTokens });
-    const prompt = this.ids(imagePrompt(system, question));
+    // Systemteil (z. B. die Sortimentsliste) kommt aus dem Präfix-Speicher, gerechnet wird nur der Rest
+    const state = await this.#fromPrefix(system);
+    const prompt = this.ids(imagePrompt(system, question).slice(prefixText(system).length));
     const at = prompt.indexOf(VISION.imageToken);
     if (at < 0) throw new Error("Tokenizer kennt <|image|> nicht");
     const ids = [...prompt.slice(0, at), ...Array(rows).fill(VISION.imageToken), ...prompt.slice(at + 1)];
-    const state = this.newState();
     const first = await this.step(state, ids, { imageFeatures: features, imageRows: rows });
     return this.#generateText(state, first, maxTokens);
   }
@@ -568,7 +590,7 @@ export class Lfm3Audio {
   }
 
   /** Spracherkennung: Text eines 16-kHz-Clips. */
-  async transcribe(wave16k, { language = "German", maxTokens = 120 } = {}) {
+  async transcribe(wave16k, { language = "German", maxTokens = 60, onText = () => {} } = {}) {
     const { features, rows } = await this.encode(wave16k);
     const prompt = this.ids(asrPrompt(language, { omni: this.omni }));
     const at = prompt.indexOf(TOKENS.audio);
@@ -583,6 +605,7 @@ export class Lfm3Audio {
       const token = argmax(logits, 0, vocab, suppress);
       if (token === TOKENS.eos || token === TOKENS.textEnd) break;
       out.push(token);
+      onText(this.tokenizer.decode(out, { skip_special_tokens: true }).trim());
       ({ logits } = await this.step(state, [token]));
     }
     return this.tokenizer.decode(out, { skip_special_tokens: true }).trim();

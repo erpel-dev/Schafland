@@ -141,6 +141,12 @@ async function ask(img, { system, question }) {
   const resized = await img.resize(width, height, { resample: 3 });
   return model.askImage({ data: resized.data, width, height }, question, { system });
 }
+// wie die App nach dem Laden: Systemteil mit der Liste vorab rechnen
+if (IMAGES) {
+  t = performance.now();
+  await model.warmPrefix(productImageQuestion(products).system);
+  console.log(`INFO  Bild-Systemteil vorab gerechnet (${secs(t)})`);
+}
 let imagesOk = 0;
 let hardOk = 0;
 let hard = 0;

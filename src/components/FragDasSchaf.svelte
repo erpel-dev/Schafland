@@ -30,6 +30,7 @@
           <button class="btn" onclick={() => schaf.ask()}>Fertig gesprochen</button>
         {:else if schaf.phase === "thinking"}
           <p class="big">Hmm, ich überlege <span class="dots"><i>.</i><i>.</i><i>.</i></span></p>
+          {#if schaf.heard}<small class="heard">„{schaf.heard} …“</small>{/if}
         {:else if schaf.phase === "error"}
           <p class="big">Oh!</p>
           <p>{schaf.error}</p>

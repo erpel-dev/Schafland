@@ -199,7 +199,11 @@ class FragDasSchaf {
         if (fake) out = { text: await fake(audio), ms: 0 };
         else if (lfm3) {
           // LFM3-Audio hört zu; klappt es nicht, übernimmt Whisper
-          out = await this.#audioCall({ type: "transcribe", audio: audio.slice() }).then((o) => {
+          // Mitlesen: was schon erkannt ist, steht gleich im Fenster
+          const live = (e) => {
+            if (turn === this.#turn && this.phase === "thinking") this.heard = e.text;
+          };
+          out = await this.#audioCall({ type: "transcribe", audio: audio.slice() }, live).then((o) => {
             this.audioLastMs = { ...this.audioLastMs, asr: o.ms };
             return o;
           }, (err) => {
@@ -485,6 +489,7 @@ class FragDasSchaf {
         if (gen !== this.#audioGen) return;
         markOmniLoading(false);
         this.audio = "bereit";
+        this.#warmAudioModel();
       } catch (err) {
         markOmniLoading(false);
         if (gen !== this.#audioGen) return; // inzwischen abgeschaltet
@@ -503,6 +508,24 @@ class FragDasSchaf {
   }
 
   audioRestarts = $state(0);
+
+  /**
+   * Nach dem Laden im Hintergrund: Shader übersetzen und die gleichbleibenden Systemteile (Sortiment
+   * für Fragen, Liste für Fotos) vorab rechnen. Fragen in der Zwischenzeit warten im Worker kurz.
+   */
+  #warmAudioModel() {
+    const aktion = aktionById(settings.value.aktion);
+    const chat = buildMessages("Hallo", {
+      products: this.pool,
+      categories: [...(aktion ? [aktion.category] : []), ...categories],
+      cart: [],
+    }).find((m) => m.role === "system")?.content;
+    const bild = productImageQuestion([...(aktion ? aktion.products : []), ...products]).system;
+    this.#audioCall({ type: "warm", systems: [bild, chat].filter(Boolean) }).then(
+      (o) => (this.audioLastMs = { ...this.audioLastMs, warm: o.ms }),
+      (err) => console.warn("LFM3-Omni aufwärmen", err),
+    );
+  }
 
   #restartAudioModel(reason) {
     if (this.audio !== "bereit") return;

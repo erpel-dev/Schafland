@@ -21,6 +21,9 @@ env.allowLocalModels = false;
 ort.env.wasm.wasmPaths = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ort.env.versions.web}/dist/`;
 ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
 
+// Große Modelle auf dem Handy: die schnelle Grafikkarte nehmen, wenn es mehrere gibt
+if (ort.env.webgpu) ort.env.webgpu.powerPreference = "high-performance";
+
 let model = null;
 
 /** present_conv.N / present.N.key / .value → auf der Grafikkarte lassen (24 Schichten) */
@@ -100,7 +103,7 @@ async function ensure(role, post) {
  */
 async function load(post) {
   if (model) return;
-  if (!navigator.gpu || !(await navigator.gpu.requestAdapter())) throw new Error("Keine Grafikkarte (WebGPU) im Browser");
+  if (!navigator.gpu || !(await navigator.gpu.requestAdapter({ powerPreference: "high-performance" }))) throw new Error("Keine Grafikkarte (WebGPU) im Browser");
   const totals = new Map();
   const progress = (name) => (loaded, total) => {
     totals.set(name, { loaded, total: total || loaded });
@@ -123,58 +126,73 @@ async function load(post) {
 }
 
 let stop = false;
+// Aufträge nacheinander: die Grafikkarte rechnet ohnehin nur einen, und der Speicher (Zwischenstände
+// des Decoders) gehört immer genau einer Erzeugung
+let queue = Promise.resolve();
 
-self.onmessage = async ({ data }) => {
+async function handle(data, post) {
+  const { type } = data;
+  if (type === "load") {
+    await load(post);
+    return post({ type: "ready" });
+  }
+  if (!model) throw new Error("Audio-Modell nicht geladen");
+  if (type === "warm") {
+    // Nach dem Laden: Shader übersetzen und die Systemteile vorab rechnen, damit die erste Frage
+    // nicht doppelt so lange dauert
+    const t0 = performance.now();
+    await model.transcribe(new Float32Array(16000), { maxTokens: 2 });
+    for (const system of data.systems ?? []) await model.warmPrefix(system);
+    return post({ type: "warm", ms: Math.round(performance.now() - t0) });
+  }
+  if (type === "transcribe") {
+    const t0 = performance.now();
+    const text = await model.transcribe(data.audio, { onText: (t) => post({ type: "token", text: t }) });
+    return post({ type: "text", text, ms: Math.round(performance.now() - t0) });
+  }
+  if (type === "chat") {
+    const t0 = performance.now();
+    const text = await model.chat(data.messages, { onText: (t) => post({ type: "token", text: t }), shouldStop: () => stop });
+    return post({ type: "text", text, ms: Math.round(performance.now() - t0) });
+  }
+  if (type === "image") {
+    await ensure("vision_encoder", post);
+    // Kamerabild (RGBA) auf die Größe bringen, die das Modell erwartet
+    const t0 = performance.now();
+    const { width, height } = smartResize(data.height, data.width, { maxTokens: data.maxTokens ?? 256 });
+    const bitmap = await createImageBitmap(new ImageData(data.rgba, data.width, data.height), { resizeWidth: width, resizeHeight: height, resizeQuality: "high" });
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const rgba = ctx.getImageData(0, 0, width, height).data;
+    const rgb = new Uint8Array(width * height * 3);
+    for (let i = 0, j = 0; i < rgba.length; i += 4) {
+      rgb[j++] = rgba[i];
+      rgb[j++] = rgba[i + 1];
+      rgb[j++] = rgba[i + 2];
+    }
+    const text = await model.askImage({ data: rgb, width, height }, data.question, { system: data.system ?? "", maxImageTokens: data.maxTokens ?? 256 });
+    return post({ type: "text", text, ms: Math.round(performance.now() - t0) });
+  }
+  if (type === "speak") {
+    await ensure("depth_decoder", post);
+    await ensure("codec_decoder", post);
+    const t0 = performance.now();
+    const wave = await model.speak(data.text, { voice: data.voice ?? "female", onFrame: (n) => post({ type: "frame", n }) });
+    return post({ type: "audio", wave, ms: Math.round(performance.now() - t0) }, [wave.buffer]);
+  }
+  throw new Error(`Unbekannter Auftrag: ${type}`);
+}
+
+self.onmessage = ({ data }) => {
   const { id, type } = data;
   if (type === "stop") {
     stop = true;
     return self.postMessage({ id, type: "stopped" });
   }
+  // Ein „stop“, der kommt, während die Frage noch wartet, gilt für sie
+  if (type === "chat") stop = false;
   const post = (msg, transfer) => self.postMessage({ id, ...msg }, transfer ?? []);
-  try {
-    if (type === "load") {
-      await load(post);
-      return post({ type: "ready" });
-    }
-    if (!model) throw new Error("Audio-Modell nicht geladen");
-    if (type === "transcribe") {
-      const t0 = performance.now();
-      const text = await model.transcribe(data.audio);
-      return post({ type: "text", text, ms: Math.round(performance.now() - t0) });
-    }
-    if (type === "chat") {
-      const t0 = performance.now();
-      stop = false;
-      const text = await model.chat(data.messages, { onText: (t) => post({ type: "token", text: t }), shouldStop: () => stop });
-      return post({ type: "text", text, ms: Math.round(performance.now() - t0) });
-    }
-    if (type === "image") {
-      await ensure("vision_encoder", post);
-      // Kamerabild (RGBA) auf die Größe bringen, die das Modell erwartet
-      const t0 = performance.now();
-      const { width, height } = smartResize(data.height, data.width, { maxTokens: data.maxTokens ?? 256 });
-      const bitmap = await createImageBitmap(new ImageData(data.rgba, data.width, data.height), { resizeWidth: width, resizeHeight: height, resizeQuality: "high" });
-      const canvas = new OffscreenCanvas(width, height);
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(bitmap, 0, 0);
-      const rgba = ctx.getImageData(0, 0, width, height).data;
-      const rgb = new Uint8Array(width * height * 3);
-      for (let i = 0, j = 0; i < rgba.length; i += 4) {
-        rgb[j++] = rgba[i];
-        rgb[j++] = rgba[i + 1];
-        rgb[j++] = rgba[i + 2];
-      }
-      const text = await model.askImage({ data: rgb, width, height }, data.question, { system: data.system ?? "", maxImageTokens: data.maxTokens ?? 256 });
-      return post({ type: "text", text, ms: Math.round(performance.now() - t0) });
-    }
-    if (type === "speak") {
-      await ensure("depth_decoder", post);
-      await ensure("codec_decoder", post);
-      const t0 = performance.now();
-      const wave = await model.speak(data.text, { voice: data.voice ?? "female", onFrame: (n) => post({ type: "frame", n }) });
-      return post({ type: "audio", wave, ms: Math.round(performance.now() - t0) }, [wave.buffer]);
-    }
-  } catch (err) {
-    post({ type: "error", message: err?.message ?? String(err) });
-  }
+  queue = queue.then(() => handle(data, post)).catch((err) => post({ type: "error", message: err?.message ?? String(err) }));
 };

@@ -195,6 +195,15 @@
   });
   const when = (t) => new Date(t).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
   const PAY = { "spiel-qr": "Schaf-Code", paypal: "PayPal", girocode: "Überweisung (GiroCode)" };
+
+  // Zeiten von LFM3-Omni (Eltern-Bereich), nur was schon gemessen wurde
+  const omniZeiten = $derived(
+    [["warm", "Aufwärmen"], ["asr", "Erkennen"], ["tts", "Vorlesen"], ["bild", "Bild"]]
+      .filter(([k]) => schaf.audioLastMs[k])
+      .map(([k, name]) => `${name} ${(schaf.audioLastMs[k] / 1000).toFixed(1)} s`)
+      .concat(schaf.kiViaAudio && schaf.kiLastMs ? [`Antwort ${(schaf.kiLastMs / 1000).toFixed(1)} s`] : [])
+      .join(", "),
+  );
 </script>
 
 <div class="settings">
@@ -438,9 +447,7 @@
                 <span class="muted">Natürliche Stimme von LFM3-Omni zum Vorlesen. Klingt schöner, braucht aber pro Satz etliche Sekunden. Aus: die schnelle Stimme des Systems.</span>
               </div>
               {#if audioTestError}<p class="err">{audioTestError}</p>{/if}
-              {#if schaf.audioLastMs.asr || schaf.audioLastMs.tts}
-                <small class="muted">Zuletzt: Erkennen {(schaf.audioLastMs.asr / 1000).toFixed(1)} s, Vorlesen {(schaf.audioLastMs.tts / 1000).toFixed(1)} s{schaf.audioLastMs.bild ? `, Bild ${(schaf.audioLastMs.bild / 1000).toFixed(1)} s` : ""}</small>
-              {/if}
+              {#if omniZeiten}<small class="muted omni-zeiten">Zuletzt: {omniZeiten}</small>{/if}
             </div>
           </div>
         {/if}

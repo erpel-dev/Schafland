@@ -101,12 +101,15 @@ const BILD_SYSTEM =
   "Du bist die Kasse im Kinder-Kaufladen „Schafland“. Auf den Fotos sind meist Spielsachen: Obst, Gemüse und Essen aus Plastik, Holz oder Filz. " +
   "Sag, welches Lebensmittel oder Ding das Spielzeug darstellt.";
 
-/** Erste Frage: Auswahl aus dem Sortiment */
+/**
+ * Erste Frage: Auswahl aus dem Sortiment. Die Liste steht im Systemteil: der ist bei jedem Foto
+ * gleich und wird nur einmal gerechnet (Präfix-Speicher), pro Foto bleiben Bild und kurze Frage.
+ */
 export function productImageQuestion(products) {
   const names = [...new Set(products.map((p) => clean(p.name)))];
   return {
-    system: BILD_SYSTEM,
-    question: `Welches Produkt aus dieser Liste ist auf dem Bild zu sehen (auch als Spielzeug)? Antworte nur mit dem Namen aus der Liste. Wenn keins passt, antworte „unbekannt“.\nListe: ${names.join(", ")}`,
+    system: `${BILD_SYSTEM}\nListe der Produkte: ${names.join(", ")}`,
+    question: "Welches Produkt aus der Liste ist auf dem Bild zu sehen (auch als Spielzeug)? Antworte nur mit dem Namen aus der Liste. Wenn keins passt, antworte „unbekannt“.",
   };
 }
 
