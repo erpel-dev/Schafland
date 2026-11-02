@@ -303,6 +303,8 @@
         {camError}
       {:else if camState === "start"}
         {slowStart ? "Bitte die Kamera erlauben" : "Kamera startet …"}
+      {:else if schaf.canSeeProducts}
+        Strichcode in die Wolke halten – oder „Was ist das?“ tippen
       {:else}
         Halte den Strichcode in die Wolke
       {/if}
@@ -382,6 +384,10 @@
     background: var(--sky); color: var(--sky-ink); font-weight: 800; font-size: 1.05rem;
   }
   .see:disabled { opacity: 0.7; }
+  /* Handy hochkant: unten ist „Fertig gescannt“ – der Knopf kommt nach oben links */
+  @media (max-width: 760px) {
+    .see { bottom: auto; top: 3rem; left: 0.6rem; padding: 0.5rem 0.85rem; font-size: 1rem; }
+  }
   .maybe { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr)); gap: 0.5rem; }
   .maybe-item { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; padding: 0.5rem; border-radius: 1rem; background: var(--wool); border: 2px solid var(--wool-line); font-weight: 800; }
   .frame { position: relative; width: 26rem; max-width: 80%; aspect-ratio: 16 / 9; }
