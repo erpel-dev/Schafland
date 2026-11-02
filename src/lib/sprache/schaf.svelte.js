@@ -91,6 +91,14 @@ class FragDasSchaf {
   #call(msg, onProgress) {
     if (!this.#worker) {
       this.#worker = new Worker(new URL("./erkennung.worker.js", import.meta.url), { type: "module" });
+      // Prozess lässt sich nicht starten (z. B. offline, Datei noch nie geladen) oder stürzt ab
+      this.#worker.onerror = (e) => {
+        e.preventDefault?.();
+        this.#worker?.terminate();
+        this.#worker = null;
+        this.modelReady = false;
+        rejectAll(this.#pending, "Spracherkennung ließ sich nicht laden (Netzwerk?)");
+      };
       this.#worker.onmessage = ({ data }) => {
         const p = this.#pending.get(data.id);
         if (!p) return;
@@ -308,6 +316,13 @@ class FragDasSchaf {
   #kiCall(msg, onEvent) {
     if (!this.#ki) {
       this.#ki = new Worker(new URL("./sprachmodell.worker.js", import.meta.url), { type: "module" });
+      this.#ki.onerror = (e) => {
+        e.preventDefault?.();
+        this.#ki?.terminate();
+        this.#ki = null;
+        if (this.ki === "bereit") this.ki = "aus";
+        rejectAll(this.#kiPending, "Sprachmodell ließ sich nicht laden (Netzwerk?)");
+      };
       this.#ki.onmessage = ({ data }) => {
         const p = this.#kiPending.get(data.id);
         if (!p) return;
@@ -422,7 +437,14 @@ class FragDasSchaf {
           if (/memory access out of bounds|out of memory|Aborted|RuntimeError|unreachable/i.test(data.message)) this.#restartAudioModel(data.message);
         } else p.resolve(data);
       };
-      this.#audioWorker.onerror = (e) => this.#restartAudioModel(e.message ?? "Absturz");
+      this.#audioWorker.onerror = (e) => {
+        e.preventDefault?.();
+        if (this.audio === "bereit") return this.#restartAudioModel(e.message ?? "Absturz");
+        // beim Laden gescheitert (z. B. offline): Anfragen beenden statt ewig warten
+        this.#audioWorker?.terminate();
+        this.#audioWorker = null;
+        rejectAll(this.#audioPending, "LFM3-Omni ließ sich nicht laden (Netzwerk?)");
+      };
     }
     const id = ++this.#audioSeq;
     return new Promise((resolve, reject) => {
@@ -674,14 +696,14 @@ function describe(err) {
   const name = err?.name ?? "";
   if (name === "NotAllowedError" || name === "SecurityError") return "Das Mikrofon ist nicht erlaubt. Im Eltern-Bereich oder in den Browser-Einstellungen freigeben.";
   if (name === "NotFoundError" || name === "OverconstrainedError") return "Kein Mikrofon gefunden.";
-  if (/fetch|network|Failed to|load/i.test(err?.message ?? "")) return "Die Ohren des Schafs konnten nicht geladen werden. Beim ersten Mal braucht es Internet.";
+  if (/fetch|network|Failed to|load|laden|Netzwerk/i.test(err?.message ?? "")) return "Die Ohren des Schafs konnten nicht geladen werden. Beim ersten Mal braucht es Internet.";
   return "Das hat nicht geklappt. Nochmal versuchen?";
 }
 
 function describeKi(err) {
   const msg = err?.message ?? "";
   if (/Grafikkarte/.test(msg)) return msg;
-  if (/fetch|network|Failed to|load/i.test(msg)) return "Das Sprachmodell konnte nicht geladen werden. Beim ersten Mal braucht es Internet.";
+  if (/fetch|network|Failed to|load|laden|Netzwerk/i.test(msg)) return "Das Sprachmodell konnte nicht geladen werden. Beim ersten Mal braucht es Internet.";
   if (/memory|Memory|OOM|allocation/i.test(msg)) return "Zu wenig Speicher für dieses Modell. „Klein“ wählen.";
   return "Das Sprachmodell läuft auf diesem Gerät nicht: " + msg.slice(0, 120);
 }

@@ -519,7 +519,7 @@
         </div>
 
         <h3>Zuletzt gefragt</h3>
-        {#each schaf.log as e (e.at)}
+        {#each schaf.log as e, i (`${e.at}-${i}`)}
           <div class="log" class:ok={!!e.product || ["category", "total", "hello", "thanks", "ki"].includes(e.intent)}>
             <div class="loghead"><b>„{e.text || "(nichts verstanden)"}“</b><small>{when(e.at)}</small></div>
             <small>
@@ -601,7 +601,7 @@
       {:else if tab === "protokoll"}
         <h2>Scan-Protokoll</h2>
         <p class="muted">Die letzten {scanLog.entries.length} Scans mit den Antworten der Datenbanken. Hilft herauszufinden, warum etwas nicht erkannt wurde.</p>
-        {#each scanLog.entries as e (e.at + e.code)}
+        {#each scanLog.entries as e, i (`${e.at}-${e.code}-${i}`)}
           <div class="log" class:ok={e.result.startsWith("gefunden")}>
             <div class="loghead"><code>{e.code}</code><b>{e.result}</b><small>{when(e.at)}</small></div>
             <small>{e.trace.join(" · ")}</small>

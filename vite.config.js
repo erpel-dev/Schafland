@@ -37,9 +37,12 @@ export default defineConfig({
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,woff2,wasm}"],
         // Laufzeit der Spracherkennung nur laden, wenn „Frag das Schaf“ benutzt wird; dann behalten
-        globIgnores: ["**/ort-wasm-*"],
+        // KI-Teile (Laufzeit und die drei KI-Hintergrundprozesse, zusammen ca. 16 MB) nicht vorab für
+        // jeden speichern, sondern erst, wenn „Frag das Schaf“ sie braucht; dann für offline behalten
+        globIgnores: ["**/ort-wasm-*", "**/erkennung.worker-*", "**/sprachmodell.worker-*", "**/audiomodell.worker-*"],
         runtimeCaching: [
-          { urlPattern: /\/assets\/ort-wasm-[^/]+$/, handler: "CacheFirst", options: { cacheName: "spracherkennung" } },
+          { urlPattern: /\/assets\/ort-wasm-[^/]+$/, handler: "CacheFirst", options: { cacheName: "spracherkennung", expiration: { maxEntries: 4 } } },
+          { urlPattern: /\/assets\/(erkennung|sprachmodell|audiomodell)\.worker-[^/]+\.js$/, handler: "CacheFirst", options: { cacheName: "ki-prozesse", expiration: { maxEntries: 6 } } },
           // Stufe 2 mit Grafikkarte: WebGPU-Laufzeit vom CDN, einmal geladen auch offline
           { urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/onnxruntime-web@/, handler: "CacheFirst", options: { cacheName: "sprachmodell-laufzeit", cacheableResponse: { statuses: [0, 200] } } },
         ],

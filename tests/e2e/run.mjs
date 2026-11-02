@@ -1023,6 +1023,14 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       let msg = "";
       try { await page.waitForSelector(".panel >> text=Oh!", { timeout: 20000 }); msg = await page.textContent(".panel .bubble"); } catch {}
       check("Ohne Internet beim ersten Mal: verständliche Meldung", msg.includes("Internet"), msg.replace(/\s+/g, " ").slice(0, 120));
+      // Offline und der Hintergrundprozess selbst war noch nie geladen: Meldung statt endlosem Warten
+      await page.click(".panel .x");
+      await ctx.route(/erkennung\.worker-[^/]+\.js/, (r) => r.abort("internetdisconnected"));
+      await page.evaluate(() => window.__fragDasSchaf.resetModel());
+      await page.click(".askbar");
+      let msg2 = "";
+      try { await page.waitForSelector(".panel >> text=Oh!", { timeout: 15000 }); msg2 = await page.textContent(".panel .bubble"); } catch {}
+      check("Offline, Prozess nie geladen: verständliche Meldung statt Hängen", msg2.includes("Internet"), msg2.replace(/\s+/g, " ").slice(0, 120) || `hängt: ${await page.evaluate(() => window.__fragDasSchaf.phase)}`);
       await page.click(".panel .x");
       check("Keine Konsolenfehler (Frag das Schaf)", !errors.filter((e) => !/ERR_INTERNET_DISCONNECTED|Failed to load resource|huggingface|fetch/i.test(e)).length, errors.join(" | "));
       await browser.close();
