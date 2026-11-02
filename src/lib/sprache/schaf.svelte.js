@@ -586,7 +586,7 @@ class FragDasSchaf {
     for (const [what, image, { system, question }] of attempts) {
       if (!image) continue;
       let answer;
-      if (globalThis.__schafFakeAudio?.image) answer = await globalThis.__schafFakeAudio.image(question, what);
+      if (globalThis.__schafFakeAudio?.image) answer = await globalThis.__schafFakeAudio.image(question, what, system);
       else {
         const out = await this.#audioCall({ type: "image", rgba: new Uint8ClampedArray(image.data), width: image.width, height: image.height, system, question });
         answer = out.text;

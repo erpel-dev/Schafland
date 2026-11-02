@@ -1057,7 +1057,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       const o = await launch("empty", { audio: wav });
       await o.ctx.addInitScript(() => {
         Object.defineProperty(navigator, "gpu", { value: { requestAdapter: async () => ({ features: new Set() }) } });
-        window.__schafFakeAudio = { image: async (question) => (window.__bildFrage = question, "Apfel") };
+        window.__schafFakeAudio = { image: async (question, what, system) => (window.__bildFrage = `${system}\n${question}`, "Apfel") };
         window.__schafFakeErkennung = async () => "Was kostet die Banane";
       });
       await o.page.goto(APP_URL);
@@ -1122,7 +1122,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await o.page.waitForSelector(".found .t:has-text('Apfel')", { timeout: 10000 }).catch(() => {});
       check("Bilderkennung: Produkt erkannt und angezeigt", (await o.page.textContent(".found")).includes("Apfel"), (await o.page.textContent(".found")).replace(/\s+/g, " ").slice(0, 80));
       const q = await o.page.evaluate(() => window.__bildFrage);
-      check("Bilderkennung: Frage nennt das Sortiment", q.includes("Banane") && q.includes("unbekannt"));
+      check("Bilderkennung: Anfrage nennt das Sortiment", q.includes("Banane") && q.includes("unbekannt"));
       await o.page.screenshot({ path: `${SHOTS}/omni-bilderkennung.png` });
       await o.page.waitForTimeout(2500);
       check("Bilderkennung: erkanntes Produkt landet im Korb", (await cartQty(o.page, "Apfel")) >= 1);
