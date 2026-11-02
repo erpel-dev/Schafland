@@ -86,22 +86,102 @@ export function melFilters() {
   return out;
 }
 
-function trigTable(n) {
+// ---------- FFT (gemischte Radix 2/3/5: 400 = 2⁴·5², 1280 = 2⁸·5) ----------
+
+const fftPlans = new Map();
+
+function fftPlan(n) {
+  let plan = fftPlans.get(n);
+  if (plan) return plan;
   const cos = new Float64Array(n);
   const sin = new Float64Array(n);
   for (let i = 0; i < n; i++) {
     cos[i] = Math.cos((2 * Math.PI * i) / n);
     sin[i] = Math.sin((2 * Math.PI * i) / n);
   }
-  return { cos, sin };
+  plan = { n, cos, sin, re: new Float64Array(n), im: new Float64Array(n) };
+  fftPlans.set(n, plan);
+  return plan;
 }
+
+/**
+ * Komplexe FFT (vorwärts, e^{-i…}) in place, rekursiv nach dem kleinsten Faktor.
+ * stride/offset adressieren die Teilfolge; tw = n_gesamt / n für die Drehfaktoren.
+ */
+function fftRec(re, im, n, plan, tw, outRe, outIm, inOff, stride, outOff) {
+  if (n === 1) {
+    outRe[outOff] = re[inOff];
+    outIm[outOff] = im[inOff];
+    return;
+  }
+  const p = n % 2 === 0 ? 2 : n % 3 === 0 ? 3 : n % 5 === 0 ? 5 : n;
+  const m = n / p;
+  if (p === n) {
+    // Primzahl-Länge (kommt bei 400/1280 nicht vor): direkte DFT
+    for (let k = 0; k < n; k++) {
+      let sr = 0;
+      let si = 0;
+      for (let j = 0; j < n; j++) {
+        const idx = ((j * k) % n) * tw;
+        const xr = re[inOff + j * stride];
+        const xi = im[inOff + j * stride];
+        sr += xr * plan.cos[idx] + xi * plan.sin[idx];
+        si += xi * plan.cos[idx] - xr * plan.sin[idx];
+      }
+      outRe[outOff + k] = sr;
+      outIm[outOff + k] = si;
+    }
+    return;
+  }
+  // Teil-FFTs der p Teilfolgen nach outRe/outIm[outOff + r·m …]
+  for (let r = 0; r < p; r++) fftRec(re, im, m, plan, tw * p, outRe, outIm, inOff + r * stride, stride * p, outOff + r * m);
+  // Zusammensetzen: X[k + q·m] = Σ_r W_n^{r(k+q·m)} · Y_r[k]
+  const tr = new Float64Array(p);
+  const ti = new Float64Array(p);
+  for (let k = 0; k < m; k++) {
+    for (let r = 0; r < p; r++) {
+      tr[r] = outRe[outOff + r * m + k];
+      ti[r] = outIm[outOff + r * m + k];
+    }
+    for (let q = 0; q < p; q++) {
+      const kk = k + q * m;
+      let sr = 0;
+      let si = 0;
+      for (let r = 0; r < p; r++) {
+        const idx = ((r * kk) % n) * tw;
+        const c = plan.cos[idx];
+        const sn = plan.sin[idx];
+        sr += tr[r] * c + ti[r] * sn;
+        si += ti[r] * c - tr[r] * sn;
+      }
+      plan.re[kk] = sr;
+      plan.im[kk] = si;
+    }
+  }
+  for (let k = 0; k < n; k++) {
+    outRe[outOff + k] = plan.re[k];
+    outIm[outOff + k] = plan.im[k];
+  }
+}
+
+/** FFT der Länge n: (re, im) → neue Arrays */
+export function fft(re, im) {
+  const n = re.length;
+  const plan = fftPlan(n);
+  const outRe = new Float64Array(n);
+  const outIm = new Float64Array(n);
+  // Zwischenpuffer je Rekursionsebene: plan.re/im werden pro Aufruf vollständig umkopiert
+  fftRec(re, im, n, { ...plan, re: new Float64Array(n), im: new Float64Array(n) }, 1, outRe, outIm, 0, 1, 0);
+  return { re: outRe, im: outIm };
+}
+
 
 let melCache = null;
 
 /** Log-Mel-Merkmale [nMels * T] (zeilenweise) eines 16-kHz-Mono-Clips; T = numFrames(n). */
 export function logMel(wave) {
-  if (!melCache) melCache = { filters: melFilters(), trig: trigTable(MEL.nFft) };
-  const { filters, trig } = melCache;
+  if (!melCache) melCache = { filters: melFilters() };
+  const { filters } = melCache;
   const T = numFrames(wave.length);
   const nBins = MEL.nFft / 2 + 1;
   const window = new Float64Array(MEL.nFft);
@@ -109,21 +189,14 @@ export function logMel(wave) {
   const out = new Float32Array(MEL.nMels * T);
   const seg = new Float64Array(MEL.nFft);
   const power = new Float64Array(nBins);
+  const zero = new Float64Array(MEL.nFft);
   for (let t = 0; t < T; t++) {
     for (let i = 0; i < MEL.nFft; i++) {
       const j = t * MEL.hop + i;
       seg[i] = (j < wave.length ? wave[j] : 0) * window[i];
     }
-    for (let k = 0; k < nBins; k++) {
-      let re = 0;
-      let im = 0;
-      for (let i = 0; i < MEL.nFft; i++) {
-        const idx = (k * i) % MEL.nFft;
-        re += seg[i] * trig.cos[idx];
-        im -= seg[i] * trig.sin[idx];
-      }
-      power[k] = re * re + im * im;
-    }
+    const spec = fft(seg, zero);
+    for (let k = 0; k < nBins; k++) power[k] = spec.re[k] * spec.re[k] + spec.im[k] * spec.im[k];
     for (let m = 0; m < MEL.nMels; m++) {
       let e = 0;
       for (let k = 0; k < nBins; k++) e += filters[k][m] * power[k];
@@ -136,13 +209,13 @@ export function logMel(wave) {
 
 // ---------- Ton aus STFT-Merkmalen ----------
 
-let istftTrig = null;
 
 /** 24-kHz-Ton aus stft_features [rows, nFft + 2] (log-Betrag | Phase), wie istft_same_padding. */
 export function stftToWave(features, rows) {
   const { nFft, hop } = CODEC;
   const bins = nFft / 2 + 1;
-  istftTrig ??= trigTable(nFft);
+  const fullRe = new Float64Array(nFft);
+  const fullIm = new Float64Array(nFft);
   const window = new Float64Array(nFft);
   for (let i = 0; i < nFft; i++) window[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / nFft);
   const size = (rows - 1) * hop + nFft;
@@ -159,15 +232,19 @@ export function stftToWave(features, rows) {
       re[k] = mag * Math.cos(ph);
       im[k] = mag * Math.sin(ph);
     }
-    // irfft (Hermitesch ergänzt): x[n] = (1/N) Σ X[k] e^{+i2πkn/N}
-    for (let n = 0; n < nFft; n++) {
-      let s = re[0] + (n % 2 ? -re[bins - 1] : re[bins - 1]); // DC und Nyquist (Imaginärteil fällt weg)
-      for (let k = 1; k < bins - 1; k++) {
-        const idx = (k * n) % nFft;
-        s += 2 * (re[k] * istftTrig.cos[idx] - im[k] * istftTrig.sin[idx]);
-      }
-      frame[n] = (s / nFft) * window[n];
+    // irfft: Spektrum hermitesch ergänzen, inverse FFT über konj(FFT(konj(X))) / N
+    fullRe[0] = re[0];
+    fullIm[0] = 0; // wie numpy.fft.irfft: Imaginärteil von DC und Nyquist zählt nicht
+    fullRe[bins - 1] = re[bins - 1];
+    fullIm[bins - 1] = 0;
+    for (let k = 1; k < bins - 1; k++) {
+      fullRe[k] = re[k];
+      fullIm[k] = -im[k];
+      fullRe[nFft - k] = re[k];
+      fullIm[nFft - k] = im[k];
     }
+    const x = fft(fullRe, fullIm);
+    for (let n = 0; n < nFft; n++) frame[n] = (x.re[n] / nFft) * window[n];
     for (let n = 0; n < nFft; n++) {
       wave[t * hop + n] += frame[n];
       env[t * hop + n] += window[n] * window[n];
@@ -333,6 +410,26 @@ export class Lfm3Audio {
     return Array.from(this.tokenizer.encode(text, { add_special_tokens: false }), Number);
   }
 
+  /**
+   * Präfix-Speicher: Der lange Systemteil (Sortiment, Wissen) ist bei jeder Frage gleich. Er wird
+   * einmal gerechnet; jede Frage startet von einer Kopie dieses Zustands (die Tensoren werden nur
+   * gelesen, nie verändert, und bleiben deshalb erhalten).
+   */
+  async #fromPrefix(system) {
+    const text = `${TOKENS.bos}${system ? `<|im_start|>system\n${system}<|im_end|>\n` : ""}`;
+    if (this.prefix?.text !== text) {
+      if (this.prefix) for (const t of this.prefix.keep) t?.dispose?.();
+      if (this.lastState) this.release(this.lastState);
+      this.lastState = null;
+      const st = { past: 0, cache: this.emptyCache() };
+      await this.prefill(st, this.ids(text));
+      this.prefix = { text, past: st.past, cache: st.cache, keep: new Set(Object.values(st.cache)) };
+    }
+    if (this.lastState) this.release(this.lastState);
+    this.lastState = { past: this.prefix.past, cache: { ...this.prefix.cache }, keep: this.prefix.keep };
+    return this.lastState;
+  }
+
   /** Neue Erzeugung: Speicher der vorigen freigeben (es läuft immer nur eine) */
   newState() {
     if (this.lastState) this.release(this.lastState);
@@ -342,7 +439,7 @@ export class Lfm3Audio {
 
   /** Zwischenspeicher einer fertigen Erzeugung freigeben (auf der Grafikkarte sonst ein Leck) */
   release(state) {
-    for (const t of Object.values(state.cache)) t?.dispose?.();
+    for (const t of Object.values(state.cache)) if (!state.keep?.has(t)) t?.dispose?.();
     state.cache = {};
   }
 
@@ -379,7 +476,8 @@ export class Lfm3Audio {
       if (name.startsWith("present_conv.")) past = name.replace("present_conv.", "past_conv.");
       else if (name.startsWith("present.")) past = name.replace("present.", "past_key_values.");
       if (past) {
-        state.cache[past]?.dispose?.();
+        const old = state.cache[past];
+        if (old && !state.keep?.has(old)) old.dispose?.();
         state.cache[past] = value;
       }
     }
@@ -402,9 +500,9 @@ export class Lfm3Audio {
   async chat(messages, { maxTokens = 90, onText = () => {}, shouldStop = () => false } = {}) {
     const system = messages.find((m) => m.role === "system")?.content ?? "";
     const user = messages.filter((m) => m.role === "user").at(-1)?.content ?? "";
-    const ids = this.ids(chatPrompt(system, user));
-    const state = this.newState();
-    let { logits } = await this.prefill(state, ids);
+    const state = await this.#fromPrefix(system);
+    const rest = chatPrompt(system, user).slice(this.prefix.text.length);
+    let { logits } = await this.prefill(state, this.ids(rest));
     const vocab = logits.length;
     const suppress = new Set([TOKENS.audio, TOKENS.audioOut, TOKENS.audioStart, TOKENS.mixedStart]);
     const out = [];

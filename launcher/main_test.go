@@ -62,6 +62,9 @@ func TestServerLiefertAppMitRichtigenTypen(t *testing.T) {
 		if res.StatusCode != 200 || !strings.HasPrefix(res.Header.Get("Content-Type"), want) {
 			t.Errorf("%s: Status %d, Typ %q, erwartet %q", path, res.StatusCode, res.Header.Get("Content-Type"), want)
 		}
+		if res.Header.Get("Cross-Origin-Opener-Policy") != "same-origin" || res.Header.Get("Cross-Origin-Embedder-Policy") != "credentialless" {
+			t.Errorf("%s: ohne Kopfzeilen für mehrere Rechenkerne (COOP/COEP)", path)
+		}
 		if res.Header.Get("Cache-Control") != "no-cache" {
 			t.Errorf("%s: ohne no-cache findet der Offline-Speicher keine neuen Versionen", path)
 		}

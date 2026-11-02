@@ -199,6 +199,7 @@
 
     return () => {
       stopped = true;
+      alive = false;
       // Schon gepiept und angezeigt, aber "Fertig" kam vor dem automatischen Hinzufügen
       if (status === "found") addFound();
       clearTimeout(loopTimer);
@@ -217,6 +218,7 @@
 
   // Produkte ohne Strichcode: Bild an LFM3-Omni („Was ist das?“)
   let seeing = $state(false);
+  let alive = true; // Ansicht noch offen? (Bilderkennung kann länger dauern als das Kind wartet)
   let maybe = $state([]); // Vorschläge, wenn das Modell unsicher ist
   async function whatIsThis() {
     if (seeing || !video?.videoWidth) return;
@@ -247,6 +249,7 @@
         result: product ? `erkannt: ${product.name}` : candidates.length ? "unsicher" : "nicht erkannt",
         trace: [...tries.map((t) => `${t.what}: „${t.answer}“`), `${((Date.now() - t0) / 1000).toFixed(1)} s`],
       });
+      if (!alive) return; // inzwischen „Fertig gescannt“: nichts mehr in den Korb legen
       if (product) {
         beep();
         found = { product, source: "Bilderkennung" };
@@ -262,7 +265,7 @@
     } catch (err) {
       console.warn("Bilderkennung", err);
       scanLog.add({ code: "Kamerabild", result: "Fehler", trace: [`${err?.message ?? err}`, `${((Date.now() - t0) / 1000).toFixed(1)} s`] });
-      status = "notseen";
+      if (alive) status = "notseen";
     } finally {
       seeing = false;
     }

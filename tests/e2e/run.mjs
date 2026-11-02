@@ -973,7 +973,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await page.evaluate(() => window.__fragDasSchaf.hear("Was schmeckt lecker?"));
       check("Offene Frage: KI-Antwort", (await page.textContent(".panel .big")).trim() === "Äpfel und Bananen sind gesund!");
       check("Offene Frage: empfohlene Produkte als Bilder", (await page.locator(".choice").count()) === 2);
-      const prompt = await page.evaluate(() => window.__kiPrompt[0].content);
+      const prompt = await page.evaluate(() => window.__kiPrompt.map((m) => m.content).join("\n"));
       check("KI bekommt Sortiment und Korb, keine Preise", prompt.includes("Obst: Apfel, Banane") && /Im Korb liegt schon|Der Korb ist leer/.test(prompt) && !/\d+,\d\d/.test(prompt));
       await wait(400);
       await page.screenshot({ path: `${SHOTS}/schaf-ki-antwort.png` });
@@ -983,7 +983,20 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       check("Unbrauchbare KI-Antwort (nur Preis): Antwort von Stufe 1", !(await page.textContent(".panel .big")).includes("12 Euro"), await page.textContent(".panel .big"));
       await page.evaluate(() => window.__fragDasSchaf.hear("Was kostet die Birne?"));
       check("Einfache Frage bleibt bei Stufe 1", (await page.textContent(".panel .big")).includes("Die Birne kostet 60 Cent"));
+
+      // Abbrechen und neu fragen: späte Antworten der alten Frage dürfen nicht hineinplatzen
+      await page.evaluate(() => {
+        window.__schafFakeKi = async () => (await new Promise((r) => setTimeout(r, 1500)), "Äpfel sind lecker!");
+      });
+      const stale = page.evaluate(() => window.__fragDasSchaf.hear("Was schmeckt lecker?"));
+      await wait(300);
       await page.click(".panel .x");
+      await page.evaluate(() => window.__fragDasSchaf.hear("Was kostet die Birne?"));
+      await stale;
+      await wait(300);
+      check("Späte KI-Antwort einer abgebrochenen Frage wird verworfen", (await page.textContent(".panel .big")).includes("Die Birne kostet 60 Cent"), await page.textContent(".panel .big"));
+      await page.click(".panel .x");
+      await page.evaluate(() => { window.__schafFakeKi = window.__schafFakeKiBackup; });
 
       // Eltern: Protokoll und Aussprache merken
       await openSettings(page);
@@ -1051,6 +1064,18 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await o.page.waitForSelector("text=✓ Geladen", { timeout: 5000 }).catch(() => {});
       check("LFM3-Omni: geladen-Anzeige", await o.page.isVisible("text=🔊 Stimme hören"));
       await o.page.click("text=Zurück zum Laden");
+      // Abbrechen, während das Schaf noch zuhört/überlegt, und neu fragen: alte Erkennung wird verworfen
+      await o.page.evaluate(() => {
+        window.__schafFakeErkennung = async () => (await new Promise((r) => setTimeout(r, 1500)), "Was kostet die Banane?");
+      });
+      await o.page.click(".askbar");
+      await o.page.waitForFunction(() => window.__fragDasSchaf.phase === "thinking", null, { timeout: 8000 }).catch(() => {});
+      const wasThinking = await o.page.evaluate(() => window.__fragDasSchaf.phase === "thinking");
+      await o.page.click(".panel .x");
+      await o.page.evaluate(() => window.__fragDasSchaf.hear("Was kostet der Apfel?"));
+      await wait(1800);
+      check("Späte Spracherkennung einer abgebrochenen Frage wird verworfen", wasThinking && (await o.page.textContent(".panel .big")).includes("Der Apfel kostet 50 Cent"), `${wasThinking ? "" : "(nicht bis „überlegt“ gekommen) "}${await o.page.textContent(".panel .big")}`);
+      await o.page.click(".panel .x");
       await o.page.click("text=Scannen!");
       await o.page.waitForSelector("button.see", { timeout: 10000 }).catch(() => {});
       check("Scannen: Knopf „Was ist das?“", await o.page.isVisible("button.see"));
@@ -1063,6 +1088,14 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await o.page.screenshot({ path: `${SHOTS}/omni-bilderkennung.png` });
       await o.page.waitForTimeout(2500);
       check("Bilderkennung: erkanntes Produkt landet im Korb", (await cartQty(o.page, "Apfel")) >= 1);
+      // Fertig gescannt, während das Schaf noch hinschaut: nichts nachträglich in den Korb
+      const before = await cartQty(o.page, "Apfel");
+      await o.page.evaluate(() => { window.__schafFakeAudio.image = async () => (await new Promise((r) => setTimeout(r, 1500)), "Apfel"); });
+      await o.page.click("button.see");
+      await wait(200);
+      await o.page.click("text=✓ Fertig gescannt");
+      await wait(2500);
+      check("Bilderkennung nach „Fertig gescannt“ legt nichts mehr in den Korb", (await cartQty(o.page, "Apfel")) === before, `${before} → ${await cartQty(o.page, "Apfel")}`);
       check("Keine Konsolenfehler (LFM3-Omni)", !o.errors.filter((e) => !/Failed to load resource/.test(e)).length, o.errors.join(" | "));
       await o.browser.close();
     }
