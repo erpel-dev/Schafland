@@ -1,0 +1,62 @@
+# Schafland-Starter (exe/Linux): Go-Tests auf Linux und Windows, Ende-zu-Ende-Test unter Linux.
+# Unter Linux mit dem echten Chipkarten-Dienst pcscd, einem virtuellen Kartenleser und einer
+# virtuellen Karte (vsmartcard): prüft die Kartenzahlung am PC wie mit einem USB-Leser.
+name: Starter
+
+on:
+  push:
+    branches: [main, kartenleser-pc]
+    paths: ["launcher/**", "src/lib/nfc.js", "src/components/PayModal.svelte", "tests/e2e/starter.mjs", "scripts/build-starter.mjs", ".github/workflows/starter.yml"]
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: launcher/go.mod
+          cache: false
+      - name: Abhängigkeiten
+        run: |
+          for i in 1 2 3; do npm ci && break; sleep 10; done
+          sudo apt-get update -qq
+          sudo apt-get install -y pcscd vsmartcard-vpcd vsmartcard-vpicc python3-pycryptodome
+      - name: Chipkarten-Dienst starten (ohne polkit, damit der Test ihn nutzen darf)
+        run: |
+          sudo systemctl stop pcscd.socket pcscd.service || true
+          sudo mkdir -p /run/pcscd
+          sudo sh -c 'pcscd -f -a --disable-polkit > /tmp/pcscd.log 2>&1 &'
+          for i in $(seq 1 20); do [ -S /run/pcscd/pcscd.comm ] && break; sleep 0.5; done
+          ls -la /run/pcscd
+      - name: Go-Tests (mit echtem pcscd)
+        run: cd launcher && go test -v ./... 2>&1 | grep -E "^(---|ok|FAIL|PASS)|Leser"
+      - name: Starter bauen und Ende-zu-Ende testen
+        run: |
+          npx vite build
+          node scripts/build-starter.mjs
+          node tests/e2e/starter.mjs
+      - name: pcscd-Protokoll
+        if: always()
+        run: tail -30 /tmp/pcscd.log || true
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: launcher/go.mod
+          cache: false
+      - name: Go-Tests (Windows-Chipkarten-Schnittstelle)
+        shell: bash
+        run: |
+          mkdir -p launcher/web && echo "<!doctype html>" > launcher/web/index.html
+          cd launcher && go test -v -run 'Karte|Winscard|ReaderState|SplitMulti|Schafland' ./...

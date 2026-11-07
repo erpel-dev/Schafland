@@ -157,6 +157,73 @@ try {
   const nob = spawnSync(BIN, ["--port", String(await freePort())], { encoding: "utf8", env: { PATH: path.join(TMP, "leer"), HOME: TMP } });
   check("Ohne Chromium: verständliche Meldung, Exit-Code 1", nob.status === 1 && nob.stderr.includes("sudo apt install chromium"), nob.stderr.trim());
 
+  // Kartenzahlung mit USB-Chipkartenleser (PC/SC) über den Starter
+  // a) Testleser: Karte „liegt auf“, solange eine Datei existiert
+  {
+    const kartenPort = await freePort();
+    const karte = path.join(TMP, "karte");
+    const srv = startStarter(["--port", String(kartenPort), "--nur-server"], { SCHAFLAND_TESTKARTE: karte });
+    for (let i = 0; i < 50 && !(await fetch(`http://127.0.0.1:${kartenPort}/__schafland`).then((r) => r.ok, () => false)); i++) await wait(100);
+    const info = await (await fetch(`http://127.0.0.1:${kartenPort}/__schafland/karte`)).json();
+    check("Starter meldet den Kartenleser", info.leser?.[0] === "Testleser", JSON.stringify(info));
+    const b = await chromium.launch();
+    const pg = await b.newPage({ viewport: { width: 1366, height: 768 } });
+    await pg.goto(`http://localhost:${kartenPort}/`);
+    await pg.click("text=Laden öffnen");
+    await pg.click(".tile:has-text('Banane')");
+    await pg.click(".pay");
+    await pg.waitForSelector("text=Karte hinhalten");
+    check("PC: Kartenoption mit „auflegen oder stecken“", (await pg.locator(".opt.on:has-text('auflegen oder stecken')").count()) === 1);
+    fs.writeFileSync(karte, "");
+    let ok = await pg.waitForSelector(".terminal.ok", { timeout: 5000 }).then(() => true, () => false);
+    check("PC: Karte aufgelegt → bezahlt", ok);
+    await pg.waitForSelector(".party", { timeout: 5000 }).catch(() => {});
+    await wait(3800);
+    // Karte bleibt liegen: nächster Einkauf bezahlt erst nach Wegnehmen und neu Auflegen
+    await pg.click(".tile:has-text('Apfel')");
+    await pg.click(".pay");
+    await pg.waitForSelector("text=Karte hinhalten");
+    await wait(1200);
+    check("PC: liegengebliebene Karte bezahlt nicht von selbst", (await pg.locator(".terminal.ok").count()) === 0);
+    fs.rmSync(karte);
+    await wait(600);
+    fs.writeFileSync(karte, "");
+    ok = await pg.waitForSelector(".terminal.ok", { timeout: 5000 }).then(() => true, () => false);
+    check("PC: weggenommen und wieder aufgelegt → bezahlt", ok);
+    fs.rmSync(karte, { force: true });
+    await b.close();
+    srv.kill();
+    await srv.exitInfo;
+  }
+  // b) echter Chipkarten-Dienst pcscd mit virtuellem Leser und virtueller Karte (wenn installiert)
+  const vicc = spawnSync("sh", ["-c", "command -v vicc"], { encoding: "utf8" }).stdout.trim();
+  if (fs.existsSync("/run/pcscd/pcscd.comm") && vicc) {
+    const kartenPort = await freePort();
+    const srv = startStarter(["--port", String(kartenPort), "--nur-server"]);
+    for (let i = 0; i < 50 && !(await fetch(`http://127.0.0.1:${kartenPort}/__schafland`).then((r) => r.ok, () => false)); i++) await wait(100);
+    const b = await chromium.launch();
+    const pg = await b.newPage({ viewport: { width: 1366, height: 768 } });
+    await pg.goto(`http://localhost:${kartenPort}/`);
+    await pg.click("text=Laden öffnen");
+    await pg.keyboard.press("Control+,");
+    await pg.waitForSelector("text=Kartenleser bereit", { timeout: 5000 }).catch(() => {});
+    const status = (await pg.textContent("#nfc-on >> xpath=../..")).replace(/\s+/g, " ");
+    check("pcscd: Eltern-Bereich zeigt den Leser", /Kartenleser bereit: Virtual PCD/.test(status), status.slice(0, 160));
+    await pg.click("text=Zurück zum Laden");
+    await pg.click(".tile:has-text('Banane')");
+    await pg.click(".pay");
+    await pg.waitForSelector("text=Karte hinhalten");
+    await wait(500);
+    await pg.screenshot({ path: path.join(R, "tests/e2e/.output/karte-pc.png") });
+    const card = spawn(vicc, ["-t", "iso7816"]);
+    const ok = await pg.waitForSelector(".terminal.ok", { timeout: 8000 }).then(() => true, () => false);
+    check("pcscd: virtuelle Karte eingesteckt → bezahlt", ok);
+    card.kill();
+    await b.close();
+    srv.kill();
+    await srv.exitInfo;
+  } else console.log("INFO  pcscd/vicc nicht installiert: Test mit echtem Chipkarten-Dienst übersprungen");
+
   // Autostart einrichten und entfernen
   const home = path.join(TMP, "home");
   fs.mkdirSync(home);

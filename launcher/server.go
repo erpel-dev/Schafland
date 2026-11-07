@@ -39,11 +39,18 @@ func init() {
 	_ = mime.AddExtensionType(".js", "text/javascript")
 }
 
+// Kartenleser am PC (karte.go): ein Dienst für alle Anfragen
+var karten = neuerKartenDienst(oeffneLeser)
+
 func handler(site fs.FS) http.Handler {
 	files := http.FileServer(http.FS(site))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == pingPath {
 			fmt.Fprintf(w, "schafland %s", version)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, pingPath+"/") || r.URL.Path == "/starter.json" {
+			karten.handler(w, r)
 			return
 		}
 		// Immer frisch ausliefern: nur so findet der Offline-Speicher der App neue Versionen

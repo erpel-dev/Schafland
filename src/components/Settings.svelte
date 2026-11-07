@@ -261,8 +261,8 @@
           <div class="row">
             <Toggle id="nfc-on" label="Karte zum Bezahlen" checked={settings.value.nfcKarte} onchange={(v) => settings.set({ nfcKarte: v })} />
             <span class="muted">
-              Beim Bezahlen erscheint ein Kartenterminal: Jede NFC-Karte oder jeder NFC-Aufkleber, der ans Gerät gehalten wird, „bezahlt“. Es wird nichts abgebucht und nichts von der Karte gespeichert.
-              {#if nfcStatus === null}Prüfe NFC …{:else if !nfcStatus.available}<b>Dieses Gerät kann kein NFC lesen</b> (geht in der Android-App und in Chrome auf Android-Handys mit NFC).{:else if !nfcStatus.enabled}<b>NFC ist am Gerät ausgeschaltet.</b>{:else}<b>✓ NFC bereit.</b>{/if}
+              Beim Bezahlen erscheint ein Kartenterminal: Jede NFC-Karte oder jeder NFC-Aufkleber, der ans Gerät oder auf den Kartenleser gehalten (oder in den Kartenschlitz gesteckt) wird, „bezahlt“. Es wird nichts abgebucht und nichts von der Karte gespeichert.
+              {#if nfcStatus === null}Prüfe NFC …{:else if nfcStatus.pc}<b>✓ Kartenleser bereit: {nfcStatus.leser.join(", ")}.</b> Karte auflegen oder einstecken.{:else if !nfcStatus.available}<b>Dieses Gerät kann kein NFC lesen</b> (geht in der Android-App, in Chrome auf Android-Handys mit NFC und am PC im Schafland-Starter mit einem USB-Chipkartenleser).{#if nfcStatus.hinweis} {nfcStatus.hinweis}{/if}{:else if !nfcStatus.enabled}<b>NFC ist am Gerät ausgeschaltet.</b>{:else}<b>✓ NFC bereit.</b>{/if}
             </span>
           </div>
         </div>
