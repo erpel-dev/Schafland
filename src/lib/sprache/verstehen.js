@@ -18,6 +18,8 @@ export function normalize(text) {
 /** Kölner Phonetik: deutsche Wörter, die gleich klingen, bekommen denselben Code. */
 export function koelner(word) {
   const w = word.toLowerCase().replace(/ä/g, "a").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ß/g, "s").replace(/[^a-z]/g, "");
+  // Achtung: "abc".includes("") ist immer true. Am Wortanfang/-ende gibt es keinen Nachbarn.
+  const among = (letters, ch) => ch !== "" && letters.includes(ch);
   let out = "";
   for (let i = 0; i < w.length; i++) {
     const c = w[i];
@@ -28,13 +30,13 @@ export function koelner(word) {
     else if (c === "h") code = "-";
     else if (c === "b") code = "1";
     else if (c === "p") code = next === "h" ? "3" : "1";
-    else if (c === "d" || c === "t") code = "csz".includes(next) ? "8" : "2";
+    else if (c === "d" || c === "t") code = among("csz", next) ? "8" : "2";
     else if ("fvw".includes(c)) code = "3";
     else if ("gkq".includes(c)) code = "4";
     else if (c === "c") {
-      if (i === 0) code = "ahkloqrux".includes(next) ? "4" : "8";
-      else code = "sz".includes(prev) || !"ahkoqux".includes(next) ? "8" : "4";
-    } else if (c === "x") code = "ckq".includes(prev) ? "8" : "48";
+      if (i === 0) code = among("ahkloqrux", next) ? "4" : "8";
+      else code = among("sz", prev) || !among("ahkoqux", next) ? "8" : "4";
+    } else if (c === "x") code = among("ckq", prev) ? "8" : "48";
     else if (c === "l") code = "5";
     else if (c === "m" || c === "n") code = "6";
     else if (c === "r") code = "7";

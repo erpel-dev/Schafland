@@ -6,7 +6,7 @@ const ARTIKEL = {
   die: ["banane", "birne", "orange", "melone", "zitrone", "kiwi", "ananas", "karotte", "tomate", "gurke", "paprika", "zwiebel", "aubergine", "milch", "butter", "brezel", "waffel", "schokolade", "limo", "kokosnuss", "spitzhacke", "rennbahn", "kerze", "kürbissuppe", "suppe", "tüte", "mütze", "kugel", "christbaumkugel", "zuckerstange", "stange", "glocke", "laterne", "weihnachtsmütze", "plätzchendose", "dose", "mandarine", "nuss", "walnuss"],
   das: ["eis", "brot", "croissant", "baguette", "brötchen", "popcorn", "wasser", "kuschelschaf", "schaf", "puzzle", "wollknäuel", "bilderbuch", "buch", "schwert", "polizeiauto", "auto", "geschenk", "lebkuchenhaus", "haus", "marzipan"],
 };
-const PLURAL = ["trauben", "erdbeeren", "kirschen", "kartoffeln", "pilze", "eier", "bonbons", "marshmallows", "kekse", "gummis", "zähne", "nüsse", "plätzchen", "mandeln", "gebrannte mandeln", "socken", "handschuhe"];
+const PLURAL = ["trauben", "erdbeeren", "kirschen", "kartoffeln", "pilze", "eier", "bonbons", "marshmallows", "kekse", "gummis", "zähne", "nüsse", "plätzchen", "mandeln", "gebrannte mandeln", "socken", "handschuhe", "mandarinen"];
 
 const clean = (name) => (name ?? "").replace(/­/g, "");
 const grundwort = (name) => {
@@ -18,14 +18,18 @@ const grundwort = (name) => {
 export function genus(product) {
   const name = clean(product.name).toLowerCase();
   const head = grundwort(product.name);
-  if (PLURAL.includes(head) || PLURAL.includes(name)) return { article: "die", plural: true };
+  // auch zusammengesetzt: „Kuschelsocken“ → „socken“
+  if (PLURAL.includes(name) || PLURAL.some((w) => head === w || (head.endsWith(w) && head.length > w.length + 2))) return { article: "die", plural: true };
   // Zusammengesetzte Wörter: das längste passende Grundwort am Ende („Kaiserbrötchen“ → „brötchen“)
   for (const [article, words] of Object.entries(ARTIKEL)) if (words.includes(head)) return { article, plural: false };
   let best = null;
   for (const [article, words] of Object.entries(ARTIKEL)) {
     for (const w of words) if (head.endsWith(w) && (!best || w.length > best.w.length)) best = { article, w };
   }
-  return best ? { article: best.article, plural: false } : { article: null, plural: false };
+  if (best) return { article: best.article, plural: false };
+  // Verkleinerungen sind immer „das“: „Glöckchen“, „Häuslein“
+  if (/(chen|lein)$/.test(head) && head.length > 5) return { article: "das", plural: false };
+  return { article: null, plural: false };
 }
 
 /** Preis zum Vorlesen: „30 Cent“, „2 Euro“, „1 Euro 50“. */
