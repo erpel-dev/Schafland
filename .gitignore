@@ -6,3 +6,4 @@ tests/e2e/.output/
 launcher/web/*
 !launcher/web/.gitkeep
 launcher/*.syso
+/launcher/launcher

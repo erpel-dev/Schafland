@@ -109,7 +109,7 @@
     <div class="opts">
       {#if nfc}
         <button class="opt" class:on={method === "karte"} onclick={() => choose("karte")}>
-          <span class="emoji">💳</span><b>Karte</b><small>ans Gerät halten</small>
+          <span class="emoji">💳</span><b>Karte</b><small>{nfc.pc ? "auflegen oder stecken" : "ans Gerät halten"}</small>
         </button>
       {/if}
       <button class="opt" class:on={method === "spiel-qr"} onclick={() => choose("spiel-qr")}>
@@ -160,7 +160,11 @@
             <p>{terminalError}</p>
             <button class="big-btn light" onclick={() => startTerminal(true)}>Nochmal versuchen</button>
           {:else}
-            <b>Halte deine Karte an das Gerät!</b>
+            {#if nfc?.pc}
+              <b>Karte auf den Leser legen oder reinstecken!</b>
+            {:else}
+              <b>Halte deine Karte an das Gerät!</b>
+            {/if}
             <p>Jede Karte geht: Spielkarte, NFC-Aufkleber, Schlüsselanhänger. Es wird nichts abgebucht.</p>
           {/if}
         </div>
