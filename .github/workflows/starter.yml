@@ -27,7 +27,8 @@ jobs:
         run: |
           for i in 1 2 3; do npm ci && break; sleep 10; done
           sudo apt-get update -qq
-          sudo apt-get install -y pcscd vsmartcard-vpcd vsmartcard-vpicc python3-pycryptodome
+          sudo apt-get install -y pcscd vsmartcard-vpcd vsmartcard-vpicc python3-pycryptodome ffmpeg
+          npx playwright install --with-deps chromium
       - name: Chipkarten-Dienst starten (ohne polkit, damit der Test ihn nutzen darf)
         run: |
           sudo systemctl stop pcscd.socket pcscd.service || true
