@@ -1,18 +1,54 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "testRunner": "tap",
-  "tap": { "testFiles": ["tests/unit/*.test.js"] },
+  "tap": {
+    "testFiles": [
+      "tests/unit/*.test.js"
+    ],
+    "nodeArgs": [
+      "--import",
+      "./tests/unit/hilfen/svelte-register.mjs"
+    ]
+  },
   "coverageAnalysis": "perTest",
   "mutate": [
-    "src/lib/{aktionen,barcode,books,catalog,ean,girocode,money,net,off,presse,wikidata}.js",
+    "src/lib/{aktionen,barcode,books,catalog,ean,girocode,money,net,off,presse,wikidata,nfc}.js",
+    "src/lib/shop.svelte.js",
     "src/lib/sprache/{antworten,ki,verstehen,wissen,lfm3audio}.js"
   ],
-  "ignorePatterns": ["dist", "android", "launcher", "release", "tests/e2e", "docs", "kiosk", "tools", "reports", ".github", "public/musik"],
+  "ignorePatterns": [
+    "dist",
+    "android",
+    "launcher",
+    "release",
+    "tests/e2e",
+    "docs",
+    "kiosk",
+    "tools",
+    "reports",
+    ".github",
+    "public/musik"
+  ],
   "concurrency": 4,
   "timeoutMS": 20000,
-  "reporters": ["clear-text", "html", "json", "progress"],
-  "htmlReporter": { "fileName": "reports/mutation/index.html" },
-  "jsonReporter": { "fileName": "reports/mutation/mutation.json" },
-  "clearTextReporter": { "allowColor": false, "logTests": false, "maxTestsToLog": 0 },
-  "tempDirName": ".stryker-tmp"
+  "reporters": [
+    "clear-text",
+    "html",
+    "json",
+    "progress"
+  ],
+  "htmlReporter": {
+    "fileName": "reports/mutation/index.html"
+  },
+  "jsonReporter": {
+    "fileName": "reports/mutation/mutation.json"
+  },
+  "clearTextReporter": {
+    "allowColor": false,
+    "logTests": false,
+    "maxTestsToLog": 0
+  },
+  "tempDirName": ".stryker-tmp",
+  "incremental": true,
+  "incrementalFile": "reports/stryker-incremental.json"
 }
