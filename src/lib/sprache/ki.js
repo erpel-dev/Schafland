@@ -18,8 +18,8 @@ const OFFEN = [
 export function isOpenQuestion(result) {
   if (["add", "total", "hello", "thanks", "topic"].includes(result.intent)) return false;
   const text = " " + result.text + " ";
-  // auch „Welches Obst ist gelb?“ (sonst zählt Stufe 1 nur das Obst auf)
-  if (OFFEN.some((w) => text.includes(" " + w + " ") || text.includes(" " + w))) return true;
+  // auch „Welches Obst ist gelb?“ (sonst zählt Stufe 1 nur das Obst auf); Wortanfang genügt („gesunde“)
+  if (OFFEN.some((w) => text.includes(" " + w))) return true;
   if (result.intent === "category") return false;
   // Unverstandenes mit mehreren Wörtern: vielleicht eine Frage, die Stufe 1 nicht kennt
   return result.intent === "unknown" && result.text.split(" ").length >= 3;
@@ -83,13 +83,15 @@ export function checkAnswer(raw, { products }) {
     .replace(/<\|[^|]*\|>/g, " ") // Steuerzeichen des Modells
     .replace(/[*_#`>]+/g, " ") // Markdown
     .replace(/\s+/g, " ")
+    .replace(/ ([.,!?])/g, "$1") // „toll !“ nach entferntem Markdown
+    .replace(/(https?:\/\/|www\.)\S+/gi, "⟨link⟩") // Links nicht an ihren Punkten zerteilen
     .trim();
   if (!text) return null;
   // Sätze mit Zahlen, Preisen oder Links fliegen raus: Preise nennt die Kasse selbst
   const sentences = text.match(/[^.!?]+[.!?]*/g) ?? [text];
   const kept = sentences
     .map((s) => s.trim())
-    .filter((s) => s && !/\d|euro|cent|€|http|www\./i.test(s));
+    .filter((s) => s && !/\d|euro|cent|€|⟨link⟩/i.test(s));
   text = kept.slice(0, 2).join(" ").trim();
   if (text.length > 220) text = text.slice(0, 220).replace(/\s+\S*$/, "") + " …";
   if (text.length < 3) return null;

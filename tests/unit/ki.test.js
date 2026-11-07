@@ -60,3 +60,66 @@ test("Bilderkennung: Antworten zu Spielzeug zuordnen", () => {
   assert.equal(name("Ein Ball"), null);
   assert.equal(name(""), null);
 });
+
+// ---------- genauer (nach dem Mutationstest) ----------
+import { checkAnswer as check2, isOpenQuestion as offen, mentionedProducts as genannt, buildMessages as nachrichten, matchImageAnswer as bild } from "../../src/lib/sprache/ki.js";
+
+const R = (intent, text) => ({ intent, text, product: null, candidates: [] });
+const namen = (ps) => ps.map((p) => p.name.replace(/­/g, ""));
+
+test("Offene Frage: feste Absichten nie, Kategorie nur mit offenem Wort, Unbekanntes ab drei Wörtern", () => {
+  for (const intent of ["add", "total", "hello", "thanks", "topic"]) assert.equal(offen(R(intent, "ist das gesund")), false, intent);
+  assert.equal(offen(R("category", "welches obst ist gelb")), true);
+  assert.equal(offen(R("category", "was gibt es bei obst")), false);
+  assert.equal(offen(R("price", "ist die banane gesund")), true);
+  assert.equal(offen(R("price", "was kostet die banane")), false);
+  assert.equal(offen(R("product", "gesunde banane")), true, "Wortanfang genügt");
+  assert.equal(offen(R("unknown", "raumschiff mit flügeln")), true);
+  assert.equal(offen(R("unknown", "raumschiff fliegt")), false);
+  assert.equal(offen(R("product", "raumschiff mit flügeln")), false);
+});
+
+test("Sortiment im Prompt: Produkte ohne bekannte Kategorie unter „Sonstiges“", () => {
+  const m = nachrichten("Was ist lecker?", { products: [{ id: "x", name: "Nutella", categoryId: "gescannt" }], categories: [] });
+  assert.match(m[0].content, /Sonstiges: Nutella/);
+  assert.equal(m[1].content, "(Der Korb ist leer.) Was ist lecker?");
+});
+
+test("Erwähnte Produkte: Reihenfolge im Text, Mehrzahl, kurze Schlüssel ab drei Buchstaben, keine Doppelten", () => {
+  assert.deepEqual(namen(genannt("Bananen und dann ein Apfel", products)), ["Banane", "Apfel"]);
+  assert.deepEqual(namen(genannt("Ein Eis bitte", products)), ["Eis"]);
+  assert.deepEqual(namen(genannt("Ei", products)), [], "„ei“ ist zu kurz");
+  assert.deepEqual(namen(genannt("Banane, Banane, Banane", products)), ["Banane"]);
+  assert.deepEqual(namen(genannt("Möhren und Äpfel", products)), ["Karotte", "Apfel"], "Synonyme");
+  assert.deepEqual(genannt("Raumschiff", products), []);
+});
+
+test("Antwort prüfen: Steuerzeichen, Markdown, zwei Sätze, Länge, Zahlen", () => {
+  assert.equal(check2("<|im_end|>**Äpfel** sind _toll_! # Ja", { products }).text, "Äpfel sind toll! Ja");
+  assert.equal(check2("Eins. Zwei! Drei? Vier.", { products }).text, "Eins. Zwei!");
+  assert.equal(check2("Ohne Punkt am Ende", { products }).text, "Ohne Punkt am Ende");
+  assert.equal(check2("Das kostet 2 Euro. Das ist schön.", { products }).text, "Das ist schön.");
+  for (const bad of ["Nur 3 Stück.", "Siehe www.x.de.", "Für 1 €.", "Ab", "", null, "<|im_start|>", "   "]) assert.equal(check2(bad, { products }), null, String(bad));
+  const genau = "a".repeat(220);
+  assert.equal(check2(genau, { products }).text, genau, "220 Zeichen bleiben");
+  const lang = ("Wolle " + "x".repeat(10) + " ").repeat(20).trim();
+  const r = check2(lang, { products });
+  assert.ok(r.text.endsWith(" …") && r.text.length <= 222);
+  assert.ok(!/ x* …$/.test(r.text.replace(/x{10} …$/, "")), "am Wortende gekürzt");
+  assert.equal(r.text.slice(0, -2), lang.slice(0, 220).replace(/\s+\S*$/, ""));
+  assert.equal(check2("Apfel, Banane, Birne, Kiwi und Melone sind Obst.", { products }).products.length, 4);
+});
+
+test("Bild-Antworten: unbekannt, genau, mehrere genannt, frei mit Material", () => {
+  for (const a of ["", null, "unbekannt", "Ich weiß nicht.", "Keins davon", "kein Produkt", "Kann ich nicht erkennen", "Plastik", "aus Holz"]) {
+    assert.deepEqual(bild(a, products), { product: null, candidates: [] }, String(a));
+  }
+  assert.deepEqual(namen([bild("kaiserbrötchen", products).product]), ["Kaiserbrötchen"]);
+  const mehrere = bild("Eine Banane, ein Apfel, eine Birne und eine Kiwi", products);
+  assert.equal(mehrere.product.name, "Banane");
+  assert.deepEqual(namen(mehrere.candidates), ["Apfel", "Birne"]);
+  assert.equal(bild("Bananne aus Plastik", products).product?.name, "Banane", "frei, ungenau, mit Material");
+  const unsicher = bild("Tomate", [{ id: "1", name: "Tomaten" }, { id: "2", name: "Tomatex" }, { id: "3", name: "Tomatey" }, { id: "4", name: "Tomatez" }]);
+  assert.equal(unsicher.product, null);
+  assert.equal(unsicher.candidates.length, 3);
+});

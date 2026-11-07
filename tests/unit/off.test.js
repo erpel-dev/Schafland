@@ -136,3 +136,52 @@ test("Bild ohne CORS: Produkt trotzdem, nur mit Bild-URL", async () => {
   assert.equal(p.imageBlob, null);
   assert.equal(p.imageUrl, "https://img/x.jpg");
 });
+
+test("Kategorie aus jedem bekannten Schlagwort", async () => {
+  const table = {
+    suesses: ["en:chocolates", "en:confectioneries", "en:sweets", "en:candies", "en:sweet-snacks", "en:biscuits", "en:snacks"],
+    getraenke: ["en:beverages", "en:waters", "en:juices", "en:sodas"],
+    milch: ["en:dairies", "en:milks", "en:cheeses", "en:yogurts", "en:butters", "en:eggs"],
+    backwaren: ["en:breads", "en:pastries", "en:viennoiseries", "en:cakes"],
+    obst: ["en:fruits", "en:fresh-fruits", "en:fruits-based-foods"],
+    gemuese: ["en:vegetables", "en:fresh-vegetables", "en:vegetables-based-foods"],
+  };
+  for (const [id, tags] of Object.entries(table)) {
+    for (const tag of tags) {
+      mockFetch(() => product({ product_name: "X", categories_tags: ["en:irgendwas", tag] }));
+      assert.equal((await lookupOpenFacts("1")).categoryId, id, tag);
+    }
+  }
+  mockFetch(() => product({ product_name: "X" }));
+  assert.equal((await lookupOpenFacts("1")).categoryId, "gescannt", "ohne Schlagwörter");
+});
+
+test("Name, Marke, Menge: Ersatzwerte und Aufräumen", async () => {
+  mockFetch(() => product({ brands: "  Nur Marke , Zweite" }));
+  let p = await lookupOpenFacts("1");
+  assert.equal(p.name, "Nur Marke , Zweite");
+  assert.equal(p.brand, "Nur Marke");
+  assert.equal(p.quantity, "");
+  assert.equal(p.imageUrl, null);
+  assert.equal(p.imageBlob, null);
+  assert.ok(Math.abs(p.createdAt - Date.now()) < 5000);
+  mockFetch(() => product({ product_name: "  Saft  ", quantity: "1 l" }));
+  p = await lookupOpenFacts("1");
+  assert.equal(p.name, "Saft");
+  assert.equal(p.brand, "");
+  assert.equal(p.quantity, "1 l");
+  assert.match(calls[0], /fields=product_name,product_name_de,brands,quantity,image_front_small_url,categories_tags&lc=de/);
+});
+
+test("Gefunden nur beim zweiten Server; leerer Name zählt als nicht gefunden", async () => {
+  const trace = [];
+  mockFetch((url) => (url.includes("openfoodfacts") ? product({ product_name: "   " }) : url.includes("openbeautyfacts") ? product({ product_name: "Seife" }) : assert.fail()));
+  const p = await lookupOpenFacts("4", { trace });
+  assert.equal(p.name, "Seife");
+  assert.equal(p.source, "openbeautyfacts.org");
+  assert.deepEqual(trace, ["openfoodfacts.org: nicht gefunden", "openbeautyfacts.org: gefunden"]);
+  mockFetch(() => json({ status: 1 }));
+  assert.equal(await lookupOpenFacts("4"), null, "status 1 ohne Produkt");
+  mockFetch(() => json({ status: 0, product: { product_name: "Geist" } }));
+  assert.equal(await lookupOpenFacts("4"), null, "status 0 trotz Produkt");
+});
