@@ -198,13 +198,17 @@ npm test                # Unit-Tests (Node, wenige Sekunden)
 npm run test:e2e        # Browser-Tests mit simulierter Kamera (ca. 5 Minuten)
 npm run test:explore    # Erkundungstest: Zufallsbedienung + Dauerläufe (15 Minuten)
 npm run test:explore -- --minutes=3 --seed=4242
+npm run test:mutation   # Mutationstests der Unit-Tests mit Stryker (Bericht: reports/mutation/index.html)
+(cd launcher && go test ./... && go run github.com/go-gremlins/gremlins/cmd/gremlins@v0.5.0 unleash .)
 ```
+
+Mutationstests bauen absichtlich kleine Fehler in den Code ein (z. B. `<` statt `<=`) und prüfen, ob die Tests sie bemerken. Stryker arbeitet inkrementell: Nach dem ersten Lauf (ca. 45 Minuten) werden nur geänderte Stellen neu geprüft. Die Unit-Tests laufen in Node mit einer IndexedDB-Attrappe und übersetzen die Svelte-Dateien selbst (`tests/unit/hilfen/`).
 
 Die Browser-Tests brauchen `ffmpeg` und Python 3, einmalig außerdem `npx playwright install chromium`. Kameras werden mit erzeugten Videos simuliert (sauberes Etikett, unbekannter Code, klein, unscharf), Open Food Facts mit festen Antworten. Testbilder und Ergebnisse landen in `tests/e2e/.fixtures/` und `tests/e2e/.output/`.
 
 | Datei | Inhalt |
 | --- | --- |
-| `tests/unit/` | EAN-Prüfziffern, Katalog, Geldformat, Abfragen bei Open Food Facts, Wikidata, Google Books und Open Library, ISSN und ISBN aus dem Strichcode |
+| `tests/unit/` | EAN-Prüfziffern, Katalog und Aktionen, Geldformat, Warenkorb und Produktsuche, Kartenzahlung, Abfragen bei Open Food Facts, Wikidata, Google Books und Open Library, ISSN und ISBN aus dem Strichcode, Spracherkennung (Kölner Phonetik, Ähnlichkeit, Absichten), Antworten des Schafs |
 | `tests/e2e/run.mjs` | Warenkorb, Scannen, Bezahlen, Einstellungen, Musik, Touch, Bildschirmgrößen, langsame CPU, offline |
 | `tests/e2e/explore.mjs` | Affentest mit Prüfung nach jedem Schritt, Dauerlauf Kamera und Musik, Randfälle |
 
