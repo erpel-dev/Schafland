@@ -115,3 +115,65 @@ test("kein Internet → NetworkError", async () => {
   mockFetch(() => { throw new TypeError("Failed to fetch"); });
   await assert.rejects(lookupWikidata("4001234567891"), NetworkError);
 });
+
+// ---------- genauer (nach dem Mutationstest) ----------
+
+test("Jede Art von Periodikum wird Zeitschrift", async () => {
+  for (const q of ["Q41298", "Q1002697", "Q11032", "Q5633421", "Q737498"]) {
+    mockFetch((url) => (url.includes("list=search") ? searchHit("Q9") : entity("Q9", { de: "Heft", p31: ["Q5", q] })));
+    assert.equal((await lookupWikidata("4001234567893")).categoryId, "zeitschrift", q);
+  }
+  mockFetch((url) => (url.includes("list=search") ? searchHit("Q9") : entity("Q9", { de: "Ding", p31: ["Q5"] })));
+  const p = await lookupWikidata("4001234567893");
+  assert.equal(p.categoryId, "gescannt");
+  assert.equal(p.quantity, "");
+  assert.equal(p.id, "wd-4001234567893");
+  assert.equal(p.wikidataId, "Q9");
+});
+
+test("Suche: GTIN 13- und 14-stellig, ISSN, ISBN in allen Schreibweisen; Protokoll", async () => {
+  const trace = [];
+  mockFetch(() => searchHit(null));
+  assert.equal(await lookupWikidata("9783161484100", { trace }), null);
+  assert.match(calls[0], /haswbstatement:P212=978-[^|]+\|.*P212=978-3-16-148410-0\|.*P3962=9783161484100\|P3962=09783161484100/);
+  assert.deepEqual(trace, ["wikidata.org: nicht gefunden (ISBN)"]);
+  trace.length = 0;
+  await lookupWikidata(ean977("0724867"), { trace });
+  assert.match(calls.at(-1), /haswbstatement:P236=0724-8679\|P3962=/);
+  assert.deepEqual(trace, ["wikidata.org: nicht gefunden (ISSN 0724-8679)"]);
+  trace.length = 0;
+  await lookupWikidata("4001234567893", { trace });
+  assert.match(calls.at(-1), /haswbstatement:P3962=4001234567893\|P3962=04001234567893&srlimit=1/);
+  assert.deepEqual(trace, ["wikidata.org: nicht gefunden"]);
+});
+
+test("Antworten ohne gültige Q-Nummer oder ohne Eintrag gelten als nicht gefunden", async () => {
+  for (const bad of [json({}), json({ query: {} }), json({ query: { search: [{ title: "Property:P1" }] } }), json({ query: { search: [{ title: "XQ1" }] } }), json({ query: { search: [{ title: "Q1x" }] } })]) {
+    mockFetch(() => bad);
+    assert.equal(await lookupWikidata("4001234567893"), null);
+    assert.equal(calls.length, 1, "keine zweite Anfrage");
+  }
+  const trace = [];
+  mockFetch((url) => (url.includes("list=search") ? searchHit("Q7") : json({ entities: {} })));
+  assert.equal(await lookupWikidata("4001234567893", { trace }), null);
+  assert.deepEqual(trace, ["wikidata.org: Q7 ohne Namen"]);
+  mockFetch((url) => (url.includes("list=search") ? searchHit("Q7") : json({})));
+  assert.equal(await lookupWikidata("4001234567893"), null);
+});
+
+test("Name: Deutsch, sonst Englisch, sonst irgendeine Sprache; Eigenschaften ohne Wert werden übersprungen", async () => {
+  const withLabels = (labels, claims = {}) => json({ entities: { Q3: { labels, descriptions: { fr: { value: "revue" } }, claims } } });
+  const run = async (labels, claims) => {
+    mockFetch((url) => (url.includes("list=search") ? searchHit("Q3") : withLabels(labels, claims)));
+    return lookupWikidata("4001234567893");
+  };
+  assert.equal((await run({ en: { value: "Milk" }, de: { value: "Milch" } })).name, "Milch");
+  assert.equal((await run({ en: { value: "Milk" }, fr: { value: "Lait" } })).name, "Milk");
+  const fr = await run({ fr: { value: "  Lait " } });
+  assert.equal(fr.name, "Lait");
+  assert.equal(fr.brand, "revue", "Beschreibung in irgendeiner Sprache");
+  const ohneWert = await run({ de: { value: "X" } }, { P154: [{ mainsnak: {} }, { mainsnak: { datavalue: { value: "Logo.svg" } } }], P31: [{}] });
+  assert.equal(ohneWert.imageUrl, commonsThumb("Logo.svg"));
+  const objektStattDatei = await run({ de: { value: "X" } }, { P18: [{ mainsnak: { datavalue: { value: { id: "Q1" } } } }] });
+  assert.equal(objektStattDatei.imageUrl, null, "kein Dateiname: kein Bild");
+});
