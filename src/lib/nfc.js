@@ -16,7 +16,7 @@ const fake = () => globalThis.__schafFakeNfc;
  */
 async function pcInfo() {
   try {
-    const res = await fetch(`${import.meta.env.BASE_URL}starter.json`, { cache: "no-store", signal: AbortSignal.timeout(2000) });
+    const res = await fetch(`${import.meta.env?.BASE_URL ?? "/"}starter.json`, { cache: "no-store", signal: AbortSignal.timeout(2000) });
     const info = res.ok ? await res.json() : null;
     return info?.starter && Array.isArray(info.leser) ? info : null;
   } catch {

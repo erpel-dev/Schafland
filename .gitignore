@@ -7,3 +7,5 @@ launcher/web/*
 !launcher/web/.gitkeep
 launcher/*.syso
 /launcher/launcher
+reports/
+.stryker-tmp/

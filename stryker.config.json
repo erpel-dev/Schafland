@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "tap",
+  "tap": { "testFiles": ["tests/unit/*.test.js"] },
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "src/lib/{aktionen,barcode,books,catalog,ean,girocode,money,net,off,presse,wikidata}.js",
+    "src/lib/sprache/{antworten,ki,verstehen,wissen,lfm3audio}.js"
+  ],
+  "ignorePatterns": ["dist", "android", "launcher", "release", "tests/e2e", "docs", "kiosk", "tools", "reports", ".github", "public/musik"],
+  "concurrency": 4,
+  "timeoutMS": 20000,
+  "reporters": ["clear-text", "html", "json", "progress"],
+  "htmlReporter": { "fileName": "reports/mutation/index.html" },
+  "jsonReporter": { "fileName": "reports/mutation/mutation.json" },
+  "clearTextReporter": { "allowColor": false, "logTests": false, "maxTestsToLog": 0 },
+  "tempDirName": ".stryker-tmp"
+}

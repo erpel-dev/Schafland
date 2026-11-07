@@ -49,19 +49,26 @@ func (p *pcscLeser) Leser() ([]string, error) {
 func (p *pcscLeser) Karte(leser string) (bool, error) {
 	card, err := p.c.Connect(leser, pcsc.ShareShared, pcsc.ProtocolAny)
 	if err != nil {
-		msg := err.Error()
-		// keine Karte, Karte stumm oder gerade entfernt
-		if strings.Contains(msg, "8010000c") || strings.Contains(msg, "80100069") || strings.Contains(msg, "80100066") || strings.Contains(msg, "80100068") {
-			return false, nil
-		}
-		// von einem anderen Programm exklusiv belegt: Karte ist trotzdem da
-		if strings.Contains(msg, "8010000b") {
-			return true, nil
-		}
-		return false, err
+		return kartenStatus(err)
 	}
 	_ = card.Disconnect(pcsc.LeaveCard)
 	return true, nil
+}
+
+// kartenStatus: Fehler beim Verbinden → liegt eine Karte auf?
+func kartenStatus(err error) (bool, error) {
+	msg := err.Error()
+	// keine Karte (8010000c), Karte stumm (80100066), ohne Strom (80100068) oder gerade entfernt (80100069)
+	for _, code := range []string{"8010000c", "80100066", "80100068", "80100069"} {
+		if strings.Contains(msg, code) {
+			return false, nil
+		}
+	}
+	// von einem anderen Programm exklusiv belegt (8010000b): Karte ist trotzdem da
+	if strings.Contains(msg, "8010000b") {
+		return true, nil
+	}
+	return false, err
 }
 
 func (p *pcscLeser) Close() { _ = p.c.ReleaseContext() }
