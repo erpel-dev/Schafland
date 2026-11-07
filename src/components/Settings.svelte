@@ -8,6 +8,7 @@
   import { isValidIban, normalizeIban, formatIban, giroPayload, MAX_NAME, MAX_TEXT, DEFAULT_TEXT } from "../lib/girocode.js";
   import { categoryById } from "../lib/catalog.js";
   import { db } from "../lib/db.js";
+  import { nfcInfo } from "../lib/nfc.js";
   import { euro } from "../lib/money.js";
   import Sheep from "./Sheep.svelte";
   import Toggle from "./Toggle.svelte";
@@ -194,7 +195,13 @@
     if (tab === "bons") db.receipts.orderBy("createdAt").reverse().limit(30).toArray().then((r) => (receipts = r));
   });
   const when = (t) => new Date(t).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
-  const PAY = { "spiel-qr": "Schaf-Code", paypal: "PayPal", girocode: "Überweisung (GiroCode)" };
+  const PAY = { "spiel-qr": "Schaf-Code", paypal: "PayPal", girocode: "Überweisung (GiroCode)", karte: "Karte (NFC)" };
+
+  // --- Kartenzahlung (NFC)
+  let nfcStatus = $state(null);
+  $effect(() => {
+    if (tab === "bezahlen") nfcInfo().then((i) => (nfcStatus = i));
+  });
 
   // Zeiten von LFM3-Omni (Eltern-Bereich), nur was schon gemessen wurde
   const omniZeiten = $derived(
@@ -247,6 +254,18 @@
             <div><b>Test-Code über 1,00 €</b><code>https://paypal.me/{settings.value.paypalName}/1.00EUR</code><span class="muted">Mit dem Handy scannen und prüfen, ob der richtige Empfänger erscheint. Dann abbrechen.</span></div>
           </div>
         {/if}
+
+        <h2 class="sub">Kartenzahlung (NFC)</h2>
+        <div class="field">
+          <label for="nfc-on">Karte zum Bezahlen</label>
+          <div class="row">
+            <Toggle id="nfc-on" label="Karte zum Bezahlen" checked={settings.value.nfcKarte} onchange={(v) => settings.set({ nfcKarte: v })} />
+            <span class="muted">
+              Beim Bezahlen erscheint ein Kartenterminal: Jede NFC-Karte oder jeder NFC-Aufkleber, der ans Gerät gehalten wird, „bezahlt“. Es wird nichts abgebucht und nichts von der Karte gespeichert.
+              {#if nfcStatus === null}Prüfe NFC …{:else if !nfcStatus.available}<b>Dieses Gerät kann kein NFC lesen</b> (geht in der Android-App und in Chrome auf Android-Handys mit NFC).{:else if !nfcStatus.enabled}<b>NFC ist am Gerät ausgeschaltet.</b>{:else}<b>✓ NFC bereit.</b>{/if}
+            </span>
+          </div>
+        </div>
 
         <h2 class="sub">Überweisung (GiroCode)</h2>
         <div class="field">

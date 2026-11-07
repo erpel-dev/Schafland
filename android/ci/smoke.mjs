@@ -135,6 +135,9 @@ try {
   check("Reiter „Tablet“ nur in der App", await clickText("nav button", "Tablet"));
   const pinned = await js(`window.Capacitor.Plugins.Kiosk.isPinned().then((r) => JSON.stringify(r))`).catch((e) => "Fehler: " + e.message);
   check("eigenes Kiosk-Plugin antwortet (Java)", /"pinned":(true|false)/.test(pinned), pinned);
+  // Kartenzahlung: der Emulator hat kein NFC, die Abfrage muss trotzdem sauber antworten
+  const nfc = await js(`window.Capacitor.Plugins.Kiosk.nfcInfo().then((r) => JSON.stringify(r))`).catch((e) => "Fehler: " + e.message);
+  check("NFC-Abfrage antwortet (Java)", /"available":(true|false)/.test(nfc), nfc);
   // „Frag das Schaf“: Vorlesen über Androids Sprachausgabe (die WebView kann es nicht)
   const t0 = Date.now();
   const spoke = await js(`Promise.race([window.Capacitor.Plugins.Kiosk.speak({ text: "Die Banane kostet 30 Cent." }).then(() => "fertig"), new Promise((r) => setTimeout(() => r("Zeitlimit"), 9000))])`).catch((e) => "Fehler: " + e.message);

@@ -630,6 +630,141 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await browser.close();
     }
 
+    // ---------- Kartenzahlung spielen (NFC, simulierter Kartenleser) ----------
+    if (section("pay")) {
+      const { browser, ctx, page, errors } = await launch();
+      // Simulierter Leser: window.__nfc.tap() hält eine Karte hin; zählt Starts und Stopps
+      await ctx.addInitScript(() => {
+        const cfg = JSON.parse(localStorage.getItem("__nfcTest") || '{"available":true,"enabled":true,"granted":true}');
+        window.__nfc = { starts: 0, stops: 0, listener: null, tap() { this.listener?.(); } };
+        window.__schafFakeNfc = {
+          ...cfg,
+          watch(onCard) {
+            window.__nfc.starts++;
+            window.__nfc.listener = onCard;
+            return () => { window.__nfc.stops++; window.__nfc.listener = null; };
+          },
+        };
+      });
+      const bons = () => page.evaluate(() => new Promise((res) => { const q = indexedDB.open("schafland"); q.onsuccess = () => { const t = q.result.transaction("receipts").objectStore("receipts").count(); t.onsuccess = () => res(t.result); }; }));
+      const setNfc = (cfg) => page.evaluate((c) => localStorage.setItem("__nfcTest", JSON.stringify(c)), cfg);
+      const reopen = async () => { await page.reload(); await page.click("text=Laden öffnen"); await page.waitForSelector("text=Einkaufskorb"); };
+
+      await openShop(page);
+      await page.click(".tile:has-text('Apfel')");
+      await page.click(".pay");
+      await page.waitForSelector(".terminal");
+      check("Karte: Option da und vorausgewählt", (await page.locator(".opt.on:has-text('Karte')").count()) === 1);
+      check("Karte: Terminal zeigt Betrag und „Karte hinhalten“", (await page.textContent(".terminal")).replace(/\s+/g, " ").includes("0,50 € Karte hinhalten"), (await page.textContent(".terminal")).replace(/\s+/g, " "));
+      await wait(400);
+      await page.screenshot({ path: `${SHOTS}/karte-terminal.png` });
+      const n0 = await bons();
+      await page.evaluate(() => { window.__nfc.tap(); window.__nfc.tap(); window.__nfc.tap(); });
+      await page.waitForSelector(".terminal.ok");
+      check("Karte hingehalten: „Zahlung erfolgreich“", (await page.textContent(".terminal")).includes("Zahlung erfolgreich"));
+      check("Karte: Leser nach der Zahlung aus", await page.evaluate(() => window.__nfc.stops === window.__nfc.starts));
+      await wait(400);
+      await page.screenshot({ path: `${SHOTS}/karte-bezahlt.png` });
+      await page.waitForSelector(".party", { timeout: 4000 }).catch(() => {});
+      check("Karte: Dankesbildschirm und Korb leer", (await page.locator(".party").count()) === 1 && (await page.locator(".ln").count()) === 0);
+      check("Karte dreimal hingehalten: nur ein Kassenbon", (await bons()) - n0 === 1, `${(await bons()) - n0} Bons`);
+      await wait(3600);
+      await openSettings(page);
+      await page.click("nav >> text=Kassenbons");
+      await wait(300);
+      check("Kassenbon nennt „Karte (NFC)“", (await page.textContent(".bon")).includes("Karte (NFC)"));
+      await page.click("nav >> text=Bezahlen");
+      await page.waitForSelector("text=NFC bereit");
+      check("Eltern-Bereich: NFC bereit", true);
+      await page.click("text=Zurück zum Laden");
+
+      // Anderes Bezahlen gewählt: Karte zählt nicht
+      await page.click(".tile:has-text('Banane')");
+      await page.click(".pay");
+      await page.waitForSelector(".terminal");
+      await page.click(".opt:has-text('Schaf-Code')");
+      const n1 = await bons();
+      await page.evaluate(() => window.__nfc.tap());
+      await wait(1800);
+      check("Schaf-Code gewählt: Karte bezahlt nicht", (await bons()) === n1 && (await page.locator(".modal").count()) === 1);
+      // Zurück: Leser aus, späte Karte bezahlt nichts
+      await page.click(".modal >> text=Zurück");
+      check("Bezahlen geschlossen: Leser aus", await page.evaluate(() => window.__nfc.stops === window.__nfc.starts && !window.__nfc.listener));
+      await page.evaluate(() => window.__nfc.tap());
+      await wait(1800);
+      check("Karte nach dem Schließen: kein Kassenbon", (await bons()) === n1 && (await page.locator(".ln").count()) === 1);
+      // Schließen gleich nach dem Hinhalten (vor dem Bon): kein Bon
+      await page.click(".pay");
+      await page.waitForSelector(".terminal");
+      await page.evaluate(() => window.__nfc.tap());
+      await page.click(".modal >> text=Zurück");
+      await wait(1800);
+      check("Hingehalten und sofort „Zurück“: kein Kassenbon", (await bons()) === n1, `${(await bons()) - n1} Bons`);
+
+      // Browser: Lesen erst nach Antippen erlaubt
+      await setNfc({ available: true, enabled: true, granted: false });
+      await reopen();
+      await page.click(".tile:has-text('Apfel')");
+      await page.click(".pay");
+      await page.waitForSelector("text=Kartenleser an");
+      check("Ohne Erlaubnis: Knopf „Kartenleser an“, Leser noch aus", await page.evaluate(() => window.__nfc.starts === 0));
+      await wait(400);
+      await page.screenshot({ path: `${SHOTS}/karte-antippen.png` });
+      await page.click("text=💳 Kartenleser an");
+      await page.waitForSelector("text=Karte hinhalten");
+      await page.evaluate(() => window.__nfc.tap());
+      await page.waitForSelector(".terminal.ok");
+      check("Nach Antippen: Karte bezahlt", true);
+      await wait(4800);
+
+      // NFC am Gerät aus
+      await setNfc({ available: true, enabled: false, granted: true });
+      await reopen();
+      await page.click(".tile:has-text('Apfel')");
+      await page.click(".pay");
+      await page.waitForSelector("text=NFC ist ausgeschaltet");
+      check("NFC aus: Hinweis statt Terminal-Bereitschaft", await page.evaluate(() => window.__nfc.starts === 0));
+      await page.click(".modal >> text=Zurück");
+
+      // Gerät ohne NFC: keine Option
+      await setNfc({ available: false });
+      await reopen();
+      if (!(await page.locator(".ln").count())) await page.click(".tile:has-text('Apfel')");
+      await page.click(".pay");
+      await wait(400);
+      check("Ohne NFC: keine Kartenoption, Schaf-Code wie bisher", (await page.locator(".opt:has-text('Karte')").count()) === 0 && (await page.locator(".opt.on:has-text('Schaf-Code')").count()) === 1);
+      await page.click(".modal >> text=Zurück");
+
+      // Im Eltern-Bereich ausgeschaltet: keine Option
+      await setNfc({ available: true, enabled: true, granted: true });
+      await reopen();
+      await openSettings(page);
+      await page.click("#nfc-on");
+      await page.click("text=Zurück zum Laden");
+      if (!(await page.locator(".ln").count())) await page.click(".tile:has-text('Apfel')");
+      await page.click(".pay");
+      await wait(400);
+      check("Karte im Eltern-Bereich aus: keine Kartenoption", (await page.locator(".opt:has-text('Karte')").count()) === 0);
+      check("Keine Konsolenfehler (Karte)", !errors.length, errors.join(" | "));
+      await browser.close();
+
+      // Handy hochkant: Terminal passt
+      {
+        const h = await launch("empty", { device: devices["Pixel 7"] });
+        await h.ctx.addInitScript(() => { window.__schafFakeNfc = { available: true, enabled: true, granted: true, watch: () => () => {} }; });
+        await h.page.goto(APP_URL);
+        await h.page.tap("text=Laden öffnen");
+        await h.page.locator(".tile").filter({ hasText: "Apfel" }).first().tap();
+        await h.page.tap(".bar-pay");
+        await h.page.waitForSelector(".terminal");
+        const fits = await h.page.evaluate(() => { const m = document.querySelector(".modal").getBoundingClientRect(); return m.right <= innerWidth + 1 && document.documentElement.scrollWidth <= innerWidth; });
+        check("Handy: Kartenterminal passt ins Fenster", fits);
+        await wait(400);
+        await h.page.screenshot({ path: `${SHOTS}/karte-handy.png` });
+        await h.browser.close();
+      }
+    }
+
     // ---------- Aktionen ----------
     const AKTIONEN = [
       { id: "halloween", name: "Halloween", sky: "rgb(42, 29, 71)", hat: "path[fill='#5b2a86']", buy: ["Kürbissuppe", "Hexenhut"], total: "5,20 €", thanks: "Süßes oder Saures", label: "Zauberbesen", deko: ".bat", ink: "rgb(255, 241, 220)" },

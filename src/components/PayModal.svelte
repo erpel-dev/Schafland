@@ -4,11 +4,91 @@
   import { euro, euroText, plain } from "../lib/money.js";
   import QrCode from "./QrCode.svelte";
   import { giroPayload, formatIban } from "../lib/girocode.js";
+  import { nfcInfo, watchCards, openNfcSettings } from "../lib/nfc.js";
+  import { beep, unlockAudio } from "../lib/sounds.js";
+  import { onDestroy } from "svelte";
 
   let { onClose, onPaid } = $props();
 
   let method = $state("spiel-qr");
   let total = cart.totalCents;
+
+  // --- Kartenzahlung spielen (NFC): jede Karte wird angenommen
+  let nfc = $state(null); // { available, enabled, needsTap }
+  let terminal = $state("aus"); // aus | start (Antippen nötig) | bereit | ok | nfc-aus | fehler
+  let terminalError = $state("");
+  let stopReader = null;
+  let closed = false;
+
+  if (settings.value.nfcKarte) {
+    nfcInfo().then((info) => {
+      if (closed || !info.available) return;
+      nfc = info;
+      method = "karte"; // Gerät kann Karten lesen: gleich das Terminal zeigen
+      startTerminal(false);
+    });
+  }
+
+  async function startTerminal(tapped) {
+    if (!nfc || terminal === "ok") return;
+    if (!nfc.enabled) {
+      // NFC in den Android-Einstellungen aus: beim Zurückkommen nochmal nachsehen
+      const info = await nfcInfo();
+      if (closed) return;
+      nfc = info;
+      if (!info.enabled) return (terminal = "nfc-aus");
+    }
+    if (nfc.needsTap && !tapped) return (terminal = "start");
+    if (stopReader) return (terminal = "bereit");
+    terminalError = "";
+    try {
+      const stop = await watchCards(cardTapped);
+      if (closed) return stop();
+      stopReader = stop;
+      nfc = { ...nfc, needsTap: false };
+      terminal = "bereit";
+    } catch (err) {
+      if (closed) return;
+      if (err?.name === "NotAllowedError") {
+        terminal = "fehler";
+        terminalError = "NFC wurde nicht erlaubt. In den Website-Einstellungen von Chrome lässt es sich wieder erlauben.";
+      } else if (/ausgeschaltet|NotReadableError/.test(`${err?.name} ${err?.message}`)) terminal = "nfc-aus";
+      else {
+        terminal = "fehler";
+        terminalError = `Kartenleser startet nicht: ${err?.message ?? err}`;
+      }
+    }
+  }
+
+  function stopTerminal() {
+    stopReader?.();
+    stopReader = null;
+  }
+
+  function cardTapped() {
+    if (method !== "karte" || terminal !== "bereit" || closed) return;
+    terminal = "ok";
+    beep();
+    navigator.vibrate?.(120);
+    stopTerminal();
+    setTimeout(() => !closed && onPaid("karte"), 1300);
+  }
+
+  function choose(m) {
+    unlockAudio();
+    method = m;
+    if (m === "karte") startTerminal(true);
+  }
+
+  // NFC in den Android-Einstellungen eingeschaltet und zurück in die App
+  function onVisible() {
+    if (document.visibilityState === "visible" && method === "karte" && terminal === "nfc-aus") startTerminal(false);
+  }
+
+  onDestroy(() => {
+    closed = true;
+    stopTerminal();
+  });
 
   let payload = $derived(
     method === "paypal"
@@ -20,26 +100,72 @@
 </script>
 
 <!-- Absichtlich kein Schließen durch Tippen daneben: ein Doppeltipp auf "Bezahlen" schloss das Fenster sofort wieder -->
+<svelte:document onvisibilitychange={onVisible} />
+
 <div class="dim" role="presentation">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pay-title">
     <h2 id="pay-title">Wie möchtest du bezahlen? <span>{euro(total)}</span></h2>
 
     <div class="opts">
-      <button class="opt" class:on={method === "spiel-qr"} onclick={() => (method = "spiel-qr")}>
+      {#if nfc}
+        <button class="opt" class:on={method === "karte"} onclick={() => choose("karte")}>
+          <span class="emoji">💳</span><b>Karte</b><small>ans Gerät halten</small>
+        </button>
+      {/if}
+      <button class="opt" class:on={method === "spiel-qr"} onclick={() => choose("spiel-qr")}>
         <span class="emoji">🐑</span><b>Schaf-Code</b><small>Spiel-QR zum Scannen</small>
       </button>
       {#if settings.paypalReady}
-        <button class="opt" class:on={method === "paypal"} onclick={() => (method = "paypal")}>
+        <button class="opt" class:on={method === "paypal"} onclick={() => choose("paypal")}>
           <span class="emoji">💙</span><b>PayPal</b><small>echtes Geld</small>
         </button>
       {/if}
       {#if settings.giroReady}
-        <button class="opt" class:on={method === "girocode"} onclick={() => (method = "girocode")}>
+        <button class="opt" class:on={method === "girocode"} onclick={() => choose("girocode")}>
           <span class="emoji">🏦</span><b>Überweisung</b><small>GiroCode · echtes Geld</small>
         </button>
       {/if}
     </div>
 
+    {#if method === "karte"}
+      <div class="qrrow karte">
+        <div class="terminal" class:ok={terminal === "ok"} aria-live="polite">
+          <div class="screen">
+            <span class="amount">{euro(total)}</span>
+            {#if terminal === "ok"}
+              <span class="msg">✓ Zahlung erfolgreich</span>
+            {:else if terminal === "bereit"}
+              <span class="msg">Karte hinhalten</span>
+            {:else}
+              <span class="msg">Bitte warten …</span>
+            {/if}
+          </div>
+          <svg class="wave" viewBox="0 0 40 40" aria-hidden="true">
+            {#each [6, 12, 18] as r, i}<path d={`M ${8 + r * 0.5} ${20 - r} A ${r} ${r} 0 0 1 ${8 + r * 0.5} ${20 + r}`} style:animation-delay={`${i * 0.2}s`} />{/each}
+          </svg>
+        </div>
+        <div class="txt">
+          {#if terminal === "ok"}
+            <b>Bezahlt. Danke schön!</b>
+          {:else if terminal === "start"}
+            <b>Kartenleser einschalten</b>
+            <p>Einmal antippen, dann darf Schafland Karten lesen.</p>
+            <button class="big-btn" onclick={() => startTerminal(true)}>💳 Kartenleser an</button>
+          {:else if terminal === "nfc-aus"}
+            <b>NFC ist ausgeschaltet</b>
+            <p>Bitte NFC in den Einstellungen des Geräts einschalten und dann zurückkommen.</p>
+            <button class="big-btn light" onclick={openNfcSettings}>Einstellungen öffnen</button>
+          {:else if terminal === "fehler"}
+            <b>Das klappt gerade nicht</b>
+            <p>{terminalError}</p>
+            <button class="big-btn light" onclick={() => startTerminal(true)}>Nochmal versuchen</button>
+          {:else}
+            <b>Halte deine Karte an das Gerät!</b>
+            <p>Jede Karte geht: Spielkarte, NFC-Aufkleber, Schlüsselanhänger. Es wird nichts abgebucht.</p>
+          {/if}
+        </div>
+      </div>
+    {:else}
     <div class="qrrow">
       <QrCode text={payload} size="14rem" ecLevel={method === "girocode" ? "M" : "H"} badge={method !== "girocode"} />
       <div class="txt">
@@ -58,6 +184,7 @@
         {/if}
       </div>
     </div>
+    {/if}
 
     <div class="row">
       <button class="big-btn light" onclick={onClose}>Zurück</button>
@@ -84,6 +211,18 @@
   .txt code { font-size: 0.8rem; background: var(--wool-2); border-radius: 0.5rem; padding: 0.5rem 0.7rem; word-break: break-all; }
   .txt code.giro { word-break: normal; overflow-wrap: anywhere; }
   .row { display: flex; justify-content: flex-end; gap: 0.8rem; }
+  /* Kartenterminal */
+  .karte { justify-content: center; }
+  .terminal { width: 11rem; flex: none; background: #3b4252; border-radius: 1.4rem 1.4rem 1.8rem 1.8rem; padding: 0.9rem 0.8rem 1.1rem; display: flex; flex-direction: column; align-items: center; gap: 0.7rem; box-shadow: inset 0 -0.4rem 0 rgba(0, 0, 0, 0.25); }
+  .screen { width: 100%; background: #dfe8d0; border-radius: 0.6rem; padding: 0.6rem 0.4rem; display: flex; flex-direction: column; align-items: center; gap: 0.2rem; font-variant-numeric: tabular-nums; color: #2b3326; }
+  .screen .amount { font-family: var(--f-display); font-size: 1.6rem; }
+  .screen .msg { font-size: 0.95rem; text-align: center; }
+  .terminal.ok .screen { background: #bfe6a8; }
+  .wave { width: 2.8rem; height: 2.8rem; }
+  .wave path { fill: none; stroke: #cfd6e0; stroke-width: 3.2; stroke-linecap: round; animation: wave 1.4s infinite; }
+  .terminal.ok .wave path { animation: none; stroke: #8fd16a; }
+  .karte .txt :global(.big-btn) { align-self: flex-start; }
+  @keyframes wave { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
   @keyframes fade { from { opacity: 0; } }
   @keyframes up { from { transform: translateY(1.5rem); } }
 
@@ -100,6 +239,8 @@
     .qrrow { flex-direction: column; gap: 0.6rem; padding: 0.7rem; }
     .qrrow :global(.qr) { width: min(13rem, 70vw) !important; height: min(13rem, 70vw) !important; }
     .txt { text-align: center; }
+    .terminal { width: 9.5rem; padding: 0.7rem 0.6rem 0.8rem; gap: 0.4rem; }
+    .karte .txt :global(.big-btn) { align-self: stretch; }
     .txt b { font-size: 1.2rem; }
     .txt p { font-size: 0.95rem; }
     .row { flex-direction: column-reverse; }

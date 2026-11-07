@@ -2,6 +2,9 @@ package de.schafland.kasse;
 
 import android.app.ActivityManager;
 import android.content.Context;
+import android.content.Intent;
+import android.nfc.NfcAdapter;
+import android.provider.Settings;
 import android.os.Bundle;
 import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
@@ -23,7 +26,8 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 /**
  * Tablet-Funktionen, die ein Browser nicht hat:
  * Drucken (Etiketten) über den Android-Druckdialog, App anpinnen, damit das Kind sie nicht verlässt,
- * und Vorlesen für „Frag das Schaf“ (die WebView hat keine Sprachausgabe).
+ * Vorlesen für „Frag das Schaf“ (die WebView hat keine Sprachausgabe) und Kartenzahlung spielen
+ * mit NFC (die WebView hat kein Web NFC).
  */
 @CapacitorPlugin(name = "Kiosk")
 public class KioskPlugin extends Plugin {
@@ -152,5 +156,85 @@ public class KioskPlugin extends Plugin {
         JSObject result = new JSObject();
         result.put("pinned", am.getLockTaskModeState() != ActivityManager.LOCK_TASK_MODE_NONE);
         call.resolve(result);
+    }
+
+    // ---------- Kartenzahlung spielen (NFC) ----------
+    // Es zählt nur, DASS eine Karte hingehalten wurde: keine Kartendaten lesen, nichts speichern.
+
+    private boolean nfcActive = false;
+
+    private NfcAdapter nfc() {
+        return NfcAdapter.getDefaultAdapter(getContext());
+    }
+
+    @PluginMethod
+    public void nfcInfo(PluginCall call) {
+        NfcAdapter adapter = nfc();
+        JSObject result = new JSObject();
+        result.put("available", adapter != null);
+        result.put("enabled", adapter != null && adapter.isEnabled());
+        call.resolve(result);
+    }
+
+    private void enableReader() {
+        NfcAdapter adapter = nfc();
+        if (adapter == null || getActivity() == null) return;
+        int flags = NfcAdapter.FLAG_READER_NFC_A | NfcAdapter.FLAG_READER_NFC_B | NfcAdapter.FLAG_READER_NFC_F
+                | NfcAdapter.FLAG_READER_NFC_V | NfcAdapter.FLAG_READER_NFC_BARCODE
+                // eigener Piep in der App; ohne NDEF-Prüfung reagiert der Leser schneller
+                | NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS | NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK;
+        adapter.enableReaderMode(getActivity(), tag -> notifyListeners("nfcCard", new JSObject()), flags, null);
+    }
+
+    /** Auf Karten warten; jede Karte meldet das Ereignis „nfcCard“. */
+    @PluginMethod
+    public void nfcStart(PluginCall call) {
+        NfcAdapter adapter = nfc();
+        if (adapter == null) {
+            call.reject("Kein NFC auf diesem Gerät");
+            return;
+        }
+        if (!adapter.isEnabled()) {
+            call.reject("NFC ist ausgeschaltet");
+            return;
+        }
+        getActivity().runOnUiThread(() -> {
+            nfcActive = true;
+            enableReader();
+            call.resolve();
+        });
+    }
+
+    @PluginMethod
+    public void nfcStop(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            nfcActive = false;
+            NfcAdapter adapter = nfc();
+            if (adapter != null) {
+                try {
+                    adapter.disableReaderMode(getActivity());
+                } catch (Exception ignored) {
+                    // war nicht an
+                }
+            }
+            call.resolve();
+        });
+    }
+
+    @PluginMethod
+    public void nfcSettings(PluginCall call) {
+        try {
+            getActivity().startActivity(new Intent(Settings.ACTION_NFC_SETTINGS));
+        } catch (Exception e) {
+            getActivity().startActivity(new Intent(Settings.ACTION_WIRELESS_SETTINGS));
+        }
+        call.resolve();
+    }
+
+    // Der Lesemodus gilt nur, solange die App im Vordergrund ist: nach dem Zurückkehren neu einschalten
+    @Override
+    protected void handleOnResume() {
+        super.handleOnResume();
+        if (nfcActive) enableReader();
     }
 }

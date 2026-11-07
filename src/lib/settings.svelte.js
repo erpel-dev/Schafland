@@ -8,6 +8,7 @@ const DEFAULTS = {
   giroName: "",
   giroIban: "",
   giroText: DEFAULT_TEXT,
+  nfcKarte: true, // Kartenzahlung spielen: NFC-Karte ans Gerät halten (nur wenn das Gerät NFC hat)
   musicAutoplay: true,
   musicVolume: 0.5,
   musicShuffle: true,
