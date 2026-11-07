@@ -99,12 +99,13 @@ Das gewählte Passwort als Secret `SCHAFLAND_KEYSTORE_PASSWORD`. Den Schlüssel 
 | Laden starten | „Laden öffnen“ antippen. Dabei werden Ton und Musik freigeschaltet. |
 | Produkt in den Korb | Kachel antippen, oder „Scannen!“ und Strichcode in die Wollwolke halten |
 | Menge ändern | − / + im Korb, bei 0 verschwindet die Zeile |
-| Bezahlen | „Bezahlen“ → Schaf-Code oder PayPal → „Bezahlt! Neuer Einkauf“ |
+| Bezahlen | „Bezahlen“ → Karte (NFC), Schaf-Code oder PayPal → „Bezahlt! Neuer Einkauf“ |
 | Eltern-Bereich | **2 Sekunden auf das Schaf oben links drücken** oder `Strg` + `,` |
 
 ### Eltern-Bereich
 
 - **Bezahlen:** PayPal einschalten und den PayPal.me-Namen eintragen. Ein Test-Code über 1,00 € zeigt, ob der Empfänger stimmt. Ob „Freunde und Familie“ gewählt wird, entscheidet die zahlende Person in PayPal. Der Link kann das nicht vorgeben.
+- **Kartenzahlung (NFC):** Standardmäßig an. Kann das Gerät NFC lesen (Android-App, oder Chrome auf einem Android-Handy mit NFC), erscheint beim Bezahlen ein Kartenterminal. Jede NFC-Karte, jeder NFC-Aufkleber oder Schlüsselanhänger „bezahlt“, sobald er ans Gerät gehalten wird. Es wird nichts abgebucht und nichts von der Karte gelesen oder gespeichert. In Chrome muss der Kartenleser einmal per Antippen eingeschaltet werden.
 - **Überweisung (GiroCode):** Einschalten, Empfänger und IBAN eintragen (Tippfehler in der IBAN werden erkannt), optional den Verwendungszweck ändern. Beim Bezahlen erscheint dann „Überweisung“: ein QR-Code nach EPC-Standard, den Banking-Apps als „Foto-Überweisung“ einlesen. Empfänger, IBAN, Betrag und Verwendungszweck sind ausgefüllt; Geld fließt erst, wenn die zahlende Person in ihrer App bestätigt. Ein Test-Code über 1,00 € zeigt, ob alles stimmt. Der GiroCode hat kein Schaf in der Mitte und nutzt die vom Standard vorgesehene Fehlerkorrektur, damit jede Banking-App ihn sicher liest.
 - **Musik:** Ordner wählen (Unterordner werden mitgenommen), Lautstärke, Zufall, Autostart. Bei Piep- und Mäh-Geräuschen wird die Musik kurz leiser.
 - **Aktionen:** Eine Aktion ein- oder ausschalten (höchstens eine zugleich). Sie gibt der Kasse ein eigenes Aussehen und einen zusätzlichen Reiter mit 12 Aktionsprodukten; alles andere funktioniert wie immer.
@@ -115,7 +116,7 @@ Das gewählte Passwort als Secret `SCHAFLAND_KEYSTORE_PASSWORD`. Den Schlüssel 
 - **Kassenbons:** Die letzten 30 Einkäufe.
 - **Scan-Protokoll:** Die letzten 50 Scans mit Code und den Antworten der Datenbanken. Hilft, wenn etwas nicht erkannt wird.
 
-Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.14.5 vom 02.11.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
+Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.15.0 vom 02.11.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
 
 **Updates:** `git pull` und die Kasse neu starten. Die Kasse speichert sich für den Offline-Betrieb zwischen und zeigt beim Start zuerst kurz die alte Version. Sobald die neue geladen ist, wechselt sie automatisch: sofort, solange der Startbildschirm zu sehen ist, sonst nach dem nächsten Bezahlen, damit nie mitten im Spiel neu geladen wird.
 
