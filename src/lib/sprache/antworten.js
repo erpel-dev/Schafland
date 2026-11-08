@@ -94,6 +94,8 @@ export function answer(result, { cartCount = 0, cartTotal = 0, categoryProducts 
           const dativ = !art ? name : `${plural ? "den" : art === "die" ? "der" : "dem"} ${name}`;
           return { say: `Bei ${dativ} weiß ich das leider nicht. Schau auf die Packung!` };
         }
+        // nur aus der Zutatenliste geschlossen: so sagen, nicht „glutenfrei“ versprechen
+        if (topic.ohneSiegel?.(p)) return { say: `In den Zutaten steht kein Gluten. Ganz sicher ist nur das Zeichen „glutenfrei“ auf der Packung.`, offerAdd: p };
         const inList = topicList.some((x) => x.id === p.id);
         const verb = plural ? "sind" : "ist";
         const adjectiv = !/ /.test(topic.yes); // „gesund“, „gelb“ … oder ganze Wendung („passt gut zum Frühstück“)

@@ -497,9 +497,9 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await page.click("text=Laden öffnen");
       await openSettings(page);
       await page.click("nav >> text=Gescannte Produkte");
-      await page.waitForSelector("text=Gluten-Angaben nachladen (1)");
+      await page.waitForSelector("text=Gluten-Angaben neu auswerten (1)");
       check("Gluten: alter Scan ohne Angabe wird angeboten", true);
-      await page.click("text=Gluten-Angaben nachladen (1)");
+      await page.click("text=Gluten-Angaben neu auswerten (1)");
       await page.waitForSelector("text=1 aktualisiert.", { timeout: 10000 }).catch(() => {});
       check("Gluten: nachgeladen → „Spuren“", (await page.inputValue(".prod .gluten-sel")) === "spuren", await page.textContent(".pane"));
       // ausschalten

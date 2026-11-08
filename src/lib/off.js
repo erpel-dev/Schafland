@@ -1,6 +1,6 @@
 import { categories, SCANNED } from "./catalog.js";
 import { getJson, fetchImage, ServiceError } from "./net.js";
-import { glutenAusOpenFacts } from "./gluten.js";
+import { glutenAusOpenFacts, GLUTEN_REGEL } from "./gluten.js";
 
 // Open Food Facts und die Schwesterprojekte haben dieselbe Schnittstelle.
 const HOSTS = [
@@ -8,7 +8,7 @@ const HOSTS = [
   "https://world.openbeautyfacts.org",
   "https://world.openproductsfacts.org",
 ];
-const FIELDS = "product_name,product_name_de,brands,quantity,image_front_small_url,categories_tags,allergens_tags,traces_tags,labels_tags,ingredients_tags,ingredients_text_de,ingredients_text";
+const FIELDS = "product_name,product_name_de,brands,quantity,image_front_small_url,categories_tags,allergens_tags,traces_tags,labels_tags,ingredients_tags,ingredients_text_de,ingredients_text,ingredients_n,unknown_ingredients_n";
 
 // Reihenfolge zählt: die erste passende Kategorie gewinnt.
 const CATEGORY_TAGS = [
@@ -66,6 +66,7 @@ export async function lookupOpenFacts(ean, { timeoutMs = 8000, trace = [] } = {}
       quantity: p.quantity || "",
       gluten: gluten.gluten,
       glutenGrund: gluten.grund,
+      glutenRegel: GLUTEN_REGEL,
       emoji: cat.emoji,
       categoryId,
       priceCents: cat.defaultPrice,

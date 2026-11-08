@@ -49,7 +49,7 @@ test("Gespeicherte Angabe zählt zuerst; ungültige und fehlende Angaben", () =>
   assert.equal(glutenRelevant({ name: "Buch", source: "books.google.com", categoryId: "buch" }), false);
   assert.equal(glutenRelevant(byName("Apfel")), true);
   assert.equal(glutenRelevant(null), false);
-  assert.deepEqual(Object.keys(GLUTEN), ["enthalten", "wahrscheinlich", "spuren", "frei"]);
+  assert.deepEqual(Object.keys(GLUTEN), ["enthalten", "wahrscheinlich", "spuren", "frei", "ohne"]);
 });
 
 test("Open Food Facts: Allergen vor Siegel vor Spuren; ohne Angaben unbekannt", () => {
@@ -128,11 +128,13 @@ test("Zutaten: glutenhaltiges Getreide erkannt, auch wenn das Allergen fehlt", (
     assert.deepEqual(z("en:sugar", tag), { gluten: "enthalten", grund: "zutaten" }, tag);
   }
   // Fallen: Buchweizen, Maltodextrin, Glukosesirup sind glutenfrei
+  // Fallen: Buchweizen, Maltodextrin, Glukosesirup sind glutenfrei → „laut Zutaten ohne Gluten“
   for (const tag of ["en:buckwheat", "en:buckwheat-flour", "en:maltodextrin", "en:glucose-syrup", "en:rice-flour", "en:corn-starch"]) {
-    assert.deepEqual(z(tag), { gluten: null, grund: null }, tag);
+    assert.deepEqual(z(tag), { gluten: "ohne", grund: "zutaten" }, tag);
   }
-  assert.equal(z("fr:farine-de-ble").gluten, null, "nur ausgewertete (en:) Zutaten");
-  assert.equal(z(42).gluten, null);
+  assert.equal(z("fr:farine-de-ble").gluten, null, "nicht übersetzte Zutat (Weizenmehl!): keine Aussage");
+  assert.equal(z("en:milk", "en:salt", "en:sugar", "en:cocoa", "fr:arome").gluten, "ohne", "eine von fünf nicht übersetzt: geht noch");
+  assert.equal(glutenAusOpenFacts({ ingredients_tags: ["fr:farine-de-ble"], ingredients_n: 1, unknown_ingredients_n: 1 }).gluten, null, "zu viele unbekannte Zutaten: keine Aussage");
 });
 
 test("Zutatenliste als Text (deutsch), auch in zusammengesetzten Wörtern", () => {
@@ -154,8 +156,8 @@ test("Produktart nur ohne bekannte Zutaten: wahrscheinlich, nie glutenfrei", () 
   for (const c of ["en:breads", "en:pastas", "en:biscuits", "en:beers", "en:pizzas", "en:breakfast-cereals", "en:crackers", "en:cakes"]) {
     assert.deepEqual(glutenAusOpenFacts({ categories_tags: ["en:foods", c] }), { gluten: "wahrscheinlich", grund: "produktart" }, c);
   }
-  assert.equal(glutenAusOpenFacts({ categories_tags: ["en:biscuits"], ingredients_tags: ["en:rice", "en:salt"] }).gluten, null, "Reiswaffeln: Zutaten sprechen dagegen");
-  assert.equal(glutenAusOpenFacts({ categories_tags: ["en:biscuits"], ingredients_text_de: "Reis, Salz" }).gluten, null);
+  assert.deepEqual(glutenAusOpenFacts({ categories_tags: ["en:biscuits"], ingredients_tags: ["en:rice", "en:salt"] }), { gluten: "ohne", grund: "zutaten" }, "Reiswaffeln: Zutaten sprechen dagegen");
+  assert.equal(glutenAusOpenFacts({ categories_tags: ["en:biscuits"], ingredients_text_de: "Reis, Salz" }).gluten, null, "nur Text, nicht ausgewertet: keine Aussage");
   assert.equal(glutenAusOpenFacts({ categories_tags: ["en:chocolates"] }).gluten, null);
   assert.ok(GLUTEN_GRUND.zutaten && GLUTEN_GRUND.produktart && GLUTEN_GRUND.eltern);
 });
@@ -169,4 +171,29 @@ test("Scan speichert Wert und Herkunft; „wahrscheinlich“ zählt im Gluten-Th
   globalThis.fetch = async () => new Response(JSON.stringify({ status: 1, product: { product_name: "Zwieback", ingredients_text_de: "Weizenmehl, Zucker" } }), { status: 200 });
   const z = await lookupOpenFacts("4000000000048");
   assert.deepEqual([z.gluten, z.glutenGrund], ["enthalten", "zutaten"]);
+});
+
+test("„Laut Zutaten ohne Gluten“: nur mit ausgewerteter, fast vollständiger Zutatenliste", () => {
+  const ohne = (extra) => glutenAusOpenFacts({ ingredients_tags: ["en:milk", "en:salt", "en:rennet", "en:cultures", "en:annatto"], ...extra }).gluten;
+  assert.equal(ohne({}), "ohne");
+  assert.equal(ohne({ ingredients_n: 5, unknown_ingredients_n: 1 }), "ohne", "eine von fünf unbekannt: geht noch");
+  assert.equal(ohne({ ingredients_n: 5, unknown_ingredients_n: 2 }), null, "zwei von fünf unbekannt: zu unsicher");
+  assert.equal(ohne({ traces_tags: ["en:gluten"] }), "spuren", "Spurenhinweis hat Vorrang");
+  assert.equal(ohne({ labels_tags: ["en:no-gluten"] }), "frei", "Siegel hat Vorrang");
+  assert.equal(ohne({ ingredients_text_de: "Milch, Weizenstärke" }), "enthalten", "Text mit Getreide hat Vorrang");
+  assert.equal(glutenAusOpenFacts({ ingredients_tags: [] }).gluten, null);
+});
+
+test("Frag das Schaf bei „laut Zutaten ohne“: kein Versprechen", () => {
+  const kaese = { id: "k", name: "Gouda", source: "openfoodfacts.org", gluten: "ohne", categoryId: "milch" };
+  for (const q of ["Ist der Gouda glutenfrei?", "Hat der Gouda Gluten?"]) {
+    const topic = topicOf(q);
+    assert.deepEqual(answer({ intent: "topic", product: kaese, topic, topicList: topicProducts(topic, [kaese]), candidates: [], text: q }), {
+      say: "In den Zutaten steht kein Gluten. Ganz sicher ist nur das Zeichen „glutenfrei“ auf der Packung.",
+      offerAdd: kaese,
+    }, q);
+  }
+  assert.ok(!topicProducts(topicOf("glutenfrei"), [kaese]).length, "zählt nicht als glutenfrei");
+  assert.equal(glutenOf(kaese), "ohne");
+  assert.equal(GLUTEN.ohne.label, "laut Zutaten ohne Gluten");
 });

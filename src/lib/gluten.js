@@ -1,5 +1,6 @@
 // Gluten-Kennzeichnung. Werte: "enthalten" | "wahrscheinlich" (nur aus der Produktart geschlossen) |
-// "spuren" (kann Spuren enthalten) | "frei" | null (unbekannt oder kein Lebensmittel).
+// "spuren" (kann Spuren enthalten) | "frei" (Siegel oder eigenes Sortiment) | "ohne" (laut Zutatenliste
+// keine glutenhaltige Zutat, aber kein Siegel) | null (unbekannt oder kein Lebensmittel).
 //  - eigenes Sortiment und Aktionen: nach typischer Rezeptur (unten)
 //  - gescannte Produkte: aus Open Food Facts (Allergene, Siegel, Zutaten, Spuren, Produktart), im
 //    Eltern-Bereich korrigierbar
@@ -10,6 +11,7 @@ export const GLUTEN = {
   wahrscheinlich: { label: "enthält wahrscheinlich Gluten", short: "wahrscheinlich" },
   spuren: { label: "kann Spuren von Gluten enthalten", short: "Spuren" },
   frei: { label: "glutenfrei", short: "glutenfrei" },
+  ohne: { label: "laut Zutaten ohne Gluten", short: "laut Zutaten ohne" },
 };
 
 const clean = (name) => (name ?? "").replace(/­/g, "");
@@ -58,11 +60,16 @@ const GLUTEN_ARTEN = ["en:breads", "en:pastas", "en:biscuits", "en:cakes", "en:p
 
 const zutatHatGluten = (tag) => typeof tag === "string" && tag.startsWith("en:") && tag.slice(3).split("-").some((w) => GLUTEN_ZUTATEN.has(w));
 
+// Stand der Regeln: ältere Scans mit anderem Stand lassen sich im Eltern-Bereich neu auswerten
+export const GLUTEN_REGEL = 3;
+
 /**
  * Angabe aus den Feldern von Open Food Facts. Reihenfolge nach Verlässlichkeit:
- *   Allergen „Gluten“ → Siegel „glutenfrei“ → glutenhaltige Zutat → Spuren → Produktart.
+ *   Allergen „Gluten“ → Siegel „glutenfrei“ → glutenhaltige Zutat → Spuren → Zutatenliste ohne
+ *   Gluten („ohne“) → Produktart (nur ohne Zutatenliste).
  * Ergebnis: { gluten, grund } mit grund = "allergene" | "siegel" | "zutaten" | "spuren" | "produktart" | null.
- * Fehlende Angaben heißen nie „glutenfrei“.
+ * Fehlende Angaben heißen nie „glutenfrei“; „ohne“ nur bei einer ausgewerteten Zutatenliste, in der
+ * höchstens jede fünfte Zutat unbekannt ist.
  */
 export function glutenAusOpenFacts(p) {
   const list = (field) => (Array.isArray(p?.[field]) ? p[field] : []);
@@ -73,6 +80,10 @@ export function glutenAusOpenFacts(p) {
   const text = [p?.ingredients_text_de, p?.ingredients_text].find((t) => typeof t === "string" && t.trim()) ?? "";
   if (zutaten.some(zutatHatGluten) || GLUTEN_TEXT.test(text)) return { gluten: "enthalten", grund: "zutaten" };
   if (has("traces_tags", "en:gluten")) return { gluten: "spuren", grund: "spuren" };
+  const anzahl = Number(p?.ingredients_n) || zutaten.length;
+  // nicht übersetzte Zutaten (z. B. „fr:farine-de-ble“ = Weizenmehl) zählen selbst als unbekannt
+  const unbekannt = Math.max(Number(p?.unknown_ingredients_n) || 0, zutaten.filter((t) => typeof t !== "string" || !t.startsWith("en:")).length);
+  if (zutaten.length && unbekannt <= anzahl * 0.2) return { gluten: "ohne", grund: "zutaten" };
   // Produktart nur, wenn die Zutaten unbekannt sind (sonst sprechen sie gegen Gluten, z. B. Reiswaffeln)
   if (!zutaten.length && !text && GLUTEN_ARTEN.some((c) => list("categories_tags").includes(c))) return { gluten: "wahrscheinlich", grund: "produktart" };
   return { gluten: null, grund: null };

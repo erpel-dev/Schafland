@@ -3,7 +3,7 @@ name: Gluten (echte Daten)
 
 on:
   push:
-    branches: [gluten-zutaten]
+    branches: [gluten-zutaten, gluten-ohne]
     paths: ["src/lib/gluten.js", "tests/gluten/**", ".github/workflows/gluten-echt.yml"]
   workflow_dispatch:
 

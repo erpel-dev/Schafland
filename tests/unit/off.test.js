@@ -170,7 +170,7 @@ test("Name, Marke, Menge: Ersatzwerte und Aufräumen", async () => {
   assert.equal(p.name, "Saft");
   assert.equal(p.brand, "");
   assert.equal(p.quantity, "1 l");
-  assert.match(calls[0], /fields=product_name,product_name_de,brands,quantity,image_front_small_url,categories_tags,allergens_tags,traces_tags,labels_tags,ingredients_tags,ingredients_text_de,ingredients_text&lc=de/);
+  assert.match(calls[0], /fields=product_name,product_name_de,brands,quantity,image_front_small_url,categories_tags,allergens_tags,traces_tags,labels_tags,ingredients_tags,ingredients_text_de,ingredients_text,ingredients_n,unknown_ingredients_n&lc=de/);
 });
 
 test("Gefunden nur beim zweiten Server; leerer Name zählt als nicht gefunden", async () => {

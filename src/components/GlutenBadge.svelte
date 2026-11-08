@@ -9,8 +9,8 @@
 </script>
 
 {#if mode === "text" && g !== undefined}
-  <span class="gluten-text" class:enthalten={g === "enthalten" || g === "wahrscheinlich"} class:spuren={g === "spuren"} class:frei={g === "frei"}>
-    {g === "frei" ? "✓" : g ? "🌾" : "?"} {g ? GLUTEN[g].label : "Gluten: keine Angabe"}
+  <span class="gluten-text" class:enthalten={g === "enthalten" || g === "wahrscheinlich"} class:spuren={g === "spuren"} class:frei={g === "frei"} class:ohne={g === "ohne"}>
+    {g === "frei" || g === "ohne" ? "✓" : g ? "🌾" : "?"} {g ? GLUTEN[g].label : "Gluten: keine Angabe"}
   </span>
 {:else if g === "enthalten" || g === "wahrscheinlich" || g === "spuren"}
   <span class="gluten" class:klein class:spuren={g === "spuren"} class:wahrscheinlich={g === "wahrscheinlich"} title={GLUTEN[g].label} aria-label={GLUTEN[g].label} role="img">🌾</span>
@@ -30,4 +30,5 @@
   .gluten-text.enthalten { color: #9a6700; }
   .gluten-text.spuren { color: #9a6700; }
   .gluten-text.frei { color: var(--grass-dark); }
+  .gluten-text.ohne { color: var(--grass-dark); font-weight: 700; }
 </style>

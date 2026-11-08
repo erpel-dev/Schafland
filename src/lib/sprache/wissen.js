@@ -32,12 +32,12 @@ export const THEMEN = [
   // „glutenfrei“ vor „gluten“, damit „ohne Gluten“ nicht beim Gluten-Thema landet.
   {
     id: "glutenfrei", trigger: ["glutenfrei", "ohne gluten", "zöliakie"], intro: "Ohne Gluten sind zum Beispiel", yes: "glutenfrei",
-    match: (p) => glutenOf(p) === "frei", known: (p) => glutenOf(p) !== null,
+    match: (p) => glutenOf(p) === "frei", known: (p) => glutenOf(p) !== null, ohneSiegel: (p) => glutenOf(p) === "ohne",
     knowledge: "Glutenfrei sind Obst, Gemüse, Milch, Käse, Eier, Getränke und Süßes ohne Mehl",
   },
   {
     id: "gluten", trigger: ["gluten$", "weizen", "mehl$"], intro: "Gluten steckt zum Beispiel in", yes: "enthält Gluten",
-    match: (p) => ["enthalten", "wahrscheinlich", "spuren"].includes(glutenOf(p)), known: (p) => glutenOf(p) !== null,
+    match: (p) => ["enthalten", "wahrscheinlich", "spuren"].includes(glutenOf(p)), known: (p) => glutenOf(p) !== null, ohneSiegel: (p) => glutenOf(p) === "ohne",
   },
 ];
 // Namenslisten der berechneten Themen (für Tests und das Sprachmodell)

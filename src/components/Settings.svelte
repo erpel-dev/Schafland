@@ -9,7 +9,7 @@
   import { categoryById } from "../lib/catalog.js";
   import { db } from "../lib/db.js";
   import { nfcInfo } from "../lib/nfc.js";
-  import { glutenRelevant, GLUTEN_GRUND } from "../lib/gluten.js";
+  import { glutenRelevant, GLUTEN_GRUND, GLUTEN_REGEL } from "../lib/gluten.js";
   import { lookupOpenFacts } from "../lib/off.js";
   import { euro } from "../lib/money.js";
   import Sheep from "./Sheep.svelte";
@@ -199,7 +199,7 @@
   const when = (t) => new Date(t).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
   // --- Gluten bei älteren Scans nachladen: noch nie oder nur nach den alten Regeln (ohne Zutaten)
   // ausgewertet; dann fehlt die Herkunft der Angabe. Von Hand Eingetragenes bleibt.
-  const glutenOffen = $derived(scanned.list.filter((p) => /facts\.org$/.test(p.source ?? "") && p.glutenGrund === undefined));
+  const glutenOffen = $derived(scanned.list.filter((p) => /facts\.org$/.test(p.source ?? "") && p.glutenGrund !== "eltern" && p.glutenRegel !== GLUTEN_REGEL));
   let glutenStatus = $state("");
   async function glutenNachladen() {
     const offen = [...glutenOffen];
@@ -209,7 +209,7 @@
       glutenStatus = `Lade ${i + 1} von ${offen.length} …`;
       try {
         const found = await lookupOpenFacts(p.ean);
-        await scanned.update(p.id, { gluten: found?.gluten ?? null, glutenGrund: found?.glutenGrund ?? null });
+        await scanned.update(p.id, { gluten: found?.gluten ?? null, glutenGrund: found?.glutenGrund ?? null, glutenRegel: GLUTEN_REGEL });
         ok++;
       } catch {
         fehler++;
@@ -615,7 +615,7 @@
           <div class="row">
             <Toggle id="gluten-on" label="Gluten kennzeichnen" checked={settings.value.glutenZeigen} onchange={(v) => settings.set({ glutenZeigen: v })} />
             <span class="muted">
-              🌾 an Regal und Korb: enthält Gluten (blass: wahrscheinlich, gestrichelt: kann Spuren enthalten). Eigene Produkte nach typischer Rezeptur, gescannte nach Open Food Facts: Allergene, Siegel „glutenfrei“, Zutaten (Weizen, Roggen, Gerste, Dinkel, Hafer …), sonst aus der Produktart (Brot, Nudeln, Kekse) geschätzt. Hier unten lässt sich jede Angabe ändern. Bei echten Allergien zählt immer die Verpackung.
+              🌾 an Regal und Korb: enthält Gluten (blass: wahrscheinlich, gestrichelt: kann Spuren enthalten). Eigene Produkte nach typischer Rezeptur, gescannte nach Open Food Facts: Allergene, Siegel „glutenfrei“, Zutaten (Weizen, Roggen, Gerste, Dinkel, Hafer …), sonst aus der Produktart (Brot, Nudeln, Kekse) geschätzt. „Laut Zutaten ohne Gluten“ heißt: keine glutenhaltige Zutat und kein Spurenhinweis, aber kein Siegel „glutenfrei“. Hier unten lässt sich jede Angabe ändern. Bei echten Allergien zählt immer die Verpackung.
             </span>
           </div>
         </div>
@@ -623,7 +623,7 @@
           <div class="field">
             <span class="lbl">Ältere Scans</span>
             <div class="row">
-              <button class="big-btn light small" onclick={glutenNachladen} disabled={!!glutenStatus && glutenStatus.endsWith("…")}>Gluten-Angaben nachladen ({glutenOffen.length})</button>
+              <button class="big-btn light small" onclick={glutenNachladen} disabled={!!glutenStatus && glutenStatus.endsWith("…")}>Gluten-Angaben neu auswerten ({glutenOffen.length})</button>
               {#if glutenStatus}<span class="muted">{glutenStatus}</span>{/if}
             </div>
           </div>
@@ -644,6 +644,7 @@
                 <option value="wahrscheinlich">🌾 wahrscheinlich</option>
                 <option value="spuren">🌾 Spuren</option>
                 <option value="frei">✓ glutenfrei</option>
+                <option value="ohne">✓ laut Zutaten ohne</option>
               </select>
             {/if}
             <label class="price">
