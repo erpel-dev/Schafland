@@ -835,7 +835,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
     const AKTIONEN = [
       { id: "halloween", name: "Halloween", sky: "rgb(42, 29, 71)", hat: "path[fill='#5b2a86']", buy: ["Kürbissuppe", "Hexenhut"], total: "5,20 €", thanks: "Süßes oder Saures", label: "Zauberbesen", deko: ".bat", ink: "rgb(255, 241, 220)" },
       { id: "weihnachten", name: "Weihnachten", sky: "rgb(27, 42, 78)", hat: "path[fill='#d42d3a']", buy: ["Geschenk", "Schlitten"], total: "7,00 €", thanks: "Frohe Weihnachten", label: "Rentier-Kekse", deko: ".flake", ink: "rgb(255, 248, 234)" },
-      { id: "baustelle", name: "Baustellen- und Landmaschinen-Wochen", tab: "Baustelle & Feld", count: 14, sky: "rgb(143, 203, 236)", hat: "path[fill='#ffd400']", buy: ["Traktor", "Ölwechsel"], total: "7,50 €", thanks: "Danke! Gute Fahrt", label: "Inspektion", deko: ".kran", ink: "rgb(43, 43, 43)" },
+      { id: "baustelle", name: "Baustellen- und Landmaschinen-Wochen", tab: "Baustelle & Feld", count: 15, sky: "rgb(143, 203, 236)", hat: "path[fill='#ffd400']", buy: ["Traktor", "Ölwechsel"], total: "7,50 €", thanks: "Danke! Gute Fahrt", label: "Inspektion", deko: ".kran", ink: "rgb(43, 43, 43)" },
     ];
     for (const A of section("aktion") ? AKTIONEN : []) {
       const { browser, page, errors } = await launch("own");
@@ -857,7 +857,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
         const imgs = await page.evaluate(() => [...document.querySelectorAll(".tile img")].map((i) => [i.getAttribute("src"), i.naturalWidth > 0]));
         check("Baustelle: eigene Bilder (Bagger, Gabelstapler, Rüttelhüpfer, Mähdrescher, Betonmischer) geladen", imgs.length === 5 && imgs.every(([, ok]) => ok), JSON.stringify(imgs));
         const names = (await page.locator(".tile .nm").allTextContents()).map((t) => t.replace(/\u00ad/g, ""));
-        check("Baustelle: Rüttelhüpfer, Gabelstapler, Ölwechsel im Angebot", ["Rüttelhüpfer", "Gabelstapler", "Ölwechsel", "Traktor", "Bagger"].every((n) => names.includes(n)), names.join(", "));
+        check("Baustelle: Rüttelhüpfer, Gabelstapler, Ölwechsel im Angebot", ["Rüttelhüpfer", "Gabelstapler", "Ölwechsel", "Reparatur", "Traktor", "Bagger"].every((n) => names.includes(n)), names.join(", "));
         const say = await page.evaluate(() => window.__fragDasSchaf.preview("Was kostet die Rüttelplatte?").reply.say);
         check("Baustelle: „Rüttelplatte“ wird als Rüttelhüpfer verstanden", say === "Der Rüttelhüpfer kostet 3 Euro 50. Soll ich ihn in den Korb legen?", say);
         check("Baustelle: keine Gluten-Zeichen an Maschinen", (await page.locator(".tile .gluten").count()) === 0);

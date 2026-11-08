@@ -43,7 +43,7 @@ const raw = [
     name: "Baustellen- und Landmaschinen-Wochen",
     kurz: "Baustelle & Feld", // Reiter im Regal (der ganze Name ist dafür zu lang)
     emoji: "🚜",
-    description: "Schafland wird zur Baustelle: Kran am Himmel, Warnstreifen, Baustellen-Orange, Schafe mit Bauhelm. Mit Baumaschinen, Landmaschinen und Werkstatt-Service.",
+    description: "Schafland wird zur Baustelle: Kran am Himmel, Warnstreifen, Baustellen-Orange, Schafe mit Bauhelm. Mit Baumaschinen, Landmaschinen und Werkstatt-Service (Ölwechsel, Reifenwechsel, Wäsche, Inspektion, Reparatur).",
     startText: "Baustellen- und Landmaschinen-Wochen in Schafland",
     thanksText: "Danke! Gute Fahrt!",
     ground: ["🚜", "🚧", "🏗️"],
@@ -53,7 +53,7 @@ const raw = [
       ["Rüttel\u00adhüpfer", "🚧", 350, "ruettelhuepfer"], ["Mäh\u00addrescher", "🌾", 800, "maehdrescher"], ["Beton\u00admischer", "🚛", 550, "betonmischer"],
       ["Kipplaster", "🚚", 400], ["Baukran", "🏗️", 700], ["Bauhelm", "⛑️", 150],
       ["Warnweste", "🦺", 120], ["Ölwechsel", "🛢️", 300], ["Reifen\u00adwechsel", "🛞", 250],
-      ["Fahrzeug\u00adwäsche", "🫧", 200], ["Inspektion", "🔧", 400],
+      ["Fahrzeug\u00adwäsche", "🫧", 200], ["Inspektion", "🔧", 400], ["Reparatur", "🛠️", 500],
     ],
   },
 ];

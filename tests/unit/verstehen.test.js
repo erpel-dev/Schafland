@@ -174,6 +174,8 @@ test("Synonyme werden im Satz erkannt", () => {
   assert.equal(hearBau("Ich möchte den Vibrationsstampfer"), "Rüttelhüpfer");
   assert.equal(hearBau("Was kostet die Rüttelplatte?"), "Rüttelhüpfer");
   assert.equal(hearBau("Ich will einen Trecker"), "Traktor");
+  assert.equal(hearBau("Was kostet eine Reparatur?"), "Reparatur");
+  assert.equal(hearBau("Kannst du das reparieren?"), "Reparatur");
 });
 
 // ---------- Entscheidungsregeln mit kleinen, gezielt gebauten Sortimenten ----------

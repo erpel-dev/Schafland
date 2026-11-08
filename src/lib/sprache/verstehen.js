@@ -133,7 +133,8 @@ const SYNONYME = {
   Fahrzeugwäsche: ["waschanlage", "autowäsche", "wäsche"],
   Ölwechsel: ["öl wechseln", "öl"],
   Reifenwechsel: ["reifen", "reifen wechseln"],
-  Inspektion: ["tüv", "kundendienst", "werkstatt"],
+  Inspektion: ["tüv", "kundendienst"],
+  Reparatur: ["reparieren", "repariert", "kaputt", "werkstatt"],
 };
 
 const cleanName = (name) => (name ?? "").replace(/­/g, "");
