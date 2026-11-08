@@ -4,7 +4,7 @@
   import { glutenOf, GLUTEN } from "../lib/gluten.js";
 
   // mode: "zeichen" (nur 🌾 bei Gluten/Spuren, für Kacheln und Korb) | "text" (immer, mit Wort, beim Scannen)
-  let { product, mode = "zeichen" } = $props();
+  let { product, mode = "zeichen", klein = false } = $props();
   let g = $derived(settings.value.glutenZeigen ? glutenOf(product) : undefined);
 </script>
 
@@ -13,7 +13,7 @@
     {g === "frei" ? "✓" : g ? "🌾" : "?"} {g ? GLUTEN[g].label : "Gluten: keine Angabe"}
   </span>
 {:else if g === "enthalten" || g === "spuren"}
-  <span class="gluten" class:spuren={g === "spuren"} title={GLUTEN[g].label} aria-label={GLUTEN[g].label} role="img">🌾</span>
+  <span class="gluten" class:klein class:spuren={g === "spuren"} title={GLUTEN[g].label} aria-label={GLUTEN[g].label} role="img">🌾</span>
 {/if}
 
 <style>
@@ -21,6 +21,7 @@
     display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%;
     background: #fff4d6; box-shadow: 0 0 0 0.12rem #e7b84a; font-size: 1rem; line-height: 1;
   }
+  .gluten.klein { width: 1.15rem; height: 1.15rem; font-size: 0.72rem; vertical-align: -0.2rem; margin-left: 0.15rem; }
   /* Spuren: blasser, gestrichelter Rand */
   .gluten.spuren { opacity: 0.75; box-shadow: none; outline: 0.12rem dashed #e7b84a; }
   .gluten-text { font-weight: 800; font-size: 0.95rem; color: var(--ink-soft); }
