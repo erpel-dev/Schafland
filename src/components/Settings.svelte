@@ -9,6 +9,8 @@
   import { categoryById } from "../lib/catalog.js";
   import { db } from "../lib/db.js";
   import { nfcInfo } from "../lib/nfc.js";
+  import { glutenRelevant } from "../lib/gluten.js";
+  import { lookupOpenFacts } from "../lib/off.js";
   import { euro } from "../lib/money.js";
   import Sheep from "./Sheep.svelte";
   import Toggle from "./Toggle.svelte";
@@ -195,6 +197,26 @@
     if (tab === "bons") db.receipts.orderBy("createdAt").reverse().limit(30).toArray().then((r) => (receipts = r));
   });
   const when = (t) => new Date(t).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
+  // --- Gluten bei älteren Scans nachladen (vor dieser Funktion gescannt: Feld fehlt)
+  const glutenOffen = $derived(scanned.list.filter((p) => /facts\.org$/.test(p.source ?? "") && p.gluten === undefined));
+  let glutenStatus = $state("");
+  async function glutenNachladen() {
+    const offen = [...glutenOffen];
+    let ok = 0;
+    let fehler = 0;
+    for (const [i, p] of offen.entries()) {
+      glutenStatus = `Lade ${i + 1} von ${offen.length} …`;
+      try {
+        const found = await lookupOpenFacts(p.ean);
+        await scanned.update(p.id, { gluten: found?.gluten ?? null });
+        ok++;
+      } catch {
+        fehler++;
+      }
+    }
+    glutenStatus = fehler ? `${ok} aktualisiert, ${fehler} nicht erreichbar (später nochmal versuchen).` : `${ok} aktualisiert.`;
+  }
+
   const PAY = { "spiel-qr": "Schaf-Code", paypal: "PayPal", girocode: "Überweisung (GiroCode)", karte: "Karte (NFC)" };
 
   // --- Kartenzahlung (NFC)
@@ -587,6 +609,26 @@
       {:else if tab === "gescannt"}
         <h2>Gescannte Produkte</h2>
         <p class="muted">Alles, was schon einmal gescannt wurde. Name und Preis lassen sich hier ändern, z. B. „Zeitschrift“ in „c't“. Beim nächsten Scan zeigt die Kasse den neuen Namen.</p>
+        <div class="field">
+          <label for="gluten-on">Gluten kennzeichnen</label>
+          <div class="row">
+            <Toggle id="gluten-on" label="Gluten kennzeichnen" checked={settings.value.glutenZeigen} onchange={(v) => settings.set({ glutenZeigen: v })} />
+            <span class="muted">
+              🌾 an Regal und Korb: enthält Gluten (gestrichelt: kann Spuren enthalten). Eigene Produkte nach typischer Rezeptur, gescannte nach den Angaben von Open Food Facts; hier unten lässt sich jede Angabe ändern. Bei echten Allergien zählt immer die Verpackung.
+            </span>
+          </div>
+        </div>
+        {#if glutenOffen.length}
+          <div class="field">
+            <span class="lbl">Ältere Scans</span>
+            <div class="row">
+              <button class="big-btn light small" onclick={glutenNachladen} disabled={!!glutenStatus && glutenStatus.endsWith("…")}>Gluten-Angaben nachladen ({glutenOffen.length})</button>
+              {#if glutenStatus}<span class="muted">{glutenStatus}</span>{/if}
+            </div>
+          </div>
+        {:else if glutenStatus}
+          <p class="muted">{glutenStatus}</p>
+        {/if}
         {#each scanned.list as p (p.id)}
           <div class="prod">
             <ProductImage product={p} size="3rem" />
@@ -594,6 +636,14 @@
               <input class="name" id={`name-${p.id}`} value={p.name} aria-label="Name" onchange={(e) => setName(p, e.currentTarget)} onkeydown={(e) => e.key === "Enter" && e.currentTarget.blur()} />
               <small>{p.ean} · {categoryById(p.categoryId).name} · {p.source}{p.brand ? ` · ${p.brand}` : ""}</small>
             </div>
+            {#if glutenRelevant(p)}
+              <select class="gluten-sel" id={`gluten-${p.id}`} aria-label="Gluten" value={p.gluten ?? ""} onchange={(e) => scanned.update(p.id, { gluten: e.currentTarget.value || null })}>
+                <option value="">Gluten: ?</option>
+                <option value="enthalten">🌾 enthält Gluten</option>
+                <option value="spuren">🌾 Spuren</option>
+                <option value="frei">✓ glutenfrei</option>
+              </select>
+            {/if}
             <label class="price">
               <input id={`price-${p.id}`} inputmode="decimal" value={priceText(p.priceCents)} onchange={(e) => setPrice(p, e.currentTarget)} /> €
             </label>
@@ -716,7 +766,7 @@
   .tracks button.on { background: var(--ok-bg); font-weight: 800; }
   .tracks small { color: var(--ink-soft); font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  .prod { display: grid; grid-template-columns: 3.4rem 1fr auto auto; gap: 0.8rem; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--wool-line); }
+  .prod { display: grid; grid-template-columns: 3.4rem 1fr auto auto auto; gap: 0.8rem; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--wool-line); }
   .info { display: flex; flex-direction: column; min-width: 0; }
   .info small { color: var(--ink-soft); font-family: monospace; }
   .info .name { font-weight: 800; border: 2px solid transparent; border-radius: 0.5rem; padding: 0.15rem 0.4rem; margin-left: -0.4rem; background: transparent; width: 100%; }
@@ -734,6 +784,10 @@
   .loghead { display: flex; gap: 0.8rem; align-items: baseline; flex-wrap: wrap; }
   .loghead code { font-size: 0.9rem; }
   .log small { color: var(--ink-soft); }
+  .prod .gluten-sel { grid-column: 3; }
+  .prod .price { grid-column: 4; }
+  .prod .del { grid-column: 5; }
+  .gluten-sel { border: 2px solid var(--wool-line); border-radius: 0.6rem; padding: 0.3rem 0.4rem; background: #fff; font: inherit; font-size: 0.9rem; max-width: 10rem; }
   .bon { padding: 0.6rem 0.8rem; background: var(--wool); border-radius: 0.8rem; display: flex; flex-direction: column; gap: 0.2rem; }
   .bonhead { display: flex; gap: 0.8rem; align-items: baseline; }
   .bonhead b { font-family: var(--f-display); font-size: 1.3rem; }
@@ -761,7 +815,9 @@
     .aktion { grid-template-columns: auto 1fr; }
     .aktion :global(.toggle) { grid-column: 2; justify-self: start; }
     .prod { grid-template-columns: 2.8rem 1fr auto; }
+    .prod .price { grid-column: 3; }
     .prod .del { grid-column: 3; }
+    .prod .gluten-sel { grid-column: 2; grid-row: 2; justify-self: start; }
     input[type="range"] { width: 100%; }
   }
 </style>

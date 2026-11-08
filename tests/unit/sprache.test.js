@@ -148,8 +148,8 @@ function ask(text) {
   return answer(r);
 }
 
-test("Wissen: alle Produkte der Themen gibt es im Sortiment", () => {
-  const names = new Set(products.map((p) => p.name.replace(/­/g, "")));
+test("Wissen: alle Produkte der Themen gibt es im Sortiment (oder in einer Aktion)", () => {
+  const names = new Set([...products, ...aktionen.flatMap((a) => a.products)].map((p) => p.name.replace(/­/g, "")));
   for (const t of THEMEN) for (const n of t.products) assert.ok(names.has(n), `${t.id}: ${n}`);
 });
 

@@ -86,10 +86,18 @@ export function answer(result, { cartCount = 0, cartTotal = 0, categoryProducts 
       const { topic, topicList = [] } = result;
       if (p) {
         const { plural } = genus(p);
+        // Thema mit Angaben pro Produkt (Gluten): fehlt die Angabe, nicht raten
+        if (topic.known && !topic.known(p)) {
+          const art = genus(p).article;
+          // Dativ Plural mit -n: „den Keksen“, aber „den Trauben“, „den Bonbons“
+          const name = plural && !/[ns]$/.test(clean(p.name)) ? `${clean(p.name)}n` : clean(p.name);
+          const dativ = !art ? name : `${plural ? "den" : art === "die" ? "der" : "dem"} ${name}`;
+          return { say: `Bei ${dativ} weiß ich das leider nicht. Schau auf die Packung!` };
+        }
         const inList = topicList.some((x) => x.id === p.id);
         const verb = plural ? "sind" : "ist";
         const adjectiv = !/ /.test(topic.yes); // „gesund“, „gelb“ … oder ganze Wendung („passt gut zum Frühstück“)
-        const yes = adjectiv ? `${subject(p)} ${verb} ${topic.yes}` : `${subject(p)} ${plural ? topic.yes.replace(/^(passt|ist|macht|kann|braucht)/, (v) => ({ passt: "passen", ist: "sind", macht: "machen", kann: "kann", braucht: "braucht" })[v]) : topic.yes}`;
+        const yes = adjectiv ? `${subject(p)} ${verb} ${topic.yes}` : `${subject(p)} ${plural ? topic.yes.replace(/^(passt|ist|macht|kann|braucht|enthält)/, (v) => ({ passt: "passen", ist: "sind", macht: "machen", kann: "kann", braucht: "braucht", enthält: "enthalten" })[v]) : topic.yes}`;
         if (inList) return { say: `Ja! ${yes}.`, offerAdd: p };
         const others = topicList.slice(0, 3);
         return { say: others.length ? `Hmm, eher nicht. ${topic.intro} ${list(others.map((x) => clean(x.name)))}.` : "Hmm, eher nicht.", choices: others };

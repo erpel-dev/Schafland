@@ -3,6 +3,7 @@
   import { euro, amount } from "../lib/money.js";
   import { pop } from "../lib/sounds.js";
   import ProductImage from "./ProductImage.svelte";
+  import GlutenBadge from "./GlutenBadge.svelte";
   import Sheep from "./Sheep.svelte";
 
   // compact: Handy hochkant (Leiste unten statt Spalte rechts)
@@ -44,7 +45,7 @@
     {#each cart.lines as l (l.product.id)}
       <div class="ln" class:new={l.product.id === cart.lastId}>
         <ProductImage product={l.product} size="1.9rem" />
-        <span class="nm"><span class="name">{l.product.name}</span><small>{euro(l.product.priceCents)}</small></span>
+        <span class="nm"><span class="name">{l.product.name} <GlutenBadge product={l.product} /></span><small>{euro(l.product.priceCents)}</small></span>
         <span class="qty">
           <button onclick={() => change(l.product.id, -1)} aria-label="Eins weniger">−</button>
           <b>{l.qty}</b>

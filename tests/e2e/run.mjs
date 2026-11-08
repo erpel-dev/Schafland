@@ -38,7 +38,8 @@ function check(name, ok, detail = "", { info = false } = {}) {
 const section = (name) => !ONLY || ONLY.split(",").includes(name);
 
 const PRODUCT = { status: 1, product: { product_name_de: "Vollmilch-Schokolade", brands: "Beispielmarke", quantity: "100 g",
-  image_front_small_url: "https://images.openfoodfacts.org/x/front.jpg", categories_tags: ["en:sweet-snacks", "en:chocolates"] } };
+  image_front_small_url: "https://images.openfoodfacts.org/x/front.jpg", categories_tags: ["en:sweet-snacks", "en:chocolates"],
+  allergens_tags: ["en:milk", "en:soybeans"], traces_tags: ["en:gluten", "en:nuts"] } };
 
 async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, touch = false, camera = true, fakeDir = true, noPicker = false, offFail = false, offMode = null, googleDown = false, cams = 1, rear = false, device = null, audio = null } = {}) {
   // Mit Video-Datei kennt Chromium nur eine Kamera; mehrere Kameras zeigen ein Testbild
@@ -442,6 +443,71 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       try { await page.waitForSelector(".found .t:has-text('Vollmilch')", { timeout: 12000 }); } catch { ok = false; }
       check(`Schwieriges Kamerabild „${cam}“ erkannt`, ok, ok ? `${Date.now() - t0} ms` : "nicht erkannt in 12 s", { info: cam === "hard" });
       if (cam === "hard") await page.screenshot({ path: `${SHOTS}/scan-schwierig.png` });
+      await browser.close();
+    }
+
+    // ---------- Gluten-Kennzeichnung ----------
+    if (section("gluten")) {
+      const { browser, page, errors } = await launch("off");
+      await openShop(page);
+      const badge = (tile) => page.locator(`.tile:has-text('${tile}') .gluten`).count();
+      check("Gluten: Apfel ohne Zeichen", (await badge("Apfel")) === 0);
+      await page.click(".cat:has-text('Backwaren')");
+      check("Gluten: Brot und Brezel mit 🌾", (await badge("Brot")) >= 1 && (await badge("Brezel")) === 1);
+      check("Gluten: Hinweistext am Zeichen", (await page.getAttribute(".tile:has-text('Brezel') .gluten", "aria-label")) === "enthält Gluten");
+      await page.screenshot({ path: `${SHOTS}/gluten-regal.png` });
+      await page.click(".tile:has-text('Brezel')");
+      check("Gluten: Zeichen auch im Korb", (await page.locator(".ln:has-text('Brezel') .gluten").count()) === 1);
+      await page.click(".cat:has-text('Spielzeug')");
+      check("Gluten: Spielzeug ohne Zeichen", (await page.locator(".tile .gluten").count()) === 0);
+      // gescannt: Angaben von Open Food Facts (Schokolade: Spuren)
+      await page.click("text=Scannen!");
+      await page.waitForSelector(".found .t:has-text('Vollmilch')", { timeout: 15000 });
+      check("Gluten: Scan zeigt „kann Spuren von Gluten enthalten“", (await page.textContent(".found")).includes("kann Spuren von Gluten enthalten"));
+      await page.screenshot({ path: `${SHOTS}/gluten-scan.png` });
+      await page.click(".found .big-btn");
+      await page.click("text=✓ Fertig gescannt");
+      check("Gluten: Spuren im Korb gestrichelt", (await page.locator(".ln:has-text('Vollmilch') .gluten.spuren").count()) === 1);
+      // Eltern-Bereich: ändern
+      await openSettings(page);
+      await page.click("nav >> text=Gescannte Produkte");
+      check("Gluten: Auswahl zeigt „Spuren“", (await page.inputValue(".prod .gluten-sel")) === "spuren");
+      await page.selectOption(".prod .gluten-sel", "frei");
+      await page.screenshot({ path: `${SHOTS}/gluten-eltern.png` });
+      await page.click("text=Zurück zum Laden");
+      await page.click(".cat:has-text('Gescannt')");
+      check("Gluten: als glutenfrei geändert → kein Zeichen", (await badge("Vollmilch")) === 0);
+      // Frag das Schaf: Frage, kein Kauf
+      const n0 = await page.locator(".ln").count();
+      const say = await page.evaluate(() => window.__fragDasSchaf.preview("Haben die Kekse Gluten?").reply.say);
+      check("Gluten: „Haben die Kekse Gluten?“ wird beantwortet", say === "Ja! Der Keks enthält Gluten.", say);
+      const frei = await page.evaluate(() => window.__fragDasSchaf.preview("Ist die Banane glutenfrei?").reply.say);
+      check("Gluten: „Ist die Banane glutenfrei?“", frei === "Ja! Die Banane ist glutenfrei.", frei);
+      check("Gluten: Frage legt nichts in den Korb", (await page.locator(".ln").count()) === n0);
+      // ältere Scans ohne Angabe: nachladen
+      await page.evaluate(() => new Promise((res) => {
+        const q = indexedDB.open("schafland");
+        q.onsuccess = () => {
+          const tx = q.result.transaction("products", "readwrite");
+          tx.objectStore("products").put({ id: "off-4001234567891", ean: "4001234567891", name: "Alte Schokolade", source: "openfoodfacts.org", categoryId: "suesses", priceCents: 99, emoji: "🍫", createdAt: 1 });
+          tx.oncomplete = res;
+        };
+      }));
+      await page.reload();
+      await page.click("text=Laden öffnen");
+      await openSettings(page);
+      await page.click("nav >> text=Gescannte Produkte");
+      await page.waitForSelector("text=Gluten-Angaben nachladen (1)");
+      check("Gluten: alter Scan ohne Angabe wird angeboten", true);
+      await page.click("text=Gluten-Angaben nachladen (1)");
+      await page.waitForSelector("text=1 aktualisiert.", { timeout: 10000 }).catch(() => {});
+      check("Gluten: nachgeladen → „Spuren“", (await page.inputValue(".prod .gluten-sel")) === "spuren", await page.textContent(".pane"));
+      // ausschalten
+      await page.click("#gluten-on");
+      await page.click("text=Zurück zum Laden");
+      await page.click(".cat:has-text('Backwaren')");
+      check("Gluten: ausgeschaltet → keine Zeichen", (await page.locator(".gluten").count()) === 0);
+      check("Keine Konsolenfehler (Gluten)", !errors.length, errors.join(" | "));
       await browser.close();
     }
 

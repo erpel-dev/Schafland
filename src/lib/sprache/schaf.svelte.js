@@ -8,7 +8,7 @@ import { settings } from "../settings.svelte.js";
 import { music } from "../music.svelte.js";
 import { kvGet, kvSet } from "../db.js";
 import { pop, unlockAudio } from "../sounds.js";
-import { understand } from "./verstehen.js";
+import { understand, normalize } from "./verstehen.js";
 import { answer } from "./antworten.js";
 import { record } from "./aufnahme.js";
 import { speak, stopSpeaking } from "./sprechen.js";
@@ -247,7 +247,9 @@ class FragDasSchaf {
     const result = understand(text, { products: pool, categories: cats, aliases: settings.value.sprachAliases ?? [] });
     // Fragen zu Eigenschaften („Was ist gesund?“, „Welches Obst ist gelb?“, „Ist die Banane gesund?“)
     const topic = topicOf(text);
-    if (topic && ["unknown", "product", "category"].includes(result.intent)) {
+    // „Haben die Kekse Gluten?“ ist eine Frage, kein „ich möchte … haben“
+    const question = /^(hat|haben|ist|sind|enthält|enthalten)\b/.test(normalize(text));
+    if (topic && (["unknown", "product", "category"].includes(result.intent) || (result.intent === "add" && question))) {
       result.topic = topic;
       result.topicList = topicProducts(topic, pool, result.category?.id ?? null);
       result.intent = "topic";

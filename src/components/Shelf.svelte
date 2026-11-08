@@ -6,6 +6,7 @@
   import { euro } from "../lib/money.js";
   import { pop } from "../lib/sounds.js";
   import ProductImage from "./ProductImage.svelte";
+  import GlutenBadge from "./GlutenBadge.svelte";
 
   import { schaf } from "../lib/sprache/schaf.svelte.js";
   let { onScan } = $props();
@@ -42,6 +43,7 @@
       {#key cart.lastId === p.id ? cart.lastTick : 0}
         <button class="tile" class:hit={cart.lastId === p.id} onclick={() => add(p)}>
           <ProductImage product={p} size="3.4rem" />
+          <span class="gl"><GlutenBadge product={p} /></span>
           <span class="nm">{p.name}</span>
           <span class="pr">{euro(p.priceCents)}</span>
         </button>
@@ -96,6 +98,7 @@
     transition: transform 0.08s;
   }
   .tile:active { transform: scale(0.95); }
+  .gl { position: absolute; top: 0.35rem; left: 0.35rem; line-height: 0; }
   .nm { font-weight: 800; font-size: 1rem; text-align: center; line-height: 1.15; }
   .pr { font-family: var(--f-display); font-weight: 800; font-size: 1.25rem; color: var(--grass-dark); }
   .tile.hit { outline: 0.25rem solid var(--sun); animation: hop 0.35s ease-out; }

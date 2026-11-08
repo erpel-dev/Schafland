@@ -9,6 +9,8 @@
   import { euro } from "../lib/money.js";
   import { beep, nope } from "../lib/sounds.js";
   import ProductImage from "./ProductImage.svelte";
+  import GlutenBadge from "./GlutenBadge.svelte";
+  import { glutenRelevant } from "../lib/gluten.js";
   import Sheep from "./Sheep.svelte";
   import { schaf } from "../lib/sprache/schaf.svelte.js";
 
@@ -346,6 +348,7 @@
       <div class="pimg"><ProductImage product={found.product} size={layout.narrow || layout.short ? "4.2rem" : "8rem"} /></div>
       <b class="t">{found.product.name}</b>
       <small>{[found.product.brand, found.product.quantity].filter(Boolean).join(" · ")}</small>
+      {#if glutenRelevant(found.product)}<GlutenBadge product={found.product} mode="text" />{/if}
       <div class="price">{euro(found.product.priceCents)}</div>
       {#if status === "added"}
         <div class="added">✓ Im Korb</div>
