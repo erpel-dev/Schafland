@@ -49,7 +49,7 @@ test("Gespeicherte Angabe zählt zuerst; ungültige und fehlende Angaben", () =>
   assert.equal(glutenRelevant({ name: "Buch", source: "books.google.com", categoryId: "buch" }), false);
   assert.equal(glutenRelevant(byName("Apfel")), true);
   assert.equal(glutenRelevant(null), false);
-  assert.deepEqual(Object.keys(GLUTEN), ["enthalten", "spuren", "frei"]);
+  assert.deepEqual(Object.keys(GLUTEN), ["enthalten", "wahrscheinlich", "spuren", "frei"]);
 });
 
 test("Open Food Facts: Allergen vor Siegel vor Spuren; ohne Angaben unbekannt", () => {
@@ -118,4 +118,55 @@ test("Frag das Schaf: Antworten zu Gluten", () => {
   assert.equal(R({ ...nutella, name: "Banane" }, "Ist die Banane glutenfrei?").say, "Bei der Banane weiß ich das leider nicht. Schau auf die Packung!");
   assert.equal(R({ ...nutella, name: "Trauben" }, "Sind die Trauben glutenfrei?").say, "Bei den Trauben weiß ich das leider nicht. Schau auf die Packung!");
   assert.equal(R({ ...nutella, name: "Kekse" }, "Sind die Kekse glutenfrei?").say, "Bei den Keksen weiß ich das leider nicht. Schau auf die Packung!");
+});
+
+import { glutenAusOpenFacts, GLUTEN_GRUND } from "../../src/lib/gluten.js";
+
+test("Zutaten: glutenhaltiges Getreide erkannt, auch wenn das Allergen fehlt", () => {
+  const z = (...ingredients_tags) => glutenAusOpenFacts({ ingredients_tags });
+  for (const tag of ["en:wheat-flour", "en:whole-wheat-flour", "en:barley-malt-extract", "en:rye", "en:spelt-flour", "en:oat-flakes", "en:durum-wheat-semolina", "en:wheat-gluten", "en:bulgur", "en:couscous", "en:kamut"]) {
+    assert.deepEqual(z("en:sugar", tag), { gluten: "enthalten", grund: "zutaten" }, tag);
+  }
+  // Fallen: Buchweizen, Maltodextrin, Glukosesirup sind glutenfrei
+  for (const tag of ["en:buckwheat", "en:buckwheat-flour", "en:maltodextrin", "en:glucose-syrup", "en:rice-flour", "en:corn-starch"]) {
+    assert.deepEqual(z(tag), { gluten: null, grund: null }, tag);
+  }
+  assert.equal(z("fr:farine-de-ble").gluten, null, "nur ausgewertete (en:) Zutaten");
+  assert.equal(z(42).gluten, null);
+});
+
+test("Zutatenliste als Text (deutsch), auch in zusammengesetzten Wörtern", () => {
+  const t = (ingredients_text_de) => glutenAusOpenFacts({ ingredients_text_de }).gluten;
+  for (const s of ["Weizenmehl, Zucker", "Hartweizengrieß", "ROGGENMEHL", "Gerstenmalzextrakt", "Dinkel", "Haferflocken (30 %)", "Grünkern", "Emmer, Einkorn", "Weizengluten", "Gluten"]) assert.equal(t(s), "enthalten", s);
+  for (const s of ["Buchweizenmehl, Reis", "Maltodextrin", "Reismehl, Maisstärke", "Zucker, Kakaobutter", "glutenfrei", "Glutenfreie Reiswaffeln"]) assert.equal(t(s), null, s);
+  assert.equal(glutenAusOpenFacts({ ingredients_text: "wheat flour" }).gluten, null, "nur deutsche Wörter im Text");
+  assert.equal(glutenAusOpenFacts({ ingredients_text_de: "", ingredients_text: "Weizenmehl" }).gluten, "enthalten", "leerer deutscher Text: allgemeiner Text");
+});
+
+test("Reihenfolge: Allergen > Siegel > Zutaten > Spuren > Produktart", () => {
+  assert.deepEqual(glutenAusOpenFacts({ allergens_tags: ["en:gluten"], labels_tags: ["en:no-gluten"] }), { gluten: "enthalten", grund: "allergene" });
+  assert.deepEqual(glutenAusOpenFacts({ labels_tags: ["en:gluten-free"], ingredients_tags: ["en:oat-flakes"] }), { gluten: "frei", grund: "siegel" }, "glutenfreier Hafer");
+  assert.deepEqual(glutenAusOpenFacts({ ingredients_tags: ["en:wheat-flour"], traces_tags: ["en:gluten"] }), { gluten: "enthalten", grund: "zutaten" });
+  assert.deepEqual(glutenAusOpenFacts({ ingredients_tags: ["en:rice"], traces_tags: ["en:gluten"], categories_tags: ["en:biscuits"] }), { gluten: "spuren", grund: "spuren" });
+});
+
+test("Produktart nur ohne bekannte Zutaten: wahrscheinlich, nie glutenfrei", () => {
+  for (const c of ["en:breads", "en:pastas", "en:biscuits", "en:beers", "en:pizzas", "en:breakfast-cereals", "en:crackers", "en:cakes"]) {
+    assert.deepEqual(glutenAusOpenFacts({ categories_tags: ["en:foods", c] }), { gluten: "wahrscheinlich", grund: "produktart" }, c);
+  }
+  assert.equal(glutenAusOpenFacts({ categories_tags: ["en:biscuits"], ingredients_tags: ["en:rice", "en:salt"] }).gluten, null, "Reiswaffeln: Zutaten sprechen dagegen");
+  assert.equal(glutenAusOpenFacts({ categories_tags: ["en:biscuits"], ingredients_text_de: "Reis, Salz" }).gluten, null);
+  assert.equal(glutenAusOpenFacts({ categories_tags: ["en:chocolates"] }).gluten, null);
+  assert.ok(GLUTEN_GRUND.zutaten && GLUTEN_GRUND.produktart && GLUTEN_GRUND.eltern);
+});
+
+test("Scan speichert Wert und Herkunft; „wahrscheinlich“ zählt im Gluten-Thema", async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({ status: 1, product: { product_name: "Toast", categories_tags: ["en:breads"] } }), { status: 200 });
+  const p = await lookupOpenFacts("4000000000031");
+  assert.equal(p.gluten, "wahrscheinlich");
+  assert.equal(p.glutenGrund, "produktart");
+  assert.ok(topicProducts(topicOf("Gluten"), [p]).includes(p));
+  globalThis.fetch = async () => new Response(JSON.stringify({ status: 1, product: { product_name: "Zwieback", ingredients_text_de: "Weizenmehl, Zucker" } }), { status: 200 });
+  const z = await lookupOpenFacts("4000000000048");
+  assert.deepEqual([z.gluten, z.glutenGrund], ["enthalten", "zutaten"]);
 });

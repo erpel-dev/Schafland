@@ -9,11 +9,11 @@
 </script>
 
 {#if mode === "text" && g !== undefined}
-  <span class="gluten-text" class:enthalten={g === "enthalten"} class:spuren={g === "spuren"} class:frei={g === "frei"}>
+  <span class="gluten-text" class:enthalten={g === "enthalten" || g === "wahrscheinlich"} class:spuren={g === "spuren"} class:frei={g === "frei"}>
     {g === "frei" ? "✓" : g ? "🌾" : "?"} {g ? GLUTEN[g].label : "Gluten: keine Angabe"}
   </span>
-{:else if g === "enthalten" || g === "spuren"}
-  <span class="gluten" class:klein class:spuren={g === "spuren"} title={GLUTEN[g].label} aria-label={GLUTEN[g].label} role="img">🌾</span>
+{:else if g === "enthalten" || g === "wahrscheinlich" || g === "spuren"}
+  <span class="gluten" class:klein class:spuren={g === "spuren"} class:wahrscheinlich={g === "wahrscheinlich"} title={GLUTEN[g].label} aria-label={GLUTEN[g].label} role="img">🌾</span>
 {/if}
 
 <style>
@@ -24,6 +24,8 @@
   .gluten.klein { width: 1.15rem; height: 1.15rem; font-size: 0.72rem; vertical-align: -0.2rem; margin-left: 0.15rem; }
   /* Spuren: blasser, gestrichelter Rand */
   .gluten.spuren { opacity: 0.75; box-shadow: none; outline: 0.12rem dashed #e7b84a; }
+  /* nur geschätzt: etwas blasser, Rand durchgezogen */
+  .gluten.wahrscheinlich { opacity: 0.8; }
   .gluten-text { font-weight: 800; font-size: 0.95rem; color: var(--ink-soft); }
   .gluten-text.enthalten { color: #9a6700; }
   .gluten-text.spuren { color: #9a6700; }

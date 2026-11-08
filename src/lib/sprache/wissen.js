@@ -37,7 +37,7 @@ export const THEMEN = [
   },
   {
     id: "gluten", trigger: ["gluten$", "weizen", "mehl$"], intro: "Gluten steckt zum Beispiel in", yes: "enthält Gluten",
-    match: (p) => glutenOf(p) === "enthalten" || glutenOf(p) === "spuren", known: (p) => glutenOf(p) !== null,
+    match: (p) => ["enthalten", "wahrscheinlich", "spuren"].includes(glutenOf(p)), known: (p) => glutenOf(p) !== null,
   },
 ];
 // Namenslisten der berechneten Themen (für Tests und das Sprachmodell)

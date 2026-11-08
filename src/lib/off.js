@@ -1,6 +1,6 @@
 import { categories, SCANNED } from "./catalog.js";
 import { getJson, fetchImage, ServiceError } from "./net.js";
-import { glutenFromOpenFacts } from "./gluten.js";
+import { glutenAusOpenFacts } from "./gluten.js";
 
 // Open Food Facts und die Schwesterprojekte haben dieselbe Schnittstelle.
 const HOSTS = [
@@ -8,7 +8,7 @@ const HOSTS = [
   "https://world.openbeautyfacts.org",
   "https://world.openproductsfacts.org",
 ];
-const FIELDS = "product_name,product_name_de,brands,quantity,image_front_small_url,categories_tags,allergens_tags,traces_tags,labels_tags";
+const FIELDS = "product_name,product_name_de,brands,quantity,image_front_small_url,categories_tags,allergens_tags,traces_tags,labels_tags,ingredients_tags,ingredients_text_de,ingredients_text";
 
 // Reihenfolge zählt: die erste passende Kategorie gewinnt.
 const CATEGORY_TAGS = [
@@ -56,6 +56,7 @@ export async function lookupOpenFacts(ean, { timeoutMs = 8000, trace = [] } = {}
     const categoryId = mapCategory(p.categories_tags);
     const cat = categories.find((c) => c.id === categoryId) ?? SCANNED;
     const imageUrl = p.image_front_small_url || null;
+    const gluten = glutenAusOpenFacts(p);
 
     return {
       id: `off-${ean}`,
@@ -63,7 +64,8 @@ export async function lookupOpenFacts(ean, { timeoutMs = 8000, trace = [] } = {}
       name,
       brand: p.brands?.split(",")[0]?.trim() || "",
       quantity: p.quantity || "",
-      gluten: glutenFromOpenFacts(p),
+      gluten: gluten.gluten,
+      glutenGrund: gluten.grund,
       emoji: cat.emoji,
       categoryId,
       priceCents: cat.defaultPrice,

@@ -9,7 +9,7 @@
   import { categoryById } from "../lib/catalog.js";
   import { db } from "../lib/db.js";
   import { nfcInfo } from "../lib/nfc.js";
-  import { glutenRelevant } from "../lib/gluten.js";
+  import { glutenRelevant, GLUTEN_GRUND } from "../lib/gluten.js";
   import { lookupOpenFacts } from "../lib/off.js";
   import { euro } from "../lib/money.js";
   import Sheep from "./Sheep.svelte";
@@ -197,8 +197,9 @@
     if (tab === "bons") db.receipts.orderBy("createdAt").reverse().limit(30).toArray().then((r) => (receipts = r));
   });
   const when = (t) => new Date(t).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
-  // --- Gluten bei älteren Scans nachladen (vor dieser Funktion gescannt: Feld fehlt)
-  const glutenOffen = $derived(scanned.list.filter((p) => /facts\.org$/.test(p.source ?? "") && p.gluten === undefined));
+  // --- Gluten bei älteren Scans nachladen: noch nie oder nur nach den alten Regeln (ohne Zutaten)
+  // ausgewertet; dann fehlt die Herkunft der Angabe. Von Hand Eingetragenes bleibt.
+  const glutenOffen = $derived(scanned.list.filter((p) => /facts\.org$/.test(p.source ?? "") && p.glutenGrund === undefined));
   let glutenStatus = $state("");
   async function glutenNachladen() {
     const offen = [...glutenOffen];
@@ -208,7 +209,7 @@
       glutenStatus = `Lade ${i + 1} von ${offen.length} …`;
       try {
         const found = await lookupOpenFacts(p.ean);
-        await scanned.update(p.id, { gluten: found?.gluten ?? null });
+        await scanned.update(p.id, { gluten: found?.gluten ?? null, glutenGrund: found?.glutenGrund ?? null });
         ok++;
       } catch {
         fehler++;
@@ -614,7 +615,7 @@
           <div class="row">
             <Toggle id="gluten-on" label="Gluten kennzeichnen" checked={settings.value.glutenZeigen} onchange={(v) => settings.set({ glutenZeigen: v })} />
             <span class="muted">
-              🌾 an Regal und Korb: enthält Gluten (gestrichelt: kann Spuren enthalten). Eigene Produkte nach typischer Rezeptur, gescannte nach den Angaben von Open Food Facts; hier unten lässt sich jede Angabe ändern. Bei echten Allergien zählt immer die Verpackung.
+              🌾 an Regal und Korb: enthält Gluten (blass: wahrscheinlich, gestrichelt: kann Spuren enthalten). Eigene Produkte nach typischer Rezeptur, gescannte nach Open Food Facts: Allergene, Siegel „glutenfrei“, Zutaten (Weizen, Roggen, Gerste, Dinkel, Hafer …), sonst aus der Produktart (Brot, Nudeln, Kekse) geschätzt. Hier unten lässt sich jede Angabe ändern. Bei echten Allergien zählt immer die Verpackung.
             </span>
           </div>
         </div>
@@ -634,12 +635,13 @@
             <ProductImage product={p} size="3rem" />
             <div class="info">
               <input class="name" id={`name-${p.id}`} value={p.name} aria-label="Name" onchange={(e) => setName(p, e.currentTarget)} onkeydown={(e) => e.key === "Enter" && e.currentTarget.blur()} />
-              <small>{p.ean} · {categoryById(p.categoryId).name} · {p.source}{p.brand ? ` · ${p.brand}` : ""}</small>
+              <small>{p.ean} · {categoryById(p.categoryId).name} · {p.source}{p.brand ? ` · ${p.brand}` : ""}{p.gluten && GLUTEN_GRUND[p.glutenGrund] ? ` · Gluten: ${GLUTEN_GRUND[p.glutenGrund]}` : ""}</small>
             </div>
             {#if glutenRelevant(p)}
-              <select class="gluten-sel" id={`gluten-${p.id}`} aria-label="Gluten" value={p.gluten ?? ""} onchange={(e) => scanned.update(p.id, { gluten: e.currentTarget.value || null })}>
+              <select class="gluten-sel" id={`gluten-${p.id}`} aria-label="Gluten" value={p.gluten ?? ""} onchange={(e) => scanned.update(p.id, { gluten: e.currentTarget.value || null, glutenGrund: "eltern" })}>
                 <option value="">Gluten: ?</option>
                 <option value="enthalten">🌾 enthält Gluten</option>
+                <option value="wahrscheinlich">🌾 wahrscheinlich</option>
                 <option value="spuren">🌾 Spuren</option>
                 <option value="frei">✓ glutenfrei</option>
               </select>

@@ -1,12 +1,13 @@
-// Gluten-Kennzeichnung. Werte: "enthalten" | "spuren" (kann Spuren enthalten) | "frei" | null (unbekannt
-// oder kein Lebensmittel).
+// Gluten-Kennzeichnung. Werte: "enthalten" | "wahrscheinlich" (nur aus der Produktart geschlossen) |
+// "spuren" (kann Spuren enthalten) | "frei" | null (unbekannt oder kein Lebensmittel).
 //  - eigenes Sortiment und Aktionen: nach typischer Rezeptur (unten)
-//  - gescannte Produkte: aus Open Food Facts (Allergene, Spuren, Siegel „glutenfrei“), im
+//  - gescannte Produkte: aus Open Food Facts (Allergene, Siegel, Zutaten, Spuren, Produktart), im
 //    Eltern-Bereich korrigierbar
 // Im Kaufladen ist das Spielwissen. Bei echten Allergien zählt immer die Verpackung.
 
 export const GLUTEN = {
   enthalten: { label: "enthält Gluten", short: "Gluten" },
+  wahrscheinlich: { label: "enthält wahrscheinlich Gluten", short: "wahrscheinlich" },
   spuren: { label: "kann Spuren von Gluten enthalten", short: "Spuren" },
   frei: { label: "glutenfrei", short: "glutenfrei" },
 };
@@ -46,14 +47,46 @@ export function glutenRelevant(product) {
   return true;
 }
 
+// Getreide mit Gluten, wie Open Food Facts Zutaten benennt (en:wheat-flour, en:whole-wheat-flour,
+// en:barley-malt-extract …). Ganze Wortteile, damit en:buckwheat (glutenfrei) nicht als Weizen zählt.
+const GLUTEN_ZUTATEN = new Set(["wheat", "barley", "rye", "spelt", "oat", "oats", "kamut", "khorasan", "triticale", "durum", "semolina", "couscous", "bulgur", "malt", "gluten", "seitan", "emmer", "einkorn", "farro", "freekeh"]);
+// dieselben auf Deutsch, für Zutatenlisten ohne ausgewertete Zutaten (auch in Wortzusammensetzungen:
+// „Weizenmehl“, „Hartweizengrieß“, „Gerstenmalzextrakt“; aber nicht „Buchweizen“ oder „Maltodextrin“)
+const GLUTEN_TEXT = /(?<!buch)weizen|roggen|gerste|dinkel|hafer|grünkern|emmer|einkorn|kamut|triticale|malz|seitan|\bgluten\b(?!frei)/i;
+// Produktarten, die fast immer Gluten enthalten (nur genutzt, wenn keine Zutaten bekannt sind)
+const GLUTEN_ARTEN = ["en:breads", "en:pastas", "en:biscuits", "en:cakes", "en:pastries", "en:viennoiseries", "en:beers", "en:crackers", "en:pizzas", "en:wafers", "en:waffles", "en:croissants", "en:pretzels", "en:breakfast-cereals", "en:breadcrumbs", "en:cookies", "en:gingerbreads"];
+
+const zutatHatGluten = (tag) => typeof tag === "string" && tag.startsWith("en:") && tag.slice(3).split("-").some((w) => GLUTEN_ZUTATEN.has(w));
+
 /**
- * Angabe aus den Feldern von Open Food Facts (allergens_tags, traces_tags, labels_tags).
- * Ohne Allergen-Angaben bleibt es unbekannt: fehlende Angabe heißt nicht glutenfrei.
+ * Angabe aus den Feldern von Open Food Facts. Reihenfolge nach Verlässlichkeit:
+ *   Allergen „Gluten“ → Siegel „glutenfrei“ → glutenhaltige Zutat → Spuren → Produktart.
+ * Ergebnis: { gluten, grund } mit grund = "allergene" | "siegel" | "zutaten" | "spuren" | "produktart" | null.
+ * Fehlende Angaben heißen nie „glutenfrei“.
  */
-export function glutenFromOpenFacts(p) {
-  const has = (field, ...tags) => Array.isArray(p?.[field]) && tags.some((t) => p[field].includes(t));
-  if (has("allergens_tags", "en:gluten")) return "enthalten";
-  if (has("labels_tags", "en:no-gluten", "en:gluten-free")) return "frei";
-  if (has("traces_tags", "en:gluten")) return "spuren";
-  return null;
+export function glutenAusOpenFacts(p) {
+  const list = (field) => (Array.isArray(p?.[field]) ? p[field] : []);
+  const has = (field, ...tags) => tags.some((t) => list(field).includes(t));
+  if (has("allergens_tags", "en:gluten")) return { gluten: "enthalten", grund: "allergene" };
+  if (has("labels_tags", "en:no-gluten", "en:gluten-free")) return { gluten: "frei", grund: "siegel" };
+  const zutaten = list("ingredients_tags");
+  const text = [p?.ingredients_text_de, p?.ingredients_text].find((t) => typeof t === "string" && t.trim()) ?? "";
+  if (zutaten.some(zutatHatGluten) || GLUTEN_TEXT.test(text)) return { gluten: "enthalten", grund: "zutaten" };
+  if (has("traces_tags", "en:gluten")) return { gluten: "spuren", grund: "spuren" };
+  // Produktart nur, wenn die Zutaten unbekannt sind (sonst sprechen sie gegen Gluten, z. B. Reiswaffeln)
+  if (!zutaten.length && !text && GLUTEN_ARTEN.some((c) => list("categories_tags").includes(c))) return { gluten: "wahrscheinlich", grund: "produktart" };
+  return { gluten: null, grund: null };
 }
+
+/** Nur der Wert (für ältere Aufrufer) */
+export const glutenFromOpenFacts = (p) => glutenAusOpenFacts(p).gluten;
+
+/** Woher die Angabe stammt, für den Eltern-Bereich */
+export const GLUTEN_GRUND = {
+  allergene: "Allergenangabe",
+  siegel: "Siegel „glutenfrei“",
+  zutaten: "aus den Zutaten",
+  spuren: "Spurenhinweis",
+  produktart: "aus der Produktart geschätzt",
+  eltern: "von Hand eingetragen",
+};
