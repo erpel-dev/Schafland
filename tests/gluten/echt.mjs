@@ -54,6 +54,10 @@ console.log(`Weniger beliebte Produkte: vorher ${zahl((x) => !x.beliebt && x.alt
 // Widersprüche zeigen: neue Regel sagt „enthalten“, alte „frei“ (oder umgekehrt) – sollte nie passieren
 const wider = rows.filter((x) => (x.alt === "frei" && x.neu.gluten === "enthalten") || (x.alt === "enthalten" && x.neu.gluten !== "enthalten") || (x.alt === "spuren" && x.neu.gluten === "ohne"));
 console.log(`Widersprüche alt/neu: ${wider.length}`);
+// nur aus dem Zutatentext „enthalten“ (keine ausgewertete Zutat): zur Kontrolle von Hand
+const ausText = rows.filter((x) => !x.alt && x.neu.gluten === "enthalten" && !(x.p.ingredients_tags ?? []).some((t) => /wheat|barley|rye|spelt|oat|malt|durum|gluten/.test(t)));
+console.log(`Nur aus dem Zutatentext erkannt: ${ausText.length}`);
+for (const x of ausText) console.log(`  ${x.p.code} ${x.p.product_name}: ${(x.p.ingredients_text_de ?? x.p.ingredients_text ?? "").slice(0, 160)}`);
 for (const x of wider) console.log(`  ${x.p.code} ${x.p.product_name}: alt ${x.alt}, neu ${x.neu.gluten}`);
 // Stichprobe der neu erkannten zur Kontrolle von Hand
 console.log("\nNeu erkannt (Stichprobe):");

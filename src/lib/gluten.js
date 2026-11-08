@@ -55,6 +55,8 @@ const GLUTEN_ZUTATEN = new Set(["wheat", "barley", "rye", "spelt", "oat", "oats"
 // dieselben auf Deutsch, für Zutatenlisten ohne ausgewertete Zutaten (auch in Wortzusammensetzungen:
 // „Weizenmehl“, „Hartweizengrieß“, „Gerstenmalzextrakt“; aber nicht „Buchweizen“ oder „Maltodextrin“)
 const GLUTEN_TEXT = /(?<!buch)weizen|roggen|gerste|dinkel|hafer|grünkern|emmer|einkorn|kamut|triticale|malz|seitan|\bgluten\b(?!frei)/i;
+// Sätze mit Spuren- oder Betriebshinweisen bis zum Satzende
+const HINWEIS = /[^.;:]*\b(spuren|kann [^.;]*enthalten|können [^.;]*enthalten|betrieb|verarbeitet auch|hergestellt in)\b[^.;]*/gi;
 // Produktarten, die fast immer Gluten enthalten (nur genutzt, wenn keine Zutaten bekannt sind)
 const GLUTEN_ARTEN = ["en:breads", "en:pastas", "en:biscuits", "en:cakes", "en:pastries", "en:viennoiseries", "en:beers", "en:crackers", "en:pizzas", "en:wafers", "en:waffles", "en:croissants", "en:pretzels", "en:breakfast-cereals", "en:breadcrumbs", "en:cookies", "en:gingerbreads"];
 
@@ -78,8 +80,12 @@ export function glutenAusOpenFacts(p) {
   if (has("labels_tags", "en:no-gluten", "en:gluten-free")) return { gluten: "frei", grund: "siegel" };
   const zutaten = list("ingredients_tags");
   const text = [p?.ingredients_text_de, p?.ingredients_text].find((t) => typeof t === "string" && t.trim()) ?? "";
-  if (zutaten.some(zutatHatGluten) || GLUTEN_TEXT.test(text)) return { gluten: "enthalten", grund: "zutaten" };
-  if (has("traces_tags", "en:gluten")) return { gluten: "spuren", grund: "spuren" };
+  // Spuren- und Betriebshinweise im Text („Kann Spuren von Gluten enthalten“, „in einem Betrieb, der auch
+  // Weizen verarbeitet“) sind keine Zutaten: getrennt auswerten
+  const hinweise = text.match(HINWEIS) ?? [];
+  const zutatenText = text.replace(HINWEIS, " ");
+  if (zutaten.some(zutatHatGluten) || GLUTEN_TEXT.test(zutatenText)) return { gluten: "enthalten", grund: "zutaten" };
+  if (has("traces_tags", "en:gluten") || hinweise.some((h) => GLUTEN_TEXT.test(h))) return { gluten: "spuren", grund: "spuren" };
   const anzahl = Number(p?.ingredients_n) || zutaten.length;
   // nicht übersetzte Zutaten (z. B. „fr:farine-de-ble“ = Weizenmehl) zählen selbst als unbekannt
   const unbekannt = Math.max(Number(p?.unknown_ingredients_n) || 0, zutaten.filter((t) => typeof t !== "string" || !t.startsWith("en:")).length);

@@ -197,3 +197,15 @@ test("Frag das Schaf bei „laut Zutaten ohne“: kein Versprechen", () => {
   assert.equal(glutenOf(kaese), "ohne");
   assert.equal(GLUTEN.ohne.label, "laut Zutaten ohne Gluten");
 });
+
+test("Spuren- und Betriebshinweise im Zutatentext zählen als Spuren, nicht als Zutat", () => {
+  const t = (ingredients_text_de, extra = {}) => glutenAusOpenFacts({ ingredients_text_de, ...extra }).gluten;
+  assert.equal(t("Kakaomasse, Kakaobutter, Rohrzucker. Kann Spuren von Milch, Haselnüssen und Gluten enthalten."), "spuren");
+  assert.equal(t("Zucker, Kakaobutter; Spuren von Weizen möglich"), "spuren");
+  assert.equal(t("Milch, Salz. Hergestellt in einem Betrieb, der auch Weizen verarbeitet."), "spuren");
+  assert.equal(t("Weizenmehl, Zucker. Kann Spuren von Nüssen enthalten."), "enthalten", "echte Zutat bleibt");
+  assert.equal(t("Zucker. Kann Spuren von Nüssen enthalten."), null, "Hinweis ohne Gluten: nichts");
+  // mit ausgewerteten Zutaten: Spurenhinweis im Text verhindert „ohne“
+  assert.equal(t("Kakaomasse, Zucker. Kann Spuren von Gluten enthalten.", { ingredients_tags: ["en:cocoa-paste", "en:sugar"] }), "spuren");
+  assert.equal(t("Kakaomasse, Zucker.", { ingredients_tags: ["en:cocoa-paste", "en:sugar"] }), "ohne");
+});
