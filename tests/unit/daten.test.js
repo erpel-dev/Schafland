@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { products, allProducts, categories, categoryById, productByEan, SCANNED, MAGAZINE, BOOK } from "../../src/lib/catalog.js";
 import { aktionen, aktionById } from "../../src/lib/aktionen.js";
 import { isValidEan } from "../../src/lib/ean.js";
+import fs from "node:fs";
 
 const emoji = /\p{Extended_Pictographic}/u;
 
@@ -28,14 +29,15 @@ test("Aktionen: Texte, Deko, Kategorie, fortlaufende ids", () => {
     for (const k of ["name", "description", "startText", "thanksText"]) assert.ok(a[k]?.trim().length > 3, `${a.id}.${k}`);
     assert.ok(emoji.test(a.emoji), `${a.id}: Emoji`);
     assert.ok(a.ground.length >= 3 && a.ground.every((g) => emoji.test(g)), `${a.id}: Deko`);
-    assert.deepEqual(a.category, { id: a.id, name: a.name, emoji: a.emoji, defaultPrice: 100, aktion: true });
+    assert.deepEqual(a.category, { id: a.id, name: a.category.name, emoji: a.emoji, defaultPrice: 100, aktion: true });
+    assert.ok(a.category.name.length >= 3 && a.category.name.length <= 20, `${a.id}: Reitername kurz genug`);
     a.products.forEach((p, i) => {
       assert.equal(p.id, `${a.id}-${i + 1}`);
       assert.equal(p.categoryId, a.id);
-      assert.equal(p.icon, null);
+      assert.ok(p.icon === null || fs.existsSync(new URL(`../../public/${p.icon}`, import.meta.url)), `${p.name}: Bild ${p.icon}`);
     });
     assert.equal(aktionById(a.id), a);
-    assert.equal(categoryById(a.id).name, a.name);
+    assert.equal(categoryById(a.id).name, a.category.name);
   }
 });
 

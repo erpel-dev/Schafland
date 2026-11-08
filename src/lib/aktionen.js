@@ -38,6 +38,24 @@ const raw = [
       ["Nüsse", "🌰", 120], ["Rentier-Kekse", "🦌", 90], ["Schlitten", "🛷", 400],
     ],
   },
+  {
+    id: "baustelle",
+    name: "Baustellen- und Landmaschinen-Wochen",
+    kurz: "Baustelle & Feld", // Reiter im Regal (der ganze Name ist dafür zu lang)
+    emoji: "🚜",
+    description: "Schafland wird zur Baustelle: Kran am Himmel, Warnstreifen, Baustellen-Orange, Schafe mit Bauhelm. Mit Baumaschinen, Landmaschinen und Werkstatt-Service.",
+    startText: "Baustellen- und Landmaschinen-Wochen in Schafland",
+    thanksText: "Danke! Gute Fahrt!",
+    ground: ["🚜", "🚧", "🏗️"],
+    // [Name, Emoji, Preis in Cent, eigenes Bild in public/produkte/ (wo es kein Emoji gibt)]
+    products: [
+      ["Traktor", "🚜", 450], ["Bagger", "🏗️", 600, "bagger"], ["Gabel\u00adstapler", "🏗️", 500, "gabelstapler"],
+      ["Rüttel\u00adhüpfer", "🚧", 350, "ruettelhuepfer"], ["Mäh\u00addrescher", "🌾", 800, "maehdrescher"], ["Beton\u00admischer", "🚛", 550, "betonmischer"],
+      ["Kipplaster", "🚚", 400], ["Baukran", "🏗️", 700], ["Bauhelm", "⛑️", 150],
+      ["Warnweste", "🦺", 120], ["Ölwechsel", "🛢️", 300], ["Reifen\u00adwechsel", "🛞", 250],
+      ["Fahrzeug\u00adwäsche", "🫧", 200], ["Inspektion", "🔧", 400],
+    ],
+  },
 ];
 
 export const aktionen = raw.map((a, ai) => ({
@@ -49,12 +67,12 @@ export const aktionen = raw.map((a, ai) => ({
   thanksText: a.thanksText,
   ground: a.ground,
   // Reiter im Regal; zählt wie eine Kategorie
-  category: { id: a.id, name: a.name, emoji: a.emoji, defaultPrice: 100, aktion: true },
-  products: a.products.map(([name, emoji, priceCents], pi) => ({
+  category: { id: a.id, name: a.kurz ?? a.name, emoji: a.emoji, defaultPrice: 100, aktion: true },
+  products: a.products.map(([name, emoji, priceCents, icon], pi) => ({
     id: `${a.id}-${pi + 1}`,
     name,
     emoji,
-    icon: null,
+    icon: icon ? `produkte/${icon}.svg` : null,
     priceCents,
     categoryId: a.id,
     ean: ownEan(FIRST_CATEGORY_NO + ai, pi + 1),

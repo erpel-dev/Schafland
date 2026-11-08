@@ -36,7 +36,7 @@
     -webkit-mask: radial-gradient(circle at 1rem 0, transparent 1rem, #000 1.05rem) 0 0 / 2rem 100% repeat-x; }
   .hero :global(.bob) { animation: bob 3s ease-in-out infinite; }
   @keyframes bob { 50% { transform: translateY(-0.5rem) rotate(-3deg); } }
-  .aktion { font-size: 1.6rem; color: var(--sun); margin-top: -1rem; }
+  .aktion { font-size: 1.6rem; color: var(--aktion-ink, var(--sun)); margin-top: -1rem; }
   .ground { position: absolute; bottom: 2.6rem; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 8%; font-size: 4.5rem; pointer-events: none; }
   .ground span:nth-child(2) { font-size: 3.2rem; align-self: flex-end; }
 

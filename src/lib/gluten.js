@@ -27,7 +27,7 @@ const MIT_GLUTEN = new Set([
 const MIT_SPUREN = new Set(["Süßes-oder-Saures-Tüte"]);
 // keine Lebensmittel: keine Angabe
 const KEIN_ESSEN = new Set(["Hexenhut", "Grusel-Kerze", "Zauberbesen", "Weihnachtsbaum", "Geschenk", "Glöckchen", "Weihnachtsstern", "Kuschelsocken", "Schlitten"]);
-const KEIN_ESSEN_KATEGORIE = new Set(["spielzeug", "zeitschrift", "buch"]);
+const KEIN_ESSEN_KATEGORIE = new Set(["spielzeug", "zeitschrift", "buch", "baustelle"]);
 
 /** Gluten-Angabe eines Produkts (siehe oben). Eine gespeicherte Angabe (gescannt, korrigiert) zählt zuerst. */
 export function glutenOf(product) {

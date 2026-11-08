@@ -112,12 +112,13 @@ Das gewählte Passwort als Secret `SCHAFLAND_KEYSTORE_PASSWORD`. Den Schlüssel 
 - **Aktionen:** Eine Aktion ein- oder ausschalten (höchstens eine zugleich). Sie gibt der Kasse ein eigenes Aussehen und einen zusätzlichen Reiter mit 12 Aktionsprodukten; alles andere funktioniert wie immer.
   - **Halloween:** Nachthimmel mit Mond und Fledermäusen, Kürbis-Orange, Spinnennetz, Schafe mit Hexenhut, „Süßes oder Saures!“ beim Bezahlen. Etiketten-Codes `2150…`.
   - **Weihnachten:** Winternacht mit Stern und Schneeflocken, verschneite Wiese mit Tannen und Geschenken, Weihnachtsrot, Tannenzweig mit Kugeln, Schafe mit Weihnachtsmütze, „Frohe Weihnachten!“ beim Bezahlen. Etiketten-Codes `2151…`.
+  - **Baustellen- und Landmaschinen-Wochen** (Reiter „Baustelle & Feld“): heller Himmel mit Baukran, Baustellen-Orange, Warnstreifen, Ackerboden, Schafe mit Bauhelm, „Danke! Gute Fahrt!“. Traktor, Bagger, oranger Gabelstapler, Rüttelhüpfer (versteht auch „Rüttelplatte“), Mähdrescher, Betonmischer, Kipplaster, Baukran, Bauhelm, Warnweste und Werkstatt-Service (Ölwechsel, Reifenwechsel, Fahrzeugwäsche, Inspektion). Etiketten-Codes `2152…`.
 - **Etiketten drucken:** Bogen mit eigenen EAN-13-Codes (Präfix 21) für Holzobst und Spielzeug-Lebensmittel. Die Codes kollidieren nie mit echten Produkten.
 - **Gescannte Produkte:** Alles, was schon einmal gescannt wurde. Name und Preis ändern oder löschen.
 - **Kassenbons:** Die letzten 30 Einkäufe.
 - **Scan-Protokoll:** Die letzten 50 Scans mit Code und den Antworten der Datenbanken. Hilft, wenn etwas nicht erkannt wird.
 
-Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.18.0 vom 02.11.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
+Oben im Eltern-Bereich steht die **Version** (z. B. „Version 1.19.0 vom 02.11.2026“). So lässt sich prüfen, ob das Notebook nach `git pull` den neuen Stand zeigt.
 
 **Updates:** `git pull` und die Kasse neu starten. Die Kasse speichert sich für den Offline-Betrieb zwischen und zeigt beim Start zuerst kurz die alte Version. Sobald die neue geladen ist, wechselt sie automatisch: sofort, solange der Startbildschirm zu sehen ist, sonst nach dem nächsten Bezahlen, damit nie mitten im Spiel neu geladen wird.
 

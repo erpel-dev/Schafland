@@ -121,6 +121,19 @@ const SYNONYME = {
   "Hot-Wheels-Polizeiauto": ["polizeiauto", "polizei"],
   "Hot-Wheels-Rennbahn": ["rennbahn", "autobahn"],
   "Hot-Wheels-Monstertruck": ["monstertruck", "monster truck", "truck"],
+  // Aktion Baustelle & Feld
+  Traktor: ["trecker", "traktoren", "bulldog"],
+  Rüttelhüpfer: ["rüttelplatte", "rüttler", "rüttel hüpfer"],
+  Gabelstapler: ["stapler"],
+  Mähdrescher: ["dreschmaschine"],
+  Betonmischer: ["mischer", "betonmischmaschine"],
+  Kipplaster: ["laster", "lastwagen", "kipper", "lkw"],
+  Baukran: ["kran"],
+  Bauhelm: ["helm"],
+  Fahrzeugwäsche: ["waschanlage", "autowäsche", "wäsche"],
+  Ölwechsel: ["öl wechseln", "öl"],
+  Reifenwechsel: ["reifen", "reifen wechseln"],
+  Inspektion: ["tüv", "kundendienst", "werkstatt"],
 };
 
 const cleanName = (name) => (name ?? "").replace(/­/g, "");

@@ -835,6 +835,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
     const AKTIONEN = [
       { id: "halloween", name: "Halloween", sky: "rgb(42, 29, 71)", hat: "path[fill='#5b2a86']", buy: ["Kürbissuppe", "Hexenhut"], total: "5,20 €", thanks: "Süßes oder Saures", label: "Zauberbesen", deko: ".bat", ink: "rgb(255, 241, 220)" },
       { id: "weihnachten", name: "Weihnachten", sky: "rgb(27, 42, 78)", hat: "path[fill='#d42d3a']", buy: ["Geschenk", "Schlitten"], total: "7,00 €", thanks: "Frohe Weihnachten", label: "Rentier-Kekse", deko: ".flake", ink: "rgb(255, 248, 234)" },
+      { id: "baustelle", name: "Baustellen- und Landmaschinen-Wochen", tab: "Baustelle & Feld", count: 14, sky: "rgb(143, 203, 236)", hat: "path[fill='#ffd400']", buy: ["Traktor", "Ölwechsel"], total: "7,50 €", thanks: "Danke! Gute Fahrt", label: "Inspektion", deko: ".kran", ink: "rgb(43, 43, 43)" },
     ];
     for (const A of section("aktion") ? AKTIONEN : []) {
       const { browser, page, errors } = await launch("own");
@@ -846,12 +847,22 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       check(`${A.name}: einschalten aktiviert das Aussehen`, (await page.evaluate(() => document.documentElement.dataset.aktion)) === A.id);
       await page.click("text=Zurück zum Laden");
       const tabs = await page.locator(".cat").allTextContents();
-      check(`${A.name}: Reiter ganz vorne und ausgewählt`, tabs[0].includes(A.name) && (await page.locator(".cat.on").textContent()).includes(A.name), tabs.join(" | "));
-      check(`${A.name}: 12 Aktionsprodukte im Reiter`, (await page.locator(".tile").count()) === 12);
+      check(`${A.name}: Reiter ganz vorne und ausgewählt`, tabs[0].includes(A.tab ?? A.name) && (await page.locator(".cat.on").textContent()).includes(A.tab ?? A.name), tabs.join(" | "));
+      check(`${A.name}: ${A.count ?? 12} Aktionsprodukte im Reiter`, (await page.locator(".tile").count()) === (A.count ?? 12));
       const sky = await page.evaluate(() => getComputedStyle(document.querySelector("header")).backgroundColor);
-      check(`${A.name}: Kopfzeile als Nachthimmel`, sky === A.sky, sky);
+      check(`${A.name}: Kopfzeile im Himmel der Aktion`, sky === A.sky, sky);
       check(`${A.name}: Deko in der Kopfzeile`, (await page.locator(`header ${A.deko}`).count()) > 0);
       check(`${A.name}: Schaf mit Kostüm`, (await page.locator(`header svg ${A.hat}`).count()) === 1);
+      if (A.id === "baustelle") {
+        const imgs = await page.evaluate(() => [...document.querySelectorAll(".tile img")].map((i) => [i.getAttribute("src"), i.naturalWidth > 0]));
+        check("Baustelle: eigene Bilder (Bagger, Gabelstapler, Rüttelhüpfer, Mähdrescher, Betonmischer) geladen", imgs.length === 5 && imgs.every(([, ok]) => ok), JSON.stringify(imgs));
+        const names = (await page.locator(".tile .nm").allTextContents()).map((t) => t.replace(/\u00ad/g, ""));
+        check("Baustelle: Rüttelhüpfer, Gabelstapler, Ölwechsel im Angebot", ["Rüttelhüpfer", "Gabelstapler", "Ölwechsel", "Traktor", "Bagger"].every((n) => names.includes(n)), names.join(", "));
+        const say = await page.evaluate(() => window.__fragDasSchaf.preview("Was kostet die Rüttelplatte?").reply.say);
+        check("Baustelle: „Rüttelplatte“ wird als Rüttelhüpfer verstanden", say === "Der Rüttelhüpfer kostet 3 Euro 50. Soll ich ihn in den Korb legen?", say);
+        check("Baustelle: keine Gluten-Zeichen an Maschinen", (await page.locator(".tile .gluten").count()) === 0);
+        await page.screenshot({ path: `${SHOTS}/aktion-baustelle-regal.png` });
+      }
       for (const n of A.buy) await page.locator(".tile").filter({ hasText: n }).first().click();
       // alle Aktionsprodukte einmal in den Korb: kein Name darf abgeschnitten werden
       const before = await total(page);
@@ -885,7 +896,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
         (await page.getAttribute(`#aktion-${A.id}`, "aria-checked")) === "false" && (await page.evaluate(() => document.documentElement.dataset.aktion)) === other.id);
       await page.click("text=Zurück zum Laden");
       const tabs2 = await page.locator(".cat").allTextContents();
-      check(`${A.name} → ${other.name}: nur der neue Aktionsreiter`, tabs2[0].includes(other.name) && !tabs2.some((t) => t.includes(A.name)), tabs2.join(" | "));
+      check(`${A.name} → ${other.name}: nur der neue Aktionsreiter`, tabs2[0].includes(other.tab ?? other.name) && !tabs2.some((t) => t.includes(A.tab ?? A.name)), tabs2.join(" | "));
       await openSettings(page);
       await page.click("nav >> text=Aktionen");
       await page.click(`#aktion-${other.id}`);

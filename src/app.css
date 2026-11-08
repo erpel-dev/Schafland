@@ -117,3 +117,27 @@ input, select { font: inherit; color: inherit; }
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cpath d='M120 6Q80 14 34 4' stroke='%236b4a2b' stroke-width='3' fill='none'/%3E%3Cg stroke='%232f6b3a' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M112 8l-6 12M104 9l-7 13M96 10l-7 13M88 10l-7 13M80 11l-7 12M72 10l-7 12M64 9l-6 12M56 8l-6 11M48 7l-5 10M40 5l-4 9M112 7l-8-6M104 8l-8-6M96 9l-8-6M88 9l-8-6M80 10l-8-6M72 9l-8-6M64 8l-8-6M56 7l-7-5M48 6l-7-5'/%3E%3C/g%3E%3Cpath d='M86 12v14M60 9v24M100 10v8' stroke='%23b08a4a' stroke-width='1'/%3E%3Ccircle cx='86' cy='30' r='6' fill='%23c8323c'/%3E%3Ccircle cx='60' cy='37' r='6.5' fill='%23ffcf3f'/%3E%3Ccircle cx='100' cy='22' r='4.5' fill='%233d5d92'/%3E%3Ccircle cx='84' cy='28' r='1.6' fill='%23fff' opacity='.7'/%3E%3Ccircle cx='58' cy='35' r='1.7' fill='%23fff' opacity='.7'/%3E%3C/svg%3E") right top / 9rem 9rem no-repeat,
     linear-gradient(180deg, var(--wool), var(--wool-2));
 }
+
+/* ---------- Aktion: Baustellen- und Landmaschinen-Wochen ---------- */
+/* Tag auf der Baustelle: heller Himmel, Baustellen-Orange für Knöpfe, Warngelb für „neu im Korb“, Ackerboden */
+:root[data-aktion="baustelle"] {
+  --wool: #fffaf0;
+  --wool-2: #f4ead6;
+  --wool-line: #e3d2b0;
+  --grass: #e8740c;
+  --grass-dark: #9a4600;
+  --sky: #8fcbec;
+  --sky-bottom: #d6eefa;
+  --sky-ink: #2b2b2b;
+  --sky-ink-soft: #3d5566;
+  --sun: #ffd400;
+  --meadow: #8a6a3b;
+  --ok-bg: #fff1d6;
+  --aktion-ink: #9a4600; /* Aktionszeile auf dem hellen Himmel (Warngelb wäre unlesbar) */
+}
+/* Warnstreifen (gelb-schwarz) in der Regal-Ecke */
+:root[data-aktion="baustelle"] .shelf {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cdefs%3E%3CclipPath id='c'%3E%3Cpath d='M120 0H60L120 60Z'/%3E%3C/clipPath%3E%3C/defs%3E%3Cg clip-path='url(%23c)'%3E%3Cpath d='M120 0H60L120 60Z' fill='%23ffd400'/%3E%3Cg stroke='%232b2b2b' stroke-width='8'%3E%3Cpath d='M66 -10L130 54M86 -10L130 34M106 -10L130 14M46 -10L130 74'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") right top / 8rem 8rem no-repeat,
+    linear-gradient(180deg, var(--wool), var(--wool-2));
+}

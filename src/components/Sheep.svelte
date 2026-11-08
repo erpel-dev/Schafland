@@ -36,6 +36,13 @@
         <rect x="15.5" y="31" width="30" height="7" rx="3.5" fill="#fffdf7" stroke="#e6e0d0" stroke-width="0.8" />
         <circle cx="51" cy="25" r="4.6" fill="#fffdf7" stroke="#e6e0d0" stroke-width="0.8" />
       </g>
+    {:else if costume === "baustelle"}
+      <!-- gelber Bauhelm -->
+      <g transform="rotate(-10 31 36)">
+        <path d="M16 36 Q16 18 31 17 Q46 18 46 36 Z" fill="#ffd400" stroke="#d9a900" stroke-width="1" />
+        <path d="M31 17 V35 M24 19 Q23 27 23 35 M38 19 Q39 27 39 35" fill="none" stroke="#e8b800" stroke-width="1.4" />
+        <rect x="12" y="33.5" width="38" height="4.5" rx="2.2" fill="#f2c200" stroke="#d9a900" stroke-width="0.8" />
+      </g>
     {/if}
   </g>
 </svg>

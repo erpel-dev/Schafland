@@ -16,7 +16,8 @@
 </script>
 
 {#if src && !failed}
-  <img {src} alt="" class:icon={!!product.icon} style:width={size} style:height={size} onerror={() => (failed = true)} draggable="false" />
+  <!-- eigene Bilder dürfen breiter als hoch sein (Fahrzeuge), Fotos bleiben quadratisch -->
+  <img {src} alt="" class:icon={!!product.icon} style:width={product.icon ? "auto" : size} style:max-width={product.icon ? `calc(${size} * 1.45)` : null} style:height={size} onerror={() => (failed = true)} draggable="false" />
 {:else}
   <span class="emoji" style:font-size={size}>{product.emoji}</span>
 {/if}
