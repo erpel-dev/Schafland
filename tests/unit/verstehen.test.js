@@ -5,6 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { koelner, normalize, distance, similarity, keysFor, understand } from "../../src/lib/sprache/verstehen.js";
 import { products, categories } from "../../src/lib/catalog.js";
+import { aktionen } from "../../src/lib/aktionen.js";
 
 const near = (actual, expected, msg) => assert.ok(Math.abs(actual - expected) < 1e-9, `${msg ?? ""} ${actual} ≠ ${expected}`);
 
@@ -167,6 +168,12 @@ test("Synonyme werden im Satz erkannt", () => {
   assert.equal(hear("Was kostet die Apfelsine?"), "Orange");
   assert.equal(hear("Ich nehme Plätzchen"), "Keks");
   assert.equal(hear("Ich will eine Mohrrübe"), "Karotte");
+  const bau = aktionen.find((a) => a.id === "baustelle").products;
+  const hearBau = (t) => understand(t, { products: bau, categories }).product?.name.replace(/\u00ad/g, "");
+  assert.equal(hearBau("Was kostet der Stampfer?"), "Rüttelhüpfer");
+  assert.equal(hearBau("Ich möchte den Vibrationsstampfer"), "Rüttelhüpfer");
+  assert.equal(hearBau("Was kostet die Rüttelplatte?"), "Rüttelhüpfer");
+  assert.equal(hearBau("Ich will einen Trecker"), "Traktor");
 });
 
 // ---------- Entscheidungsregeln mit kleinen, gezielt gebauten Sortimenten ----------

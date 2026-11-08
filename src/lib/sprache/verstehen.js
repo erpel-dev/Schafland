@@ -123,7 +123,7 @@ const SYNONYME = {
   "Hot-Wheels-Monstertruck": ["monstertruck", "monster truck", "truck"],
   // Aktion Baustelle & Feld
   Traktor: ["trecker", "traktoren", "bulldog"],
-  Rüttelhüpfer: ["rüttelplatte", "rüttler", "rüttel hüpfer"],
+  Rüttelhüpfer: ["rüttelplatte", "rüttler", "rüttel hüpfer", "stampfer", "vibrationsstampfer"],
   Gabelstapler: ["stapler"],
   Mähdrescher: ["dreschmaschine"],
   Betonmischer: ["mischer", "betonmischmaschine"],
