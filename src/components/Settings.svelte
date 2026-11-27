@@ -775,7 +775,7 @@
         <h2>Kassenbons</h2>
         {#each receipts as r (r.id)}
           <div class="bon">
-            <div class="bonhead"><b>{euro(r.totalCents)}</b><small>{when(r.createdAt)} · {PAY[r.payment] ?? r.payment}</small></div>
+            <div class="bonhead"><b>{r.totalCents < 0 ? `−${euro(-r.totalCents)}` : euro(r.totalCents)}</b><small>{when(r.createdAt)} · {PAY[r.payment] ?? r.payment}</small></div>
             <small>{[...r.lines.map((l) => `${l.qty}× ${l.name}`), ...(r.pfand ?? []).map((p) => `${p.qty}× Pfand ${PFAND_ARTEN[p.art]?.name ?? p.art} −${euro(p.qty * p.cents)}`)].join(", ")}</small>
           </div>
         {:else}
