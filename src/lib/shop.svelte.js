@@ -118,14 +118,21 @@ class PfandWahl {
   }
 
   async set(ean, { art, name = "", quelle = "kind" }) {
-    const map = { ...(await kvGet("pfandWahl", {})), [ean]: { art, name, quelle, at: Date.now() } };
-    await kvSet("pfandWahl", map);
-    this.map = map;
+    await this.#change((map) => ({ ...map, [ean]: { art, name, quelle, at: Date.now() } }));
   }
 
   async remove(ean) {
-    const { [ean]: _weg, ...map } = await kvGet("pfandWahl", {});
-    await kvSet("pfandWahl", map);
+    await this.#change(({ [ean]: _weg, ...map }) => map);
+  }
+
+  // Lesen und Schreiben in einer Transaktion: Gleichzeitige Änderungen (zwei Tabs, schnelles
+  // Tippen) überschreiben sich sonst gegenseitig.
+  async #change(fn) {
+    const map = await db.transaction("rw", db.kv, async () => {
+      const next = fn(await kvGet("pfandWahl", {}));
+      await kvSet("pfandWahl", next);
+      return next;
+    });
     this.map = map;
   }
 }
@@ -141,16 +148,41 @@ export const pfandWahl = new PfandWahl();
  */
 export async function findPfand(ean) {
   const wahl = (await kvGet("pfandWahl", {}))[ean];
+  if (wahl) {
+    // Pfand steht schon fest: sofort gutschreiben, Name und Bild nur aus lokalen Daten (kein Netz)
+    const product = productByEan.get(ean) ?? (await db.products.where("ean").equals(ean).first()) ?? null;
+    return { product, name: product?.name || wahl.name || "", pfand: wahl.art, pfandQuelle: wahl.quelle, error: null, trace: [`Pfand gemerkt (${wahl.quelle})`] };
+  }
   let result;
   try {
     result = await findByEan(ean);
   } catch (err) {
     result = { error: "unavailable", trace: [`Fehler: ${err?.message ?? err}`] };
   }
-  const product = result.product ?? null;
-  const { pfand, pfandQuelle } = wahl ? { pfand: wahl.art, pfandQuelle: wahl.quelle } : pfandVon(product);
-  const trace = [...(result.trace ?? []), wahl ? `Pfand gemerkt (${wahl.quelle})` : `Pfand: ${pfand ?? "unbekannt"}${pfandQuelle ? ` (${pfandQuelle})` : ""}`];
-  return { product, name: product?.name || wahl?.name || "", pfand, pfandQuelle, error: result.error ?? null, trace };
+  const trace = [...(result.trace ?? [])];
+  let product = result.product ?? null;
+  if (product && result.source === "gespeichert") product = await pfandNachladen(product, trace);
+  const { pfand, pfandQuelle } = pfandVon(product);
+  trace.push(`Pfand: ${pfand ?? "unbekannt"}${pfandQuelle ? ` (${pfandQuelle})` : ""}`);
+  return { product, name: product?.name || "", pfand, pfandQuelle, error: result.error ?? null, trace };
+}
+
+/**
+ * Vor Version 1.20 gespeicherte Produkte von Open Food Facts kennen ihr Pfand noch nicht:
+ * einmal nachfragen und nur pfand/pfandQuelle ergänzen (Name und Preis aus dem Eltern-Bereich bleiben).
+ * Ohne Verbindung bleibt alles, wie es ist; dann wird das Kind gefragt.
+ */
+async function pfandNachladen(product, trace) {
+  if (product.pfand !== undefined || !/facts\.org$/.test(product.source ?? "")) return product;
+  try {
+    const found = await lookupOpenFacts(product.ean, { trace });
+    if (!found) return product;
+    const patch = { pfand: found.pfand, pfandQuelle: found.pfandQuelle };
+    await scanned.update(product.id, patch);
+    return { ...product, ...patch };
+  } catch {
+    return product;
+  }
 }
 
 class Cart {

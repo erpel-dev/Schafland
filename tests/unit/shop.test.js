@@ -327,3 +327,65 @@ test("Pfand-Wahl: speichern, laden, entfernen", async () => {
   assert.deepEqual(Object.keys(await kvGet("pfandWahl", {})), ["2"]);
   assert.deepEqual(Object.keys(pfandWahl.map), ["2"]);
 });
+
+test("Pfand-Wahl: gleichzeitige Änderungen gehen nicht verloren", async () => {
+  await Promise.all([
+    pfandWahl.set("1111", { art: "einweg", name: "A" }),
+    pfandWahl.set("2222", { art: "mehrweg", name: "B" }),
+    pfandWahl.set("3333", { art: "bier", name: "C" }),
+  ]);
+  assert.deepEqual(Object.keys(await kvGet("pfandWahl", {})).sort(), ["1111", "2222", "3333"]);
+  await Promise.all([pfandWahl.remove("1111"), pfandWahl.set("4444", { art: "kein", name: "D" })]);
+  assert.deepEqual(Object.keys(await kvGet("pfandWahl", {})).sort(), ["2222", "3333", "4444"]);
+});
+
+test("findPfand: gemerkte Wahl gilt sofort, ohne Netz, auch für Codes in keiner Datenbank", async () => {
+  mockFetch(() => assert.fail("kein Netz nötig"));
+  await pfandWahl.set("4012345678901", { art: "mehrweg", name: "Apfelschorle", quelle: "kind" });
+  const r = await findPfand("4012345678901");
+  assert.equal(r.pfand, "mehrweg");
+  assert.equal(r.product, null);
+  assert.equal(r.name, "Apfelschorle");
+  assert.equal(calls.length, 0);
+});
+
+test("findPfand: gemerkte Wahl nimmt Name und Bild eines gespeicherten Produkts", async () => {
+  mockFetch(() => assert.fail("kein Netz nötig"));
+  await scanned.save({ id: "off-4001234567891", ean: "4001234567891", name: "Sprudel", categoryId: "getraenke", priceCents: 110, source: "openfoodfacts.org" });
+  await pfandWahl.set("4001234567891", { art: "einweg", name: "alt", quelle: "eltern" });
+  const r = await findPfand("4001234567891");
+  assert.equal(r.product.name, "Sprudel");
+  assert.equal(r.name, "Sprudel");
+});
+
+test("findPfand: vor 1.20 gespeichertes Produkt bekommt sein Pfand nachgeladen, Name und Preis bleiben", async () => {
+  await scanned.save({ id: "off-4001234567891", ean: "4001234567891", name: "Mein Wasser", categoryId: "getraenke", priceCents: 77, source: "openfoodfacts.org", createdAt: 1 });
+  mockFetch((url) => (url.includes("openfoodfacts.org/api") ? json({ status: 1, product: { product_name: "Mineralwasser", categories_tags: ["en:beverages"], labels_tags: ["de:einwegpfand"] } }) : nirgends(url)));
+  const r = await findPfand("4001234567891");
+  assert.equal(r.pfand, "einweg");
+  assert.equal(r.pfandQuelle, "siegel");
+  const saved = await db.products.get("off-4001234567891");
+  assert.equal(saved.pfand, "einweg");
+  assert.equal(saved.name, "Mein Wasser", "Name aus dem Eltern-Bereich bleibt");
+  assert.equal(saved.priceCents, 77, "Preis aus dem Eltern-Bereich bleibt");
+  // danach ohne Netz
+  mockFetch(() => assert.fail("kein Netz nötig"));
+  assert.equal((await findPfand("4001234567891")).pfand, "einweg");
+});
+
+test("findPfand: altes Produkt ohne Verbindung → unverändert, das Kind wird gefragt", async () => {
+  await scanned.save({ id: "off-4001234567891", ean: "4001234567891", name: "Limo", categoryId: "getraenke", priceCents: 120, source: "openfoodfacts.org" });
+  mockFetch(() => {
+    throw new TypeError("Failed to fetch");
+  });
+  const r = await findPfand("4001234567891");
+  assert.equal(r.pfand, null);
+  assert.equal(r.product.name, "Limo");
+  assert.equal((await db.products.get("off-4001234567891")).pfand, undefined);
+});
+
+test("findPfand: altes Produkt aus Pressecode oder eigenem Katalog wird nicht nachgefragt", async () => {
+  mockFetch(() => assert.fail("kein Netz nötig"));
+  await scanned.save({ id: "presse-1", ean: "4194567802505", name: "Heft", categoryId: "zeitschrift", priceCents: 350, source: "Pressecode" });
+  assert.equal((await findPfand("4194567802505")).pfand, "kein");
+});

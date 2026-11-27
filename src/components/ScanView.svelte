@@ -328,7 +328,7 @@
     if (!pfandFund || status !== "pfand-frage") return;
     const fund = pfandFund;
     await pfandWahl.set(fund.ean, { art, name: fund.name, quelle: "kind" });
-    if (pfandFund !== fund) return; // inzwischen etwas anderes gescannt
+    if (!alive || pfandFund !== fund) return; // inzwischen geschlossen oder etwas anderes gescannt
     pfandFund = { ...fund, pfandQuelle: "kind" };
     zeigePfand(art);
   }
@@ -474,7 +474,7 @@
 </section>
 
 <style>
-  .scan { display: grid; grid-template-columns: 1fr 17rem; min-height: 0; min-width: 0; }
+  .scan { display: grid; grid-template-columns: 1fr 17rem; grid-template-rows: minmax(0, 1fr); min-height: 0; min-width: 0; }
   .feed { position: relative; background: #2f342b; overflow: hidden; display: grid; place-items: center; }
   video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   video.mirror { transform: scaleX(-1); }
@@ -508,7 +508,9 @@
   .done { position: absolute; bottom: 1rem; left: 50%; transform: translateX(-50%); }
   .done:active { transform: translateX(-50%) translateY(0.2rem); }
 
-  .found { padding: 1.3rem 1rem 1rem; display: flex; flex-direction: column; gap: 0.6rem; background: #fff; border-left: 2px solid var(--wool-line); min-width: 0; }
+  /* Höhe begrenzt, bei wenig Platz (Handy quer, Pfandfrage) scrollbar: „Fertig“ bleibt immer erreichbar */
+  .found { padding: 1.3rem 1rem 1rem; display: flex; flex-direction: column; gap: 0.6rem; background: #fff; border-left: 2px solid var(--wool-line); min-width: 0; min-height: 0; overflow-y: auto; }
+  .found > * { flex-shrink: 0; }
   .pimg { height: 10rem; border-radius: 1.2rem; background: var(--wool-2); display: grid; place-items: center; font-size: 5rem; }
   .t { font-family: var(--f-display); font-size: 1.5rem; line-height: 1.15; overflow-wrap: anywhere; }
   small { color: var(--ink-soft); }
@@ -561,7 +563,8 @@
 
   /* Handy hochkant: Kamera oben, Fund darunter als schmale Zeile */
   @media (max-width: 760px) {
-    .scan { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+    .scan { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+    .found { max-height: 55vh; }
     .frame { width: 80%; }
     .hint { font-size: 1.25rem; bottom: 4.4rem; }
     .found { border-left: 0; border-top: 2px solid var(--wool-line); display: grid; grid-template-columns: 5.5rem 1fr; column-gap: 0.8rem; row-gap: 0.2rem; padding: 0.7rem; align-content: start; }

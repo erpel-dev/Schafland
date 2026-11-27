@@ -260,6 +260,52 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await browser.close();
     }
 
+    if (section("pfand")) {
+      // Bezahlen aus dem offenen Pfandautomaten: Scanner schließt, Fenster und Kassenbon zeigen denselben Betrag
+      const { browser, page, errors } = await launch("wasser");
+      await openShop(page);
+      await page.click('.tile:has-text("Apfel")');
+      await page.click("text=Pfand abgeben");
+      await page.waitForSelector(".found .plus", { timeout: 15000 });
+      await page.click(".pay");
+      check("Bezahlen schließt den Pfandautomaten", (await page.locator("video").count()) === 0);
+      const shown = (await page.textContent(".modal h2 span")).replace(/\s/g, " ");
+      check("Bezahlfenster zeigt den Korbstand (0,50 € − 0,25 €)", shown === "0,25 €" && shown === (await total(page)).replace(/\s/g, " "), shown);
+      await page.click("text=Bezahlt! Neuer Einkauf");
+      await page.locator(".party").waitFor();
+      await page.locator(".party").click();
+      // Pfandautomat offen, im Eltern-Bereich „Pfand abgeben“ ausschalten
+      await page.click("text=Pfand abgeben");
+      await openSettings(page);
+      await page.click("nav >> text=Kassenbons");
+      check("Kassenbon = angezeigter Betrag", (await page.locator(".bon").first().textContent()).replace(/\s/g, " ").startsWith("0,25 €"), await page.locator(".bon").first().textContent());
+      await page.click("nav >> text=Pfand");
+      await page.click("#pfand-on");
+      await page.click("text=Zurück zum Laden");
+      check("Pfand ausgeschaltet: offener Pfandautomat ist geschlossen", (await page.locator(".scan").count()) === 0 && (await page.locator(".shelf").count()) === 1);
+      check("Keine Konsolenfehler (Pfand und Bezahlen)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+    if (section("pfand")) {
+      // Handy quer: Pfandfrage passt nicht ganz ins Bild, „Fertig mit Pfand“ und Zähler bleiben erreichbar
+      const { browser, page, errors } = await launch("unknown", { device: devices["Pixel 7 landscape"] });
+      await page.goto(APP_URL);
+      await page.tap("text=Laden öffnen");
+      await page.tap("text=Pfand abgeben");
+      await page.locator("text=Wie viel Pfand hat das?").waitFor({ timeout: 15000 });
+      const vh = page.viewportSize().height;
+      const done = await page.locator(".done").boundingBox();
+      check("Handy quer, Pfandfrage: „Fertig mit Pfand“ im Bild", done && done.y + done.height <= vh + 1, JSON.stringify(done));
+      await page.locator(".zaehler").scrollIntoViewIfNeeded();
+      const z = await page.locator(".zaehler").boundingBox();
+      check("Handy quer, Pfandfrage: Zähler erreichbar", z && z.y >= 0 && z.y + z.height <= vh + 1, JSON.stringify(z));
+      await page.screenshot({ path: `${SHOTS}/pfand-frage-handy-quer.png` });
+      await page.tap("text=✓ Fertig mit Pfand");
+      check("Handy quer: Pfandfrage lässt sich ohne Antwort beenden", (await page.locator(".scan").count()) === 0);
+      check("Keine Konsolenfehler (Pfand Handy quer)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+
     // ---------- 2. Scannen ----------
     if (section("scan")) {
       offRequests = [];

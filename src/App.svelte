@@ -32,6 +32,11 @@
     else delete document.documentElement.dataset.aktion;
   });
   let view = $state("shop"); // shop | scan | pfand
+
+  // „Pfand abgeben“ im Eltern-Bereich ausgeschaltet: offenen Pfandautomaten schließen
+  $effect(() => {
+    if (view === "pfand" && !settings.value.pfandAn) view = "shop";
+  });
   let paying = $state(false);
   let celebrate = $state(null); // Betrag in Cent
   let showSettings = $state(false);
@@ -98,6 +103,14 @@
     return () => listener?.remove();
   });
 
+  // Beim Bezahlen den Scanner schließen: Laufende Suchen werden verworfen, ein schon gefundenes
+  // Produkt kommt noch in den Korb. Danach ändert sich der Korb nicht mehr, solange bezahlt wird.
+  function startPay() {
+    schaf.close();
+    view = "shop";
+    paying = true;
+  }
+
   function openSettings() {
     paying = false;
     schaf.close();
@@ -138,7 +151,7 @@
       {:else}
         <Shelf onScan={() => (view = "scan")} onPfand={() => (view = "pfand")} />
       {/if}
-      <Cart onPay={() => { schaf.close(); paying = true; }} compact={layout.narrow} />
+      <Cart onPay={startPay} compact={layout.narrow} />
     </main>
   </div>
 

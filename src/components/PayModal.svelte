@@ -12,13 +12,14 @@
   let { onClose, onPaid } = $props();
 
   let method = $state("spiel-qr");
-  let total = cart.totalCents;
-  const warenCents = cart.warenCents;
-  const pfandCents = cart.pfandCents;
+  // Immer der aktuelle Korb: Was hier steht (Betrag, QR-Code), kommt genau so auf den Kassenbon
+  let total = $derived(cart.totalCents);
+  let warenCents = $derived(cart.warenCents);
+  let pfandCents = $derived(cart.pfandCents);
   // Pfand so hoch wie der Einkauf oder höher: nichts zu bezahlen, die Kasse zahlt aus (kein echtes Geld)
-  const auszahlung = total <= 0 && pfandCents > 0;
-  const geld = auszahlung ? muenzen(-total) : [];
-  const geldText = geld.map((m) => `${m.anzahl} × ${stueckName(m.cents)}`).join(" und ");
+  let auszahlung = $derived(total <= 0 && pfandCents > 0);
+  let geld = $derived(auszahlung ? muenzen(-total) : []);
+  let geldText = $derived(geld.map((m) => `${m.anzahl} × ${stueckName(m.cents)}`).join(" und "));
   const stueckLabel = (c) => (c >= 100 ? `${c / 100} €` : `${c} ct`);
 
   // --- Kartenzahlung spielen (NFC): jede Karte wird angenommen
