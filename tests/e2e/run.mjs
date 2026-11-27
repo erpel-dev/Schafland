@@ -198,7 +198,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await page.click(".pay");
       check("Pfand: Bezahlen zeigt Einkauf und Pfand", (await page.textContent(".modal .split")).replace(/\s/g, " ").includes("Pfand −0,25 €"), await page.textContent(".modal .split"));
       check("Pfand: Spiel-QR nennt den abgezogenen Betrag", (await readQr(page, ".modal .qr"))?.includes("Pfand 0,25 € abgezogen"));
-      await page.click("text=Zurück");
+      await page.click(".modal .row .big-btn.light"); // „Zurück“ (Text „zurück“ steht auch auf der Pfand-Karte)
       await page.click(".ln:has-text('Apfel') button[aria-label='Eins weniger']");
       await page.click(".pfand button[aria-label='Eine Flasche mehr']");
       check("Pfand: Menge im Korb änderbar (2 Flaschen, 0,50 €)", (await total(page)).replace(/\s/g, " ") === "0,50 €" && (await page.textContent(".pfand")).includes("2 Flaschen"), await page.textContent(".pfand"));
