@@ -19,9 +19,10 @@ export const CODES = {
   magazine: "977072486700" + checkDigit("977072486700"), // Zeitschrift mit ISSN 0724-8679 (c't)
   book: "9783161484100", // Beispiel-ISBN 978-3-16-148410-0
   press: "4199148407003", // deutscher Pressecode (c't): Titel 91484, 7,00 €, Zusatzcode 23 = Ausgabe
+  wasser: "2106002000005", // eigenes Etikett: Wasser (Spielflasche mit Einwegpfand)
 };
 // Bei Änderungen an den Fixtures erhöhen, dann werden sie neu erzeugt
-const VERSION = "5";
+const VERSION = "6";
 
 export async function makeFixtures({ force = false } = {}) {
   if (!force && existsSync(path.join(FIX, "done")) && readFileSync(path.join(FIX, "done"), "utf8").startsWith(`${VERSION} `)) return FIX;
@@ -51,6 +52,7 @@ export async function makeFixtures({ force = false } = {}) {
   await cam("off", CODES.off);
   await cam("own", CODES.own, { label: "Apfel", rot: 3 });
   await cam("unknown", CODES.unknown);
+  await cam("wasser", CODES.wasser, { label: "Wasser", rot: -4 });
   await cam("magazine", CODES.magazine, { label: "c't 23/2026", rot: -3 });
   await cam("book", CODES.book, { label: "ISBN 978-3-16-148410-0", rot: 4 });
   await cam("press", CODES.press, { label: "c't 23/2026", rot: -3, barWidth: 2, addOn: "23" });
@@ -66,7 +68,7 @@ export async function makeFixtures({ force = false } = {}) {
   await browser.close();
 
   const y4m = (src, out, vf) => ffmpeg("-loop", "1", "-t", "3", "-r", "15", "-i", path.join(FIX, src), ...(vf ? ["-vf", vf] : []), "-pix_fmt", "yuv420p", path.join(FIX, out));
-  for (const n of ["off", "own", "unknown", "magazine", "book", "press", "book-rotated", "small", "empty"]) y4m(`${n}.png`, `${n}.y4m`);
+  for (const n of ["off", "own", "unknown", "wasser", "magazine", "book", "press", "book-rotated", "small", "empty"]) y4m(`${n}.png`, `${n}.y4m`);
   // Wie eine alte Fixfokus-Webcam: unscharf und verrauscht
   y4m("off.png", "blur.y4m", "gblur=sigma=2.5,noise=alls=18:allf=t");
   // Absichtlich zu schwer: klein, unscharf und kontrastarm zugleich

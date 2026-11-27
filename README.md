@@ -99,6 +99,7 @@ Das gewählte Passwort als Secret `SCHAFLAND_KEYSTORE_PASSWORD`. Den Schlüssel 
 | Laden starten | „Laden öffnen“ antippen. Dabei werden Ton und Musik freigeschaltet. |
 | Produkt in den Korb | Kachel antippen, oder „Scannen!“ und Strichcode in die Wollwolke halten |
 | Menge ändern | − / + im Korb, bei 0 verschwindet die Zeile |
+| Pfand abgeben | „Pfand abgeben“ und leere Flaschen oder Dosen mit dem Strichcode in den Automaten halten, das Pfand wird vom Einkauf abgezogen (siehe unten) |
 | Bezahlen | „Bezahlen“ → Karte (NFC), Schaf-Code oder PayPal → „Bezahlt! Neuer Einkauf“ |
 | Eltern-Bereich | **2 Sekunden auf das Schaf oben links drücken** oder `Strg` + `,` |
 
@@ -113,6 +114,7 @@ Das gewählte Passwort als Secret `SCHAFLAND_KEYSTORE_PASSWORD`. Den Schlüssel 
   - **Halloween:** Nachthimmel mit Mond und Fledermäusen, Kürbis-Orange, Spinnennetz, Schafe mit Hexenhut, „Süßes oder Saures!“ beim Bezahlen. Etiketten-Codes `2150…`.
   - **Weihnachten:** Winternacht mit Stern und Schneeflocken, verschneite Wiese mit Tannen und Geschenken, Weihnachtsrot, Tannenzweig mit Kugeln, Schafe mit Weihnachtsmütze, „Frohe Weihnachten!“ beim Bezahlen. Etiketten-Codes `2151…`.
   - **Baustellen- und Landmaschinen-Wochen** (Reiter „Baustelle & Feld“): heller Himmel mit Baukran, Baustellen-Orange, Warnstreifen, Ackerboden, Schafe mit Bauhelm, „Danke! Gute Fahrt!“. Traktor, Bagger, oranger Gabelstapler, Rüttelhüpfer (versteht auch „Rüttelplatte“), Mähdrescher, Betonmischer, Kipplaster, Baukran, Bauhelm, Warnweste und Werkstatt-Service (Ölwechsel, Reifenwechsel, Fahrzeugwäsche, Inspektion, Reparatur). Etiketten-Codes `2152…`.
+- **Pfand:** „Pfand abgeben“ ein- oder ausschalten, ob das Kind bei unbekanntem Pfand gefragt wird, Mehrweg-Beträge (Einweg ist gesetzlich 0,25 €) und die gemerkten Flaschen, deren Pfand sich hier ändern lässt.
 - **Etiketten drucken:** Bogen mit eigenen EAN-13-Codes (Präfix 21) für Holzobst und Spielzeug-Lebensmittel. Die Codes kollidieren nie mit echten Produkten.
 - **Gescannte Produkte:** Alles, was schon einmal gescannt wurde. Name und Preis ändern oder löschen.
 - **Kassenbons:** Die letzten 30 Einkäufe.
@@ -143,6 +145,20 @@ Eltern-Bereich → **Frag das Schaf** einschalten. Dann gibt es neben „Scannen
 - **Stufe 2, freie Fragen mit KI (optional):** Im Eltern-Bereich unter „Frag das Schaf“ zuschaltbar. Offene Fragen wie „Was ist gesund?“, „Was passt zum Frühstück?“ oder „Welches Obst ist gelb?“ beantwortet dann ein kleines Sprachmodell von Liquid AI, ebenfalls nur auf dem Gerät. Beide Modelle brauchen WebGPU, also eine Grafikkarte, die der Browser nutzen kann (ohne sie dauerte eine Antwort im Test 40–180 Sekunden): „Klein“ (LFM2.5, 350 Mio. Parameter, ca. 300 MB) für einfache Grafikkarten, „Groß“ (LFM3, 1,7 Mrd. Parameter, ca. 1,2 GB) für bessere Antworten. Das Modell bekommt nur das Sortiment und den Korb. Seine Antwort wird geprüft: Sätze mit Zahlen oder Preisen fliegen raus, genannte Produkte erscheinen als Bilder zum Antippen (mit dem echten Preis der Kasse). Einfache Fragen beantwortet weiter Stufe 1. Lizenz der Modelle: LFM Open License v1.0, privat frei nutzbar.
 - **Prototyp LFM3-Omni (optional, nur mit Grafikkarte):** Im Eltern-Bereich unter „Frag das Schaf“ → „LFM3-Omni verwenden“. Dann macht ein Modell (LFM3-Omni-2B von Liquid AI, ca. 2,6 GB) alles: Es hört zu, liest mit natürlicher Stimme vor, beantwortet freie Fragen (kein eigenes Stufe-2-Modell nötig) und erkennt beim Scannen mit „🐑 Was ist das?“ Produkte ohne Strichcode. Was das Schaf über Preise und den Korb sagt, bestimmt weiter die Kasse. Gedacht für aktuelle Handys/PCs mit Chrome (WebGPU) und 8 GB Arbeitsspeicher; scheitert es, übernehmen Whisper und die Systemstimme. Umsetzung: `src/lib/sprache/lfm3audio.js` (portiert aus Liquids Referenz `onnx-export`), Test mit dem echten Modell: `.github/workflows/lfm3-audio.yml` (Zuhören, Sprechen, freie Fragen, Produktbilder); dort unter „Artifacts“ auch Hörproben.
 - **Tests:** `tests/unit/sprache.test.js`, `tests/unit/ki.test.js`, `tests/unit/lfm3audio.test.js` (Verstehen, Antworten, keine Fehlzuordnung von Alltagswörtern), Abschnitt `schaf` in `npm run test:e2e` (Mikrofon, Ablauf, Eltern-Bereich, Handy) und `.github/workflows/sprache.yml` mit echter Spracherkennung, gesprochenen Testsätzen und dem echten kleinen Sprachmodell (`tests/e2e/ki-echt.mjs`).
+
+## Pfand abgeben
+
+Neben „Scannen!“ gibt es die Karte **„Pfand abgeben“**. Sie öffnet die Kamera als Pfandautomat: Jede leere Flasche oder Dose, deren Strichcode in den Automaten gehalten wird, „klappert“ hinein und kommt mit ihrem Pfand in den Korb. Dort steht das Pfand als eigener Block mit Minusbeträgen (mit − und + änderbar); die Summe ist Einkauf minus Pfand. Ist mehr Pfand als Einkauf da, heißt der Knopf „Pfand auszahlen“ und die Kasse zeigt, welche Münzen sie herausgibt. Bei einer Auszahlung gibt es kein PayPal, keine Überweisung und keine Karte.
+
+Der Strichcode selbst verrät kein Pfand. Die Kasse fragt deshalb der Reihe nach:
+
+1. **Gemerkt:** was das Kind für diesen Code gewählt oder die Eltern eingetragen haben (auch offline)
+2. **Eigenes Sortiment:** Wasser und Limo haben Einwegpfand, alles andere keins
+3. **Open Food Facts:** Angaben wie „Einwegpfand“, „Mehrwegpfand“ oder „Mehrweg“ bei Siegeln und Verpackung
+4. **Geschätzt aus der Verpackung**, nur bei Getränken: Dose oder Plastikflasche → Einweg (0,25 €), Bier in Glas → Mehrweg (0,08 €), Getränkekarton → kein Pfand
+5. **Das Kind wählt:** Getränk, aber nichts bekannt (z. B. Saft in Glas, oder offline): „Dose oder Plastikflasche“, „Glasflasche“ oder „Kein Pfand-Zeichen“. Die Wahl gilt ab dann für diesen Code.
+
+Was kein Getränk ist (z. B. Schokolade), wird mit „Da ist kein Pfand drauf.“ abgelehnt. Gefundene Flaschen landen wie beim Scannen im Reiter „Gescannt“. Beträge und gemerkte Flaschen: Eltern-Bereich → **Pfand**. Umsetzung: `src/lib/pfand.js` (Regeln), `findPfand` und `cart.pfand` in `src/lib/shop.svelte.js`.
 
 ## Scannen: so funktioniert es
 
@@ -210,8 +226,8 @@ Die Browser-Tests brauchen `ffmpeg` und Python 3, einmalig außerdem `npx playwr
 
 | Datei | Inhalt |
 | --- | --- |
-| `tests/unit/` | EAN-Prüfziffern, Katalog und Aktionen, Geldformat, Warenkorb und Produktsuche, Kartenzahlung, Abfragen bei Open Food Facts, Wikidata, Google Books und Open Library, ISSN und ISBN aus dem Strichcode, Spracherkennung (Kölner Phonetik, Ähnlichkeit, Absichten), Antworten des Schafs |
-| `tests/e2e/run.mjs` | Warenkorb, Scannen, Bezahlen, Einstellungen, Musik, Touch, Bildschirmgrößen, langsame CPU, offline |
+| `tests/unit/` | EAN-Prüfziffern, Katalog und Aktionen, Geldformat und Münzen, Warenkorb, Pfand und Produktsuche, Kartenzahlung, Abfragen bei Open Food Facts, Wikidata, Google Books und Open Library, ISSN und ISBN aus dem Strichcode, Spracherkennung (Kölner Phonetik, Ähnlichkeit, Absichten), Antworten des Schafs |
+| `tests/e2e/run.mjs` | Warenkorb, Scannen, Pfand abgeben, Bezahlen, Einstellungen, Musik, Touch, Bildschirmgrößen, langsame CPU, offline |
 | `tests/e2e/explore.mjs` | Affentest mit Prüfung nach jedem Schritt, Dauerlauf Kamera und Musik, Randfälle |
 
 Ein Fund im Erkundungstest lässt sich mit demselben `--seed` wiederholen.

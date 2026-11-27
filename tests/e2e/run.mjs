@@ -174,6 +174,209 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await browser.close();
     }
 
+    // ---------- Pfand abgeben ----------
+    if (section("pfand")) {
+      offRequests = [];
+      const { browser, page, errors } = await launch("wasser");
+      await openShop(page);
+      await page.click("text=Pfand abgeben");
+      await page.waitForSelector(".found .plus", { timeout: 15000 });
+      check("Pfand: eigene Spielflasche (Wasser) erkannt", (await page.textContent(".found .t")).includes("Wasser"));
+      check("Pfand: +0,25 € Einwegpfand", (await page.textContent(".found .plus")).replace(/\s/g, " ").includes("+0,25 €"), await page.textContent(".found .plus"));
+      check("Pfand: eigenes Etikett ohne Internet-Abfrage", offRequests.length === 0, offRequests.join(","));
+      await wait(4000);
+      check("Pfand: Flasche dauerhaft vor der Kamera zählt nur einmal", (await page.textContent(".zaehler")).includes("1 Flasche"), await page.textContent(".zaehler"));
+      check("Pfand: Block im Korb", (await page.textContent(".cart .pfand")).includes("Einweg"));
+      await page.screenshot({ path: `${SHOTS}/pfand-erkannt.png` });
+      await page.click("text=✓ Fertig mit Pfand");
+      check("Pfand: nur Pfand → „Du bekommst 0,25 €“", (await page.textContent(".total .main")).replace(/\s+/g, "") === "Dubekommst0,25€", await page.textContent(".total .main"));
+      check("Pfand: Knopf heißt „Pfand auszahlen“ und ist frei", (await page.textContent(".pay")).includes("Pfand auszahlen") && !(await page.isDisabled(".pay")));
+      check("Pfand: Karte zeigt die Gutschrift", (await page.textContent(".pfandbar")).replace(/\s/g, " ").includes("0,25 € zurück"), await page.textContent(".pfandbar"));
+      await page.click('.tile:has-text("Apfel")');
+      check("Pfand: Apfel 0,50 € − Pfand 0,25 € = 0,25 €", (await total(page)).replace(/\s/g, " ") === "0,25 €" && (await page.textContent(".total")).includes("Einkauf"), await page.textContent(".total"));
+      check("Pfand: Anzahl oben zählt nur Waren", (await page.textContent(".cart h2 span")).includes("1 Sache"));
+      await page.click(".pay");
+      check("Pfand: Bezahlen zeigt Einkauf und Pfand", (await page.textContent(".modal .split")).replace(/\s/g, " ").includes("Pfand −0,25 €"), await page.textContent(".modal .split"));
+      check("Pfand: Spiel-QR nennt den abgezogenen Betrag", (await readQr(page, ".modal .qr"))?.includes("Pfand 0,25 € abgezogen"));
+      await page.click(".modal .row .big-btn.light"); // „Zurück“ (Text „zurück“ steht auch auf der Pfand-Karte)
+      await page.click(".ln:has-text('Apfel') button[aria-label='Eins weniger']");
+      await page.click(".pfand button[aria-label='Eine Flasche mehr']");
+      check("Pfand: Menge im Korb änderbar (2 Flaschen, 0,50 €)", (await total(page)).replace(/\s/g, " ") === "0,50 €" && (await page.textContent(".pfand")).includes("2 Flaschen"), await page.textContent(".pfand"));
+      await page.click(".pay");
+      await page.waitForSelector("text=Du bekommst Geld zurück!");
+      check("Auszahlung: eine 50-Cent-Münze", (await page.locator(".coin").count()) === 1 && (await page.textContent(".coins")).includes("50 ct"), await page.textContent(".coins"));
+      check("Auszahlung: kein PayPal, keine Überweisung", (await page.locator(".opt").count()) === 0);
+      await page.screenshot({ path: `${SHOTS}/pfand-auszahlung.png` });
+      await page.click("text=Ausgezahlt! Neuer Einkauf");
+      await page.locator(".party").waitFor();
+      check("Auszahlung: Danke-Bildschirm mit Pfand", (await page.textContent(".party")).replace(/\s/g, " ").includes("0,50 € Pfand zurück"), await page.textContent(".party"));
+      await page.locator(".party").click();
+      check("Auszahlung: Korb danach leer", (await page.locator(".cart .pfand").count()) === 0 && (await page.isDisabled(".pay")));
+      await openSettings(page);
+      await page.click("nav >> text=Kassenbons");
+      check("Kassenbon: „Pfand ausgezahlt“ mit Pfand-Zeile", (await page.textContent(".bon")).includes("Pfand ausgezahlt") && (await page.textContent(".bon")).includes("Pfand Einweg"), await page.textContent(".bon"));
+      await page.click("nav >> text=Pfand");
+      await page.fill("#pfand-mehrweg", "0,2"); await page.press("#pfand-mehrweg", "Tab");
+      await wait(200);
+      check("Eltern: Mehrweg-Betrag „0,2“ wird zu 0,20", (await page.inputValue("#pfand-mehrweg")) === "0,20", await page.inputValue("#pfand-mehrweg"));
+      await page.click("#pfand-on");
+      await page.click("text=Zurück zum Laden");
+      check("Eltern: „Pfand abgeben“ ausgeschaltet → Karte weg", (await page.locator(".pfandbar").count()) === 0);
+      check("Keine Konsolenfehler (Pfand eigen)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+    if (section("pfand")) {
+      // Code in keiner Datenbank: das Kind wählt, die Wahl wird gemerkt
+      const { browser, page, errors } = await launch("unknown");
+      await openShop(page);
+      await page.click("text=Pfand abgeben");
+      await page.waitForSelector("text=Wie viel Pfand hat das?", { timeout: 15000 });
+      check("Pfand unbekannt: drei Möglichkeiten", (await page.locator(".wahl").count()) === 3);
+      await page.screenshot({ path: `${SHOTS}/pfand-frage.png` });
+      await page.click(".wahl:has-text('Glasflasche')");
+      await page.waitForSelector(".found .plus");
+      check("Pfand unbekannt: Glasflasche → +0,15 €", (await page.textContent(".found .plus")).replace(/\s/g, " ").includes("+0,15 €"), await page.textContent(".found .plus"));
+      check("Pfand unbekannt: als „vom Kind gewählt“ markiert", (await page.textContent(".found .src")).includes("vom Kind gewählt"));
+      await page.click("text=✓ Fertig mit Pfand");
+      await openSettings(page);
+      await page.click("nav >> text=Pfand");
+      const row = page.locator(".prod.pf", { hasText: "4009998887774" });
+      check("Eltern: gemerkte Flasche mit Herkunft", (await row.count()) === 1 && (await row.textContent()).includes("vom Kind gewählt"), await page.textContent(".pane"));
+      check("Eltern: Auswahl steht auf Mehrweg", (await row.locator("select").inputValue()) === "mehrweg");
+      check("Keine Konsolenfehler (Pfand unbekannt)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+    if (section("pfand")) {
+      // Schokolade (Open Food Facts, kein Getränk): kein Pfand
+      const { browser, page, errors } = await launch("off");
+      await openShop(page);
+      await page.click("text=Pfand abgeben");
+      await page.waitForSelector("text=Da ist kein Pfand drauf.", { timeout: 15000 });
+      check("Kein Pfand: Schokolade wird nicht angenommen", (await page.textContent(".zaehler")).includes("0 Flaschen"), await page.textContent(".zaehler"));
+      await page.screenshot({ path: `${SHOTS}/pfand-kein.png` });
+      await page.click("text=✓ Fertig mit Pfand");
+      check("Kein Pfand: Korb bleibt leer", (await page.locator(".cart .pfand").count()) === 0 && (await page.locator(".ln").count()) === 0);
+      check("Keine Konsolenfehler (kein Pfand)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+
+    if (section("pfand")) {
+      // Bezahlen aus dem offenen Pfandautomaten: Scanner schließt, Fenster und Kassenbon zeigen denselben Betrag
+      const { browser, page, errors } = await launch("wasser");
+      await openShop(page);
+      await page.click('.tile:has-text("Apfel")');
+      await page.click("text=Pfand abgeben");
+      await page.waitForSelector(".found .plus", { timeout: 15000 });
+      await page.click(".pay");
+      check("Bezahlen schließt den Pfandautomaten", (await page.locator("video").count()) === 0);
+      const shown = (await page.textContent(".modal h2 span")).replace(/\s/g, " ");
+      check("Bezahlfenster zeigt den Korbstand (0,50 € − 0,25 €)", shown === "0,25 €" && shown === (await total(page)).replace(/\s/g, " "), shown);
+      const imFenster = () => page.evaluate(() => !!document.activeElement?.closest(".modal"));
+      let fokus = await imFenster();
+      for (let i = 0; i < 4; i++) { await page.keyboard.press("Shift+Tab"); fokus &&= await imFenster(); }
+      for (let i = 0; i < 6; i++) { await page.keyboard.press("Tab"); fokus &&= await imFenster(); }
+      check("Bezahlfenster: Tastaturfokus bleibt im Fenster", fokus);
+      check("Bezahlfenster: Betrag unverändert nach Tab-Tasten", (await page.textContent(".modal h2 span")).replace(/\s/g, " ") === "0,25 €");
+      await page.click("text=Bezahlt! Neuer Einkauf");
+      await page.locator(".party").waitFor();
+      await page.locator(".party").click();
+      // Pfandautomat offen, im Eltern-Bereich „Pfand abgeben“ ausschalten
+      await page.click("text=Pfand abgeben");
+      await openSettings(page);
+      await page.click("nav >> text=Kassenbons");
+      check("Kassenbon = angezeigter Betrag", (await page.locator(".bon").first().textContent()).replace(/\s/g, " ").startsWith("0,25 €"), await page.locator(".bon").first().textContent());
+      await page.click("nav >> text=Pfand");
+      await page.click("#pfand-on");
+      await page.click("text=Zurück zum Laden");
+      check("Pfand ausgeschaltet: offener Pfandautomat ist geschlossen", (await page.locator(".scan").count()) === 0 && (await page.locator(".shelf").count()) === 1);
+      check("Keine Konsolenfehler (Pfand und Bezahlen)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+    if (section("pfand")) {
+      // Handy quer: Pfandfrage passt nicht ganz ins Bild, „Fertig mit Pfand“ und Zähler bleiben erreichbar
+      const { browser, page, errors } = await launch("unknown", { device: devices["Pixel 7 landscape"] });
+      await page.goto(APP_URL);
+      await page.tap("text=Laden öffnen");
+      await page.tap("text=Pfand abgeben");
+      await page.locator("text=Wie viel Pfand hat das?").waitFor({ timeout: 15000 });
+      const vh = page.viewportSize().height;
+      const done = await page.locator(".done").boundingBox();
+      check("Handy quer, Pfandfrage: „Fertig mit Pfand“ im Bild", done && done.y + done.height <= vh + 1, JSON.stringify(done));
+      await page.locator(".zaehler").scrollIntoViewIfNeeded();
+      const z = await page.locator(".zaehler").boundingBox();
+      check("Handy quer, Pfandfrage: Zähler erreichbar", z && z.y >= 0 && z.y + z.height <= vh + 1, JSON.stringify(z));
+      await page.screenshot({ path: `${SHOTS}/pfand-frage-handy-quer.png` });
+      await page.tap("text=✓ Fertig mit Pfand");
+      check("Handy quer: Pfandfrage lässt sich ohne Antwort beenden", (await page.locator(".scan").count()) === 0);
+      check("Keine Konsolenfehler (Pfand Handy quer)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+
+    if (section("pfand")) {
+      // Pfand genau so hoch wie der Einkauf: „Passt genau!“, Bon „Pfand verrechnet“
+      const { browser, page, errors } = await launch("wasser");
+      await openShop(page);
+      await page.click('.tile:has-text("Apfel")');
+      await page.click("text=Pfand abgeben");
+      await page.waitForSelector(".found .plus", { timeout: 15000 });
+      await page.click("text=✓ Fertig mit Pfand");
+      await page.click(".pfand button[aria-label='Eine Flasche mehr']");
+      await page.click(".pay");
+      check("Pfand = Einkauf: „Passt genau!“", (await page.textContent(".modal h2")).includes("Passt genau!"));
+      await page.click("text=Fertig! Neuer Einkauf");
+      await page.locator(".party").waitFor();
+      await page.locator(".party").click();
+      await openSettings(page);
+      await page.click("nav >> text=Kassenbons");
+      check("Pfand = Einkauf: Bon „Pfand verrechnet“", (await page.locator(".bon").first().textContent()).includes("Pfand verrechnet"), await page.locator(".bon").first().textContent());
+      check("Keine Konsolenfehler (Pfand verrechnet)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+    if (section("pfand")) {
+      // Vier Pfandzeilen (Mehrweg-Betrag zwischendurch geändert) auf 839 × 360: „Pfand auszahlen“ bleibt im Bild
+      const { browser, page, errors } = await launch("unknown", { viewport: { width: 839, height: 360 } });
+      await openShop(page);
+      const abgeben = async () => {
+        await page.click(".pfandbar");
+        await page.locator(".found .plus, .wahl").first().waitFor({ timeout: 15000 });
+        if (await page.locator(".wahl").count()) await page.click(".wahl:has-text('Glasflasche')");
+        await page.locator(".found .plus").waitFor();
+        await page.click(".done");
+      };
+      const betrag = async (v) => {
+        await openSettings(page);
+        await page.click("nav >> text=Pfand");
+        await page.fill("#pfand-mehrweg", v); await page.press("#pfand-mehrweg", "Tab");
+        await page.click("text=Zurück zum Laden");
+      };
+      await abgeben();
+      for (const v of ["0,20", "0,30", "0,40"]) { await betrag(v); await abgeben(); }
+      check("Vier Pfandzeilen im Korb", (await page.locator(".pf-ln").count()) === 4, String(await page.locator(".pf-ln").count()));
+      const pay = await page.locator(".pay").boundingBox();
+      check("839 × 360, vier Pfandzeilen: „Pfand auszahlen“ im Bild", pay && pay.y + pay.height <= 361 && (await page.textContent(".pay")).includes("Pfand auszahlen"), JSON.stringify(pay));
+      await page.screenshot({ path: `${SHOTS}/pfand-viele-zeilen-niedrig.png` });
+      check("Keine Konsolenfehler (viele Pfandzeilen)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+    for (const [w, h] of section("pfand") ? [[761, 768], [320, 640]] : []) {
+      // Drei Karten unten (Scannen, Pfand, Frag das Schaf): Beschriftungen bleiben in ihrer Karte
+      const { browser, page } = await launch("empty", { viewport: { width: w, height: h } });
+      await page.goto(APP_URL);
+      await page.click("text=Laden öffnen");
+      await page.waitForSelector(".shelf"); // schmal: Korb nur als Leiste, „Einkaufskorb“ ist nicht zu sehen
+      await openSettings(page);
+      await page.click("nav >> text=Frag das Schaf");
+      await page.click("#schaf-on");
+      await page.click("text=Zurück zum Laden");
+      const over = await page.evaluate(() => [...document.querySelectorAll(".bottom > button")].flatMap((card) => {
+        const c = card.getBoundingClientRect();
+        return [...card.querySelectorAll("b, small")].filter((e) => { const r = e.getBoundingClientRect(); return r.width && (r.right > c.right + 1 || r.left < c.left - 1); }).map((e) => e.textContent.trim());
+      }));
+      check(`${w} × ${h}, drei Karten: Beschriftungen laufen nicht über`, (await page.locator(".bottom > button").count()) === 3 && !over.length, over.join(", "));
+      await page.screenshot({ path: `${SHOTS}/karten-${w}x${h}.png` });
+      await browser.close();
+    }
+
     // ---------- 2. Scannen ----------
     if (section("scan")) {
       offRequests = [];

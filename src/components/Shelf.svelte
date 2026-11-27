@@ -9,7 +9,7 @@
   import GlutenBadge from "./GlutenBadge.svelte";
 
   import { schaf } from "../lib/sprache/schaf.svelte.js";
-  let { onScan } = $props();
+  let { onScan, onPfand } = $props();
 
   let aktion = $derived(aktionById(settings.value.aktion));
   // Aktionsreiter ganz vorne, gescannte Produkte ganz hinten
@@ -56,6 +56,15 @@
       <span class="cam" aria-hidden="true"></span>
       <span><b>Scannen!</b><small>Halte einen Strichcode vor die Kamera</small></span>
     </button>
+    {#if settings.value.pfandAn}
+      <button class="pfandbar" onclick={onPfand}>
+        <span class="pf-icon" aria-hidden="true"><span class="emoji">♻️</span></span>
+        <span>
+          <b>Pfand abgeben</b>
+          <small>{cart.pfandCount ? `${cart.pfandCount === 1 ? "1 Flasche" : `${cart.pfandCount} Flaschen`} · ${euro(cart.pfandCents)} zurück` : "Leere Flaschen und Dosen zurückbringen"}</small>
+        </span>
+      </button>
+    {/if}
     {#if settings.value.fragSchaf}
       <button class="askbar" onclick={() => schaf.ask()}>
         <span class="mic" aria-hidden="true">🎤</span>
@@ -111,8 +120,10 @@
   @keyframes hop { 40% { transform: translateY(-0.4rem); } }
   @keyframes rise { from { transform: translateY(0.6rem); opacity: 0; } }
 
-  .bottom { display: flex; gap: 0.6rem; }
-  .bottom > * { flex: 1; min-width: 0; }
+  /* Bei wenig Breite (drei Karten) brechen die Karten in eine zweite Zeile um, statt überzulaufen */
+  .bottom { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+  .bottom > * { flex: 1 1 13rem; min-width: 0; }
+  .bottom b { overflow-wrap: anywhere; }
   .askbar {
     display: flex; align-items: center; gap: 0.8rem; text-align: left;
     background: var(--sky); color: var(--sky-ink); border-radius: 1.2rem; padding: 0.55rem 0.8rem;
@@ -129,6 +140,13 @@
   }
   .scanbar b { font-family: var(--f-display); font-size: 1.3rem; display: block; line-height: 1.1; }
   .scanbar small { color: var(--ink-soft); }
+  .pfandbar {
+    display: flex; align-items: center; gap: 0.9rem; text-align: left;
+    background: #fff; border: 2px dashed var(--pfand); border-radius: 1.2rem; padding: 0.55rem 0.8rem;
+  }
+  .pfandbar b { font-family: var(--f-display); font-size: 1.3rem; display: block; line-height: 1.1; color: var(--pfand-dark); }
+  .pfandbar small { color: var(--pfand-dark); }
+  .pf-icon { flex: none; width: 5.5rem; height: 3.2rem; border-radius: 0.6rem; background: var(--pfand); display: grid; place-items: center; font-size: 1.8rem; }
   .cam { width: 5.5rem; height: 3.2rem; border-radius: 0.6rem; background: #3a3f36; position: relative; overflow: hidden; flex: none; }
   .cam::after {
     content: ""; position: absolute; inset: 0.8rem 1rem;
@@ -149,9 +167,14 @@
     .cat { flex: none; }
     .grid { grid-template-columns: repeat(auto-fill, minmax(6.6rem, 1fr)); gap: 0.55rem; }
     .tile { border-radius: 1.1rem; padding: 0.55rem 0.3rem 0.45rem; }
-    .scanbar { padding: 0.45rem 0.6rem; }
-    .cam { width: 4rem; height: 2.4rem; }
+    .scanbar, .pfandbar { padding: 0.45rem 0.6rem; gap: 0.5rem; }
+    .cam, .pf-icon { width: 4rem; height: 2.4rem; }
+    .pf-icon { font-size: 1.4rem; }
+    .bottom:has(.pfandbar) small { display: none; }
+    .bottom:has(.pfandbar) b { font-size: 1.1rem; }
+    .bottom:has(.pfandbar) .cam, .bottom:has(.pfandbar) .pf-icon { width: 3rem; }
     .bottom { gap: 0.45rem; }
+    .bottom > * { flex-basis: 8.5rem; }
     .askbar { padding: 0.45rem 0.6rem; gap: 0.5rem; }
     .mic { width: 2.6rem; height: 2.6rem; font-size: 1.4rem; }
     .bottom:has(.askbar) small { display: none; }
@@ -166,8 +189,9 @@
     .cat { flex: none; padding: 0.4rem 0.6rem; }
     .grid { grid-template-columns: repeat(auto-fill, minmax(6.8rem, 1fr)); gap: 0.5rem; }
     .tile { padding: 0.45rem 0.3rem 0.4rem; }
-    .scanbar { padding: 0.3rem 0.6rem; }
-    .scanbar small { display: none; }
+    .scanbar, .pfandbar { padding: 0.3rem 0.6rem; }
+    .scanbar small, .pfandbar small { display: none; }
+    .pf-icon { width: 3.6rem; height: 2.1rem; font-size: 1.3rem; }
     .askbar { padding: 0.3rem 0.6rem; }
     .askbar small { display: none; }
     .mic { width: 2.4rem; height: 2.4rem; font-size: 1.3rem; }

@@ -1,25 +1,30 @@
 <script>
   import { onMount } from "svelte";
-  import { cart, findByEan } from "../lib/shop.svelte.js";
+  import { cart, findByEan, findPfand, pfandWahl } from "../lib/shop.svelte.js";
+  import { pfandCents, pfandName, PFAND_QUELLE } from "../lib/pfand.js";
+  import { codeSperre } from "../lib/sperre.js";
   import { scanLog } from "../lib/scanlog.svelte.js";
   import { settings } from "../lib/settings.svelte.js";
   import { layout } from "../lib/layout.svelte.js";
   import { isValidEan } from "../lib/ean.js";
   import { isPressCode } from "../lib/presse.js";
   import { euro } from "../lib/money.js";
-  import { beep, nope } from "../lib/sounds.js";
+  import { beep, nope, klapper } from "../lib/sounds.js";
   import ProductImage from "./ProductImage.svelte";
   import GlutenBadge from "./GlutenBadge.svelte";
   import { glutenRelevant } from "../lib/gluten.js";
   import Sheep from "./Sheep.svelte";
   import { schaf } from "../lib/sprache/schaf.svelte.js";
 
-  let { onClose } = $props();
+  // mode: "kauf" (Produkte in den Korb) oder "pfand" (leere Flaschen und Dosen zurückgeben)
+  let { onClose, mode = "kauf" } = $props();
+  let pfandMode = $derived(mode === "pfand");
 
   let video = $state();
   let camState = $state("start"); // start | live | error
   let camError = $state("");
-  let status = $state("idle"); // idle | looking | found | added | unknown | unavailable | offline
+  let status = $state("idle"); // idle | looking | found | added | unknown | unavailable | offline | pfand-ok | pfand-frage | pfand-kein
+  let pfandFund = $state(null); // { ean, product, name, pfand, pfandQuelle, cents }
   let found = $state(null); // { product, source }
   let lastCode = $state("");
   let fps = $state(0);
@@ -44,7 +49,7 @@
     let stopped = false;
     let busy = false;
     let loopTimer;
-    let lastSeen = { code: "", at: 0, addOn: "" };
+    const sehen = codeSperre(SAME_CODE_GONE_MS); // pro Code: zuletzt im Bild
     let lookup = 0; // verwirft Antworten älterer Suchen
     let frameNo = 0;
     let frames = 0;
@@ -62,10 +67,9 @@
       const code = data[0].text.trim();
       const addOn = data[0].addOn ?? "";
       const now = Date.now();
-      const same = code === lastSeen.code && now - lastSeen.at < SAME_CODE_GONE_MS;
+      const { same, lateAddOn: spaet } = sehen(code, now, addOn);
       // Zusatzcode (Ausgabe) erst in einem späteren Bild gelesen: nachtragen statt neu zählen
-      if (same && addOn && !lastSeen.addOn) lateAddOn(code, addOn);
-      lastSeen = { code, at: now, addOn: addOn || (same ? lastSeen.addOn : "") };
+      if (spaet) lateAddOn(code, addOn);
       if (!same) await handleCode(code, addOn);
     };
 
@@ -82,6 +86,7 @@
         nope();
         return;
       }
+      if (pfandMode) return handlePfand(ean, my);
       beep();
       status = "looking";
       found = null;
@@ -107,6 +112,31 @@
       found = result;
       status = "found";
       addTimer = setTimeout(addFound, AUTO_ADD_MS);
+    }
+
+    // Pfand-Modus: Flasche oder Dose erkennen und das Pfand gleich gutschreiben
+    async function handlePfand(ean, my) {
+      status = "looking";
+      found = null;
+      pfandFund = null;
+      const t0 = Date.now();
+      const r = await findPfand(ean);
+      scanLog.add({
+        code: ean,
+        result: r.pfand === null ? "Pfand unbekannt" : r.pfand === "kein" ? "kein Pfand" : `Pfand: ${pfandName(r.pfand)}`,
+        trace: [...r.trace, `${((Date.now() - t0) / 1000).toFixed(1)} s`],
+      });
+      // Scanner geschlossen (z. B. zum Bezahlen): nichts mehr gutschreiben
+      if (stopped) return;
+      // Jede Flasche zählt, auch wenn inzwischen schon die nächste gescannt wurde.
+      // Anzeigen (und das Kind fragen) nur für die zuletzt gescannte.
+      const neuester = my === lookup;
+      if (!neuester) {
+        if (r.pfand && r.pfand !== "kein") verbuchen(r.pfand) && klapper();
+        return;
+      }
+      pfandFund = { ean, ...r };
+      zeigePfand(r.pfand);
     }
 
     async function lateAddOn(code, addOn) {
@@ -280,6 +310,44 @@
     addFound();
   }
 
+  function zeigePfand(art) {
+    if (art === null || art === undefined) {
+      if (settings.value.pfandFragen) {
+        status = "pfand-frage";
+        beep();
+        return;
+      }
+      art = "kein";
+    }
+    const cents = art === "kein" ? 0 : verbuchen(art);
+    if (!cents) {
+      // kein Pfand, oder im Eltern-Bereich 0,00 € eingestellt: nichts gutgeschrieben
+      pfandFund = { ...pfandFund, pfand: art, cents: 0 };
+      status = "pfand-kein";
+      nope();
+      return;
+    }
+    pfandFund = { ...pfandFund, pfand: art, cents };
+    status = "pfand-ok";
+    klapper();
+  }
+
+  /** Pfand gutschreiben; gibt den Betrag zurück, 0 wenn nichts gutgeschrieben wurde. */
+  function verbuchen(art) {
+    const cents = pfandCents(art, settings.value);
+    return cart.addPfand(art, cents) ? cents : 0;
+  }
+
+  // Das Kind wählt, was auf der Flasche steht. Gilt ab jetzt für diesen Code.
+  async function waehlePfand(art) {
+    if (!pfandFund || status !== "pfand-frage") return;
+    const fund = pfandFund;
+    await pfandWahl.set(fund.ean, { art, name: fund.name, quelle: "kind" });
+    if (!alive || pfandFund !== fund) return; // inzwischen geschlossen oder etwas anderes gescannt
+    pfandFund = { ...fund, pfandQuelle: "kind" };
+    zeigePfand(art);
+  }
+
   function addFound() {
     clearTimeout(addTimer);
     if (!found || status !== "found") return;
@@ -288,11 +356,14 @@
   }
 </script>
 
-<section class="scan">
+<section class="scan" class:pfand={pfandMode}>
   <div class="feed">
     <!-- svelte-ignore a11y_media_has_caption -->
     <video bind:this={video} class:mirror muted playsinline></video>
-    <div class="frame" class:hit={status === "found" || status === "added"}>
+    {#if pfandMode}
+      <div class="plate"><span class="emoji">♻️</span> Pfandautomat</div>
+    {/if}
+    <div class="frame" class:hit={status === "found" || status === "added" || status === "pfand-ok"}>
       <div class="wool"></div>
       <div class="laser"></div>
     </div>
@@ -305,14 +376,16 @@
         {camError}
       {:else if camState === "start"}
         {slowStart ? "Bitte die Kamera erlauben" : "Kamera startet …"}
+      {:else if pfandMode}
+        Halte den Strichcode der Flasche in den Automaten
       {:else if schaf.canSeeProducts}
         Strichcode in die Wolke halten – oder „Was ist das?“ tippen
       {:else}
         Halte den Strichcode in die Wolke
       {/if}
     </p>
-    <button class="big-btn light done" onclick={onClose}>✓ Fertig gescannt</button>
-    {#if schaf.canSeeProducts}
+    <button class="big-btn light done" onclick={onClose}>{pfandMode ? "✓ Fertig mit Pfand" : "✓ Fertig gescannt"}</button>
+    {#if schaf.canSeeProducts && !pfandMode}
       <button class="see" onclick={whatIsThis} disabled={seeing}><span class="emoji">🐑</span> {seeing ? "Ich schaue …" : "Was ist das?"}</button>
     {/if}
     {#if cameras.length > 1}
@@ -321,7 +394,51 @@
   </div>
 
   <div class="found">
-    {#if status === "seeing"}
+    {#if pfandMode}
+      {#if status === "looking"}
+        <div class="pimg"><Sheep size="6rem" class="think" /></div>
+        <b class="t">Ich schaue nach …</b>
+        <small>Code {lastCode}</small>
+      {:else if status === "pfand-ok" && pfandFund}
+        <span class="src pf">{PFAND_QUELLE[pfandFund.pfandQuelle] ?? "Pfand"}</span>
+        <div class="pimg">{#if pfandFund.product}<ProductImage product={pfandFund.product} size={layout.narrow || layout.short ? "4.2rem" : "7rem"} />{:else}<span class="emoji">🍾</span>{/if}</div>
+        <b class="t">{pfandFund.name || "Flasche"}</b>
+        <div class="plus"><b>+{euro(pfandFund.cents)}</b><small>{pfandName(pfandFund.pfand)}</small></div>
+        <div class="added">✓ Klappert in den Automaten!</div>
+      {:else if status === "pfand-frage" && pfandFund}
+        <div class="frage-head">
+          {#if pfandFund.product}<ProductImage product={pfandFund.product} size="2.6rem" />{:else}<span class="emoji">🍾</span>{/if}
+          <span><b>{pfandFund.name || "Unbekannte Flasche"}</b><small>Code {pfandFund.ean}</small></span>
+        </div>
+        <b class="t">Wie viel Pfand hat das?</b>
+        <button class="wahl" onclick={() => waehlePfand("einweg")}><span class="emoji">🥤</span><span>Dose oder Plastik&shy;flasche</span><b>{euro(pfandCents("einweg", settings.value))}</b></button>
+        <button class="wahl" onclick={() => waehlePfand("mehrweg")}><span class="emoji">🍾</span><span>Glasflasche</span><b>{euro(pfandCents("mehrweg", settings.value))}</b></button>
+        <button class="wahl" onclick={() => waehlePfand("kein")}><span class="emoji">🚫</span><span>Kein Pfand-Zeichen</span><b>{euro(0)}</b></button>
+        <small>Das Pfand-Zeichen steht neben dem Strichcode. Die Antwort wird für diesen Code gemerkt.</small>
+      {:else if status === "pfand-kein" && pfandFund}
+        <div class="pimg">{#if pfandFund.product}<ProductImage product={pfandFund.product} size={layout.narrow || layout.short ? "4.2rem" : "7rem"} />{:else}<span class="emoji">📦</span>{/if}</div>
+        <b class="t">{pfandFund.name || "Unbekannt"}</b>
+        {#if pfandFund.pfand && pfandFund.pfand !== "kein"}
+          <div class="kein"><Sheep size="3.6rem" class="shrug" /><span><b>Hier gibt es kein Pfand dafür.</b><small>{pfandName(pfandFund.pfand)} ist im Eltern-Bereich auf 0,00 € gestellt.</small></span></div>
+        {:else}
+          <div class="kein"><Sheep size="3.6rem" class="shrug" /><span><b>Da ist kein Pfand drauf.</b><small>Pfand gibt es nur für Flaschen und Dosen.</small></span></div>
+        {/if}
+      {:else if status === "unknown"}
+        <div class="pimg"><Sheep size="6rem" class="shrug" /></div>
+        <b class="t">Das ist kein Flaschen-Code.</b>
+        <small>Halte den Strichcode auf dem Etikett in den Automaten.</small>
+      {:else}
+        <div class="pimg"><span class="emoji">🍾</span></div>
+        <b class="t">Pfand abgeben</b>
+        <small>Leere Flaschen und Dosen mit dem Strichcode in den Automaten halten. Das Pfand wird vom Einkauf abgezogen.</small>
+      {/if}
+      {#key cart.pfandTick}
+        <div class="zaehler" class:bump={cart.pfandTick > 0}>
+          <small>Schon im Automaten</small>
+          <span><b>{cart.pfandCount === 1 ? "1 Flasche" : `${cart.pfandCount} Flaschen`}</b><b class="sum">{euro(cart.pfandCents)}</b></span>
+        </div>
+      {/key}
+    {:else if status === "seeing"}
       <div class="pimg"><Sheep size="6rem" class="think" /></div>
       <b class="t">Ich schaue genau hin …</b>
       <small>Halte die Sache ruhig in die Kamera.</small>
@@ -376,7 +493,7 @@
 </section>
 
 <style>
-  .scan { display: grid; grid-template-columns: 1fr 17rem; min-height: 0; min-width: 0; }
+  .scan { display: grid; grid-template-columns: 1fr 17rem; grid-template-rows: minmax(0, 1fr); min-height: 0; min-width: 0; }
   .feed { position: relative; background: #2f342b; overflow: hidden; display: grid; place-items: center; }
   video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   video.mirror { transform: scaleX(-1); }
@@ -410,7 +527,9 @@
   .done { position: absolute; bottom: 1rem; left: 50%; transform: translateX(-50%); }
   .done:active { transform: translateX(-50%) translateY(0.2rem); }
 
-  .found { padding: 1.3rem 1rem 1rem; display: flex; flex-direction: column; gap: 0.6rem; background: #fff; border-left: 2px solid var(--wool-line); min-width: 0; }
+  /* Höhe begrenzt, bei wenig Platz (Handy quer, Pfandfrage) scrollbar: „Fertig“ bleibt immer erreichbar */
+  .found { padding: 1.3rem 1rem 1rem; display: flex; flex-direction: column; gap: 0.6rem; background: #fff; border-left: 2px solid var(--wool-line); min-width: 0; min-height: 0; overflow-y: auto; }
+  .found > * { flex-shrink: 0; }
   .pimg { height: 10rem; border-radius: 1.2rem; background: var(--wool-2); display: grid; place-items: center; font-size: 5rem; }
   .t { font-family: var(--f-display); font-size: 1.5rem; line-height: 1.15; overflow-wrap: anywhere; }
   small { color: var(--ink-soft); }
@@ -418,13 +537,53 @@
   .src { font-size: 0.75rem; font-family: monospace; background: var(--sky); color: var(--sky-ink); padding: 0.2rem 0.5rem; border-radius: 0.4rem; align-self: flex-start; }
   .added { font-family: var(--f-display); font-size: 1.5rem; font-weight: 800; color: var(--grass-dark); text-align: center; padding: 0.5rem; background: var(--ok-bg); border-radius: 1rem; }
   .pimg :global(.think) { animation: think 1s ease-in-out infinite; }
+
+  /* ---- Pfand-Modus: Automat statt Wollwolke ---- */
+  .plate {
+    position: absolute; top: 3rem; left: 50%; transform: translateX(-50%); z-index: 1;
+    display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 1.2rem 0.45rem 0.9rem; border-radius: 0.9rem;
+    background: var(--pfand); color: #fff; box-shadow: 0 0.25rem 0 var(--pfand-dark);
+    font-family: var(--f-display); font-weight: 800; font-size: 1.5rem; white-space: nowrap;
+  }
+  .scan.pfand .wool { display: none; }
+  .scan.pfand .frame { border: 0.6rem solid var(--pfand); border-radius: 2.2rem; box-shadow: 0 0 0 0.35rem rgba(255, 255, 255, 0.85); transition: box-shadow 0.2s; }
+  .scan.pfand .frame.hit { box-shadow: 0 0 0 0.35rem #7fd6e0, 0 0 1.4rem #7fd6e0; }
+  .src.pf { background: var(--pfand-bg); color: var(--pfand-dark); }
+  .plus { display: flex; align-items: center; gap: 0.7rem; background: var(--pfand-bg); border-radius: 1rem; padding: 0.5rem 0.8rem; }
+  .plus b { font-family: var(--f-display); font-size: 2.2rem; font-weight: 800; color: var(--pfand); line-height: 1; white-space: nowrap; }
+  .plus small { color: var(--pfand-dark); line-height: 1.2; }
+  .frage-head { display: flex; align-items: center; gap: 0.6rem; }
+  .frage-head .emoji { font-size: 2.2rem; }
+  .frage-head span { display: flex; flex-direction: column; min-width: 0; }
+  .frage-head b { overflow-wrap: anywhere; line-height: 1.15; }
+  .wahl {
+    display: grid; grid-template-columns: 2.2rem 1fr auto; align-items: center; gap: 0.5rem; text-align: left;
+    min-height: 3.3rem; padding: 0.35rem 0.7rem 0.35rem 0.5rem; border-radius: 1rem;
+    background: #fff; border: 2px solid var(--wool-line); box-shadow: 0 0.2rem 0 var(--wool-line);
+    font-weight: 800; line-height: 1.15;
+  }
+  .wahl:active { transform: translateY(0.15rem); box-shadow: none; }
+  .wahl .emoji { font-size: 1.7rem; text-align: center; }
+  .wahl b { font-family: var(--f-display); font-size: 1.15rem; color: var(--pfand); white-space: nowrap; }
+  .kein { display: flex; align-items: center; gap: 0.6rem; background: var(--wool-2); border-radius: 1rem; padding: 0.6rem 0.7rem; }
+  .kein span { display: flex; flex-direction: column; gap: 0.15rem; }
+  .kein b { font-family: var(--f-display); font-size: 1.2rem; line-height: 1.1; }
+  .kein :global(.shrug) { animation: shrug 0.6s ease-in-out 2; flex: none; }
+  .zaehler { margin-top: auto; border-radius: 1rem; background: var(--pfand); color: #fff; padding: 0.6rem 0.8rem; display: flex; flex-direction: column; }
+  .zaehler small { color: #fff; opacity: 0.9; }
+  .zaehler span { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+  .zaehler b { font-family: var(--f-display); font-size: 1.25rem; white-space: nowrap; }
+  .zaehler .sum { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+  .zaehler.bump { animation: hop 0.35s ease-out; }
+  @keyframes hop { 40% { transform: translateY(-0.3rem); } }
   .pimg :global(.shrug) { animation: shrug 0.6s ease-in-out 2; }
   @keyframes think { 50% { transform: rotate(-8deg); } }
   @keyframes shrug { 25% { transform: rotate(-10deg); } 75% { transform: rotate(10deg); } }
 
   /* Handy hochkant: Kamera oben, Fund darunter als schmale Zeile */
   @media (max-width: 760px) {
-    .scan { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+    .scan { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+    .found { max-height: 55vh; }
     .frame { width: 80%; }
     .hint { font-size: 1.25rem; bottom: 4.4rem; }
     .found { border-left: 0; border-top: 2px solid var(--wool-line); display: grid; grid-template-columns: 5.5rem 1fr; column-gap: 0.8rem; row-gap: 0.2rem; padding: 0.7rem; align-content: start; }
@@ -435,6 +594,10 @@
     .price { font-size: 1.8rem; }
     .src { font-size: 0.7rem; }
     .found :global(.big-btn), .added { font-size: 1.05rem; padding: 0.45rem 0.8rem; }
+    /* Pfand: Auswahl und Zähler über die ganze Breite */
+    .found > .frage-head, .found > .wahl, .found > .zaehler { grid-column: 1 / -1; }
+    .plate { top: 2.6rem; font-size: 1.15rem; }
+    .plus b { font-size: 1.6rem; }
   }
   /* Handy quer */
   @media (max-height: 500px) {

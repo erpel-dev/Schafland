@@ -1,7 +1,9 @@
 <script>
   import { settings } from "../lib/settings.svelte.js";
   import { music, mmss, canPickFolder } from "../lib/music.svelte.js";
-  import { scanned } from "../lib/shop.svelte.js";
+  import { scanned, pfandWahl } from "../lib/shop.svelte.js";
+  import { PFAND_ARTEN, PFAND_QUELLE, pfandCents, pfandVon, istGetraenk } from "../lib/pfand.js";
+  import { productByEan } from "../lib/catalog.js";
   import { scanLog } from "../lib/scanlog.svelte.js";
   import { aktionen } from "../lib/aktionen.js";
   import { isNativeApp, Kiosk } from "../lib/platform.js";
@@ -27,6 +29,7 @@
     ["musik", "Musik"],
     ["schaf", "Frag das Schaf"],
     ["aktionen", "Aktionen"],
+    ["pfand", "Pfand"],
     ["etiketten", "Etiketten drucken"],
     ["gescannt", "Gescannte Produkte"],
     ["bons", "Kassenbons"],
@@ -218,7 +221,37 @@
     glutenStatus = fehler ? `${ok} aktualisiert, ${fehler} nicht erreichbar (später nochmal versuchen).` : `${ok} aktualisiert.`;
   }
 
-  const PAY = { "spiel-qr": "Schaf-Code", paypal: "PayPal", girocode: "Überweisung (GiroCode)", karte: "Karte (NFC)" };
+  const PAY = { "spiel-qr": "Schaf-Code", paypal: "PayPal", girocode: "Überweisung (GiroCode)", karte: "Karte (NFC)", pfand: "Pfand ausgezahlt", "pfand-verrechnet": "Pfand verrechnet" };
+
+  // --- Pfand
+  $effect(() => {
+    if (tab === "pfand") pfandWahl.load();
+  });
+  // Mehrweg-Beträge: „0,15“ ↔ 15 Cent (Einweg ist gesetzlich 25 Cent und nicht änderbar)
+  function setPfandBetrag(key, input) {
+    const cents = Math.round(parseFloat(input.value.trim().replace(",", ".")) * 100);
+    if (Number.isInteger(cents) && cents >= 0 && cents <= 500) settings.set({ [key]: cents });
+    input.value = priceText(settings.value[key]);
+  }
+  // Gemerkte Flaschen: Wahl von Kind oder Eltern, dazu gescannte Getränke (auch abgelehnte, zum
+  // Korrigieren), Produkte mit Pfand und solche, bei denen das Kind gefragt wird
+  let pfandListe = $derived.by(() => {
+    const rows = new Map();
+    for (const p of scanned.list) {
+      const { pfand, pfandQuelle } = pfandVon(p);
+      if (pfand === "kein" && !istGetraenk(p) && pfandQuelle !== "siegel") continue;
+      rows.set(p.ean, { ean: p.ean, name: p.name, product: p, art: pfand ?? "", quelle: pfandQuelle });
+    }
+    for (const [ean, w] of Object.entries(pfandWahl.map)) {
+      const product = rows.get(ean)?.product ?? scanned.list.find((p) => p.ean === ean) ?? productByEan.get(ean) ?? null;
+      rows.set(ean, { ean, name: product?.name || w.name || "Flasche", product, art: w.art, quelle: w.quelle, gemerkt: true, at: w.at ?? 0 });
+    }
+    return [...rows.values()].sort((a, b) => (b.at ?? 0) - (a.at ?? 0) || a.name.localeCompare(b.name, "de"));
+  });
+  function setPfandArt(row, art) {
+    if (art) pfandWahl.set(row.ean, { art, name: row.name, quelle: "eltern" });
+    else pfandWahl.remove(row.ean);
+  }
 
   // --- Kartenzahlung (NFC)
   let nfcStatus = $state(null);
@@ -603,6 +636,53 @@
         {/each}
         <p class="muted">Etiketten für die Aktionsprodukte gibt es unter „Etiketten drucken“. Sie lassen sich auch scannen, wenn die Aktion aus ist.</p>
 
+      {:else if tab === "pfand"}
+        <h2>Pfand</h2>
+        <div class="field">
+          <label for="pfand-on">„Pfand abgeben“ anbieten</label>
+          <div class="row">
+            <Toggle id="pfand-on" label="Pfand abgeben anbieten" checked={settings.value.pfandAn} onchange={(v) => settings.set({ pfandAn: v })} />
+            <span class="muted">In der Kasse erscheint neben „Scannen!“ die Karte „Pfand abgeben“. Leere Flaschen und Dosen werden gescannt, das Pfand wird vom Einkauf abgezogen. Ist mehr Pfand als Einkauf da, zahlt die Kasse aus (nur zum Spielen, nie mit PayPal oder Überweisung).</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="pfand-fragen">Pfand unbekannt</label>
+          <div class="row">
+            <Toggle id="pfand-fragen" label="Kind fragen, wenn das Pfand unbekannt ist" checked={settings.value.pfandFragen} onchange={(v) => settings.set({ pfandFragen: v })} />
+            <span class="muted">Das Kind wählt Dose oder Plastikflasche, Glasflasche oder „kein Pfand-Zeichen“; die Wahl wird für den Code gemerkt. Aus: Die Flasche zählt ohne Pfand.</span>
+          </div>
+        </div>
+        <div class="field">
+          <span class="lbl">Beträge</span>
+          <div class="row">
+            <label class="betrag">Einweg<span class="price"><input value={priceText(pfandCents("einweg"))} disabled aria-label="Einwegpfand" /> €</span><small>gesetzlich</small></label>
+            <label class="betrag">Mehrweg<span class="price"><input id="pfand-mehrweg" inputmode="decimal" value={priceText(pfandCents("mehrweg", settings.value))} onchange={(e) => setPfandBetrag("pfandMehrweg", e.currentTarget)} onkeydown={onEnter} /> €</span><small>Wasser, Limo</small></label>
+            <label class="betrag">Mehrweg Bier<span class="price"><input id="pfand-bier" inputmode="decimal" value={priceText(pfandCents("bier", settings.value))} onchange={(e) => setPfandBetrag("pfandBier", e.currentTarget)} onkeydown={onEnter} /> €</span><small>auch Joghurtglas</small></label>
+          </div>
+        </div>
+        <p class="muted">
+          So erkennt die Kasse das Pfand: zuerst, was hier unten gemerkt ist; dann das eigene Sortiment (Wasser und Limo haben Einwegpfand); dann Open Food Facts (Angaben „Einwegpfand“, „Mehrweg“); sonst aus der Verpackung geschätzt (Getränkedose oder Plastikflasche: Einweg, Bier in Glas: Mehrweg). Getränkekartons haben kein Pfand. Bei echten Flaschen zählt das Pfand-Zeichen auf dem Etikett.
+        </p>
+        <h2 class="sub">Gemerkte Flaschen</h2>
+        {#each pfandListe as row (row.ean)}
+          <div class="prod pf">
+            {#if row.product}<ProductImage product={row.product} size="3rem" />{:else}<span class="emoji pf-emoji">🍾</span>{/if}
+            <div class="info">
+              <b>{row.name}</b>
+              <small>{row.ean}{row.quelle && PFAND_QUELLE[row.quelle] ? ` · ${PFAND_QUELLE[row.quelle]}` : row.art ? "" : " · noch unbekannt, das Kind wird gefragt"}</small>
+            </div>
+            <select class="gluten-sel" aria-label={`Pfand für ${row.name}`} value={row.gemerkt ? row.art : ""} onchange={(e) => setPfandArt(row, e.currentTarget.value)}>
+              <option value="">{row.art && !row.gemerkt ? `automatisch: ${PFAND_ARTEN[row.art]?.name ?? "kein Pfand"}` : "automatisch"}</option>
+              <option value="einweg">Einweg {euro(pfandCents("einweg"))}</option>
+              <option value="mehrweg">Mehrweg {euro(pfandCents("mehrweg", settings.value))}</option>
+              <option value="bier">Mehrweg Bier {euro(pfandCents("bier", settings.value))}</option>
+              <option value="kein">kein Pfand</option>
+            </select>
+          </div>
+        {:else}
+          <p class="muted">Noch keine Flaschen. Was das Kind beim Pfand-Abgeben auswählt und gescannte Getränke stehen hier.</p>
+        {/each}
+
       {:else if tab === "etiketten"}
         <h2 class="noprint">Etiketten drucken</h2>
         <LabelSheet />
@@ -696,8 +776,8 @@
         <h2>Kassenbons</h2>
         {#each receipts as r (r.id)}
           <div class="bon">
-            <div class="bonhead"><b>{euro(r.totalCents)}</b><small>{when(r.createdAt)} · {PAY[r.payment] ?? r.payment}</small></div>
-            <small>{r.lines.map((l) => `${l.qty}× ${l.name}`).join(", ")}</small>
+            <div class="bonhead"><b>{r.totalCents < 0 ? `−${euro(-r.totalCents)}` : euro(r.totalCents)}</b><small>{when(r.createdAt)} · {PAY[r.payment] ?? r.payment}</small></div>
+            <small>{[...r.lines.map((l) => `${l.qty}× ${l.name}`), ...(r.pfand ?? []).map((p) => `${p.qty}× Pfand ${PFAND_ARTEN[p.art]?.name ?? p.art} −${euro(p.qty * p.cents)}`)].join(", ")}</small>
           </div>
         {:else}
           <p class="muted">Noch keine Einkäufe.</p>
@@ -791,6 +871,12 @@
   .prod .price { grid-column: 4; }
   .prod .del { grid-column: 5; }
   .gluten-sel { border: 2px solid var(--wool-line); border-radius: 0.6rem; padding: 0.3rem 0.4rem; background: #fff; font: inherit; font-size: 0.9rem; max-width: 10rem; }
+  .prod.pf { grid-template-columns: 3.4rem 1fr auto; }
+  .prod.pf .gluten-sel { grid-column: 3; max-width: 14rem; }
+  .pf-emoji { font-size: 2.2rem; text-align: center; }
+  .betrag { display: flex; flex-direction: column; gap: 0.2rem; font-weight: 800; }
+  .betrag small { color: var(--ink-soft); font-weight: 600; }
+  .betrag input:disabled { background: var(--wool-2); color: var(--ink-soft); }
   .bon { padding: 0.6rem 0.8rem; background: var(--wool); border-radius: 0.8rem; display: flex; flex-direction: column; gap: 0.2rem; }
   .bonhead { display: flex; gap: 0.8rem; align-items: baseline; }
   .bonhead b { font-family: var(--f-display); font-size: 1.3rem; }

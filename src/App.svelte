@@ -31,7 +31,12 @@
     if (id) document.documentElement.dataset.aktion = id;
     else delete document.documentElement.dataset.aktion;
   });
-  let view = $state("shop"); // shop | scan
+  let view = $state("shop"); // shop | scan | pfand
+
+  // „Pfand abgeben“ im Eltern-Bereich ausgeschaltet: offenen Pfandautomaten schließen
+  $effect(() => {
+    if (view === "pfand" && !settings.value.pfandAn) view = "shop";
+  });
   let paying = $state(false);
   let celebrate = $state(null); // Betrag in Cent
   let showSettings = $state(false);
@@ -63,15 +68,19 @@
   // Schnelles Mehrfach-Tippen auf "Bezahlt!" darf nur einen Kassenbon ergeben
   let checkingOut = false;
   async function paid(method) {
-    if (checkingOut || !cart.lines.length) return;
+    if (checkingOut || cart.isEmpty) return;
     checkingOut = true;
     const total = cart.totalCents;
+    // Fenster zuerst schließen: Es zeigt immer den aktuellen Korb, der gleich geleert wird
+    paying = false;
     try {
       await cart.checkout(method);
+    } catch (err) {
+      paying = true;
+      throw err;
     } finally {
       checkingOut = false;
     }
-    paying = false;
     view = "shop";
     celebrate = total;
     kaching();
@@ -90,13 +99,21 @@
           else if (celebrate !== null) celebrate = null;
           else if (paying) paying = false;
           else if (showSettings) showSettings = false;
-          else if (view === "scan") view = "shop";
+          else if (view !== "shop") view = "shop";
         }),
       )
       .then((l) => (listener = l))
       .catch((err) => console.warn("Zurück-Taste nicht verfügbar", err));
     return () => listener?.remove();
   });
+
+  // Beim Bezahlen den Scanner schließen: Laufende Suchen werden verworfen, ein schon gefundenes
+  // Produkt kommt noch in den Korb. Danach ändert sich der Korb nicht mehr, solange bezahlt wird.
+  function startPay() {
+    schaf.close();
+    view = "shop";
+    paying = true;
+  }
 
   function openSettings() {
     paying = false;
@@ -128,15 +145,18 @@
 {:else if showSettings}
   <Settings onClose={() => (showSettings = false)} />
 {:else}
-  <div class="app">
+  <!-- Während Bezahlen und Danke-Bildschirm ist alles dahinter gesperrt (auch für die Tastatur) -->
+  <div class="app" inert={paying || celebrate !== null}>
     <TopBar onOpenSettings={openSettings} />
     <main class:narrow={layout.narrow}>
-      {#if view === "scan"}
-        <ScanView onClose={() => (view = "shop")} />
+      {#if view === "scan" || view === "pfand"}
+        {#key view}
+          <ScanView mode={view === "pfand" ? "pfand" : "kauf"} onClose={() => (view = "shop")} />
+        {/key}
       {:else}
-        <Shelf onScan={() => (view = "scan")} />
+        <Shelf onScan={() => (view = "scan")} onPfand={() => (view = "pfand")} />
       {/if}
-      <Cart onPay={() => { schaf.close(); paying = true; }} compact={layout.narrow} />
+      <Cart onPay={startPay} compact={layout.narrow} />
     </main>
   </div>
 

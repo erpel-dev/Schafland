@@ -51,3 +51,9 @@ test("Kategorien: Namen, Emojis, Standardpreise; besondere Kategorien findbar", 
     assert.ok(c.defaultPrice > 0);
   }
 });
+
+test("Pfand im eigenen Sortiment: Wasser und Limo Einweg, alles andere ohne", () => {
+  const mitPfand = products.filter((p) => p.pfand !== "kein").map((p) => [p.name, p.pfand]);
+  assert.deepEqual(mitPfand, [["Wasser", "einweg"], ["Limo", "einweg"]]);
+  assert.ok(products.every((p) => typeof p.pfand === "string"), "jedes Produkt hat eine Pfand-Angabe");
+});

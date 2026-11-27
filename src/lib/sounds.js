@@ -46,6 +46,13 @@ export function beep() {
   tone(t, { type: "square", freq: 1760, dur: 0.14, gain: 0.08, attack: 0.005 });
 }
 
+/** Flasche fällt in den Pfandautomaten: Klirren und ein kurzes Rumpeln. */
+export function klapper() {
+  const t = start(700);
+  [1980, 2350, 1760].forEach((f, i) => tone(t + i * 0.07, { type: "triangle", freq: f, dur: 0.09, gain: 0.12, attack: 0.003 }));
+  tone(t + 0.22, { freq: 180, to: 90, dur: 0.25, gain: 0.25 });
+}
+
 /** Etwas gefällt dem Schaf nicht (unbekannter Code). */
 export function nope() {
   const t = start(500);

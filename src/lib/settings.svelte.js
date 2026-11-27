@@ -23,6 +23,10 @@ const DEFAULTS = {
   kiModell: "klein", // klein (LFM2.5-350M) | gross (LFM3-1.7B)
   audioModell: false, // Prototyp: LFM3-Omni hört zu, antwortet, erkennt Bilder (nur mit Grafikkarte)
   omniStimme: false, // LFM3-Omni liest auch vor (natürlich, aber langsam); sonst Stimme des Systems
+  pfandAn: true, // „Pfand abgeben“: leere Flaschen und Dosen scannen, das Pfand wird abgezogen
+  pfandFragen: true, // Pfand unbekannt: das Kind wählt Dose/Plastikflasche, Glasflasche oder kein Pfand
+  pfandMehrweg: 15, // Cent pro Mehrwegflasche (Wasser, Limo)
+  pfandBier: 8, // Cent pro Mehrwegflasche Bier bzw. Joghurtglas
 };
 
 class Settings {

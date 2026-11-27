@@ -67,6 +67,10 @@ const raw = {
   ],
 };
 
+// Spielflaschen mit Pfand (Einweg wie im echten Laden). Alles andere im Sortiment hat kein Pfand.
+// Saft ist ein Trinkpäckchen (🧃), Kakao und Tee kommen in der Tasse.
+const PFAND_EIGEN = { "getraenke-2": "einweg", "getraenke-5": "einweg" };
+
 export const products = categories.flatMap((cat, ci) =>
   raw[cat.id].map(([name, emoji, priceCents, icon], pi) => ({
     id: `${cat.id}-${pi + 1}`,
@@ -76,6 +80,7 @@ export const products = categories.flatMap((cat, ci) =>
     priceCents,
     categoryId: cat.id,
     ean: ownEan(ci + 1, pi + 1),
+    pfand: PFAND_EIGEN[`${cat.id}-${pi + 1}`] ?? "kein",
     source: "eigen",
   })),
 );
