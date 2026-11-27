@@ -361,7 +361,9 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
     for (const [w, h] of section("pfand") ? [[761, 768], [320, 640]] : []) {
       // Drei Karten unten (Scannen, Pfand, Frag das Schaf): Beschriftungen bleiben in ihrer Karte
       const { browser, page } = await launch("empty", { viewport: { width: w, height: h } });
-      await openShop(page);
+      await page.goto(APP_URL);
+      await page.click("text=Laden öffnen");
+      await page.waitForSelector(".shelf"); // schmal: Korb nur als Leiste, „Einkaufskorb“ ist nicht zu sehen
       await openSettings(page);
       await page.click("nav >> text=Frag das Schaf");
       await page.click("#schaf-on");

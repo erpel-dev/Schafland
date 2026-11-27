@@ -14,6 +14,22 @@
   // Tastatur: Fokus ins Fenster (der Hintergrund ist währenddessen gesperrt, siehe App.svelte)
   let dialog = $state();
   onMount(() => dialog?.focus());
+  // Tab und Umschalt+Tab bleiben im Fenster (vom letzten Knopf zum ersten und umgekehrt)
+  function trapFocus(e) {
+    if (e.key !== "Tab" || !dialog) return;
+    const items = [...dialog.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])")].filter((el) => !el.disabled && el.offsetParent !== null);
+    if (!items.length) return e.preventDefault();
+    const first = items[0];
+    const last = items.at(-1);
+    const active = document.activeElement;
+    if (e.shiftKey && (active === first || active === dialog || !dialog.contains(active))) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && (active === last || !dialog.contains(active))) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 
   let method = $state("spiel-qr");
   // Immer der aktuelle Korb: Was hier steht (Betrag, QR-Code), kommt genau so auf den Kassenbon
@@ -116,7 +132,7 @@
 <svelte:document onvisibilitychange={onVisible} />
 
 <div class="dim" role="presentation">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pay-title" tabindex="-1" bind:this={dialog}>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pay-title" tabindex="-1" bind:this={dialog} onkeydown={trapFocus}>
     {#if auszahlung}
     <h2 id="pay-title">{total < 0 ? "Du bekommst Geld zurück!" : "Passt genau!"} <span class="aus">{euro(Math.abs(total))}</span></h2>
     <p class="split">Einkauf {euro(warenCents)} · <b>Pfand −{euro(pfandCents)}</b></p>
