@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { cart, findByEan, findPfand, pfandWahl } from "../lib/shop.svelte.js";
   import { pfandCents, pfandName, PFAND_QUELLE } from "../lib/pfand.js";
+  import { codeSperre } from "../lib/sperre.js";
   import { scanLog } from "../lib/scanlog.svelte.js";
   import { settings } from "../lib/settings.svelte.js";
   import { layout } from "../lib/layout.svelte.js";
@@ -48,7 +49,7 @@
     let stopped = false;
     let busy = false;
     let loopTimer;
-    let lastSeen = { code: "", at: 0, addOn: "" };
+    const sehen = codeSperre(SAME_CODE_GONE_MS); // pro Code: zuletzt im Bild
     let lookup = 0; // verwirft Antworten älterer Suchen
     let frameNo = 0;
     let frames = 0;
@@ -66,10 +67,9 @@
       const code = data[0].text.trim();
       const addOn = data[0].addOn ?? "";
       const now = Date.now();
-      const same = code === lastSeen.code && now - lastSeen.at < SAME_CODE_GONE_MS;
+      const { same, lateAddOn: spaet } = sehen(code, now, addOn);
       // Zusatzcode (Ausgabe) erst in einem späteren Bild gelesen: nachtragen statt neu zählen
-      if (same && addOn && !lastSeen.addOn) lateAddOn(code, addOn);
-      lastSeen = { code, at: now, addOn: addOn || (same ? lastSeen.addOn : "") };
+      if (spaet) lateAddOn(code, addOn);
       if (!same) await handleCode(code, addOn);
     };
 
@@ -126,7 +126,15 @@
         result: r.pfand === null ? "Pfand unbekannt" : r.pfand === "kein" ? "kein Pfand" : `Pfand: ${pfandName(r.pfand)}`,
         trace: [...r.trace, `${((Date.now() - t0) / 1000).toFixed(1)} s`],
       });
-      if (stopped || my !== lookup) return;
+      // Scanner geschlossen (z. B. zum Bezahlen): nichts mehr gutschreiben
+      if (stopped) return;
+      // Jede Flasche zählt, auch wenn inzwischen schon die nächste gescannt wurde.
+      // Anzeigen (und das Kind fragen) nur für die zuletzt gescannte.
+      const neuester = my === lookup;
+      if (!neuester) {
+        if (r.pfand && r.pfand !== "kein") verbuchen(r.pfand) && klapper();
+        return;
+      }
       pfandFund = { ean, ...r };
       zeigePfand(r.pfand);
     }
@@ -311,16 +319,23 @@
       }
       art = "kein";
     }
-    if (art === "kein") {
+    const cents = art === "kein" ? 0 : verbuchen(art);
+    if (!cents) {
+      // kein Pfand, oder im Eltern-Bereich 0,00 € eingestellt: nichts gutgeschrieben
+      pfandFund = { ...pfandFund, pfand: art, cents: 0 };
       status = "pfand-kein";
       nope();
       return;
     }
-    const cents = pfandCents(art, settings.value);
-    cart.addPfand(art, cents);
     pfandFund = { ...pfandFund, pfand: art, cents };
     status = "pfand-ok";
     klapper();
+  }
+
+  /** Pfand gutschreiben; gibt den Betrag zurück, 0 wenn nichts gutgeschrieben wurde. */
+  function verbuchen(art) {
+    const cents = pfandCents(art, settings.value);
+    return cart.addPfand(art, cents) ? cents : 0;
   }
 
   // Das Kind wählt, was auf der Flasche steht. Gilt ab jetzt für diesen Code.
@@ -403,7 +418,11 @@
       {:else if status === "pfand-kein" && pfandFund}
         <div class="pimg">{#if pfandFund.product}<ProductImage product={pfandFund.product} size={layout.narrow || layout.short ? "4.2rem" : "7rem"} />{:else}<span class="emoji">📦</span>{/if}</div>
         <b class="t">{pfandFund.name || "Unbekannt"}</b>
-        <div class="kein"><Sheep size="3.6rem" class="shrug" /><span><b>Da ist kein Pfand drauf.</b><small>Pfand gibt es nur für Flaschen und Dosen.</small></span></div>
+        {#if pfandFund.pfand && pfandFund.pfand !== "kein"}
+          <div class="kein"><Sheep size="3.6rem" class="shrug" /><span><b>Hier gibt es kein Pfand dafür.</b><small>{pfandName(pfandFund.pfand)} ist im Eltern-Bereich auf 0,00 € gestellt.</small></span></div>
+        {:else}
+          <div class="kein"><Sheep size="3.6rem" class="shrug" /><span><b>Da ist kein Pfand drauf.</b><small>Pfand gibt es nur für Flaschen und Dosen.</small></span></div>
+        {/if}
       {:else if status === "unknown"}
         <div class="pimg"><Sheep size="6rem" class="shrug" /></div>
         <b class="t">Das ist kein Flaschen-Code.</b>

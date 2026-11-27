@@ -145,7 +145,8 @@
 {:else if showSettings}
   <Settings onClose={() => (showSettings = false)} />
 {:else}
-  <div class="app">
+  <!-- Während Bezahlen und Danke-Bildschirm ist alles dahinter gesperrt (auch für die Tastatur) -->
+  <div class="app" inert={paying || celebrate !== null}>
     <TopBar onOpenSettings={openSettings} />
     <main class:narrow={layout.narrow}>
       {#if view === "scan" || view === "pfand"}

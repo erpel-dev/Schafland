@@ -76,26 +76,64 @@ export function pfandAusOpenFacts(p = {}, { categoryId } = {}) {
   if (siegel.some((t) => EINWEG.test(t))) return { pfand: "einweg", pfandQuelle: "siegel" };
   if (siegel.some((t) => MEHRWEG.test(t))) return { pfand: bier ? "bier" : "mehrweg", pfandQuelle: "siegel" };
 
+  // Keine Kategorien bei Open Food Facts: Ob es ein Getränk ist, weiß niemand → fragen statt ablehnen
+  if (!kategorien.length && (!categoryId || categoryId === "gescannt")) return { pfand: null, pfandQuelle: null };
   if (!istGetraenk({ categoryId, categoriesTags: kategorien })) return { pfand: KEIN, pfandQuelle: "kategorie" };
 
   // Getränk ohne Pfand-Angabe: aus der Verpackung schätzen
+  const geschaetzt = ausBestandteilen(p.packagings, bier) ?? (Array.isArray(p.packagings) && p.packagings.length ? null : ausFacetten(formen, bier));
+  return geschaetzt ? { pfand: geschaetzt, pfandQuelle: "verpackung" } : { pfand: null, pfandQuelle: null };
+}
+
+// Name eines Bestandteils: API v2 liefert "en:bottle", API v3 { id: "en:bottle" }
+const teilName = (v) => String(v?.id ?? v ?? "").toLowerCase();
+
+/**
+ * Schätzung aus den einzelnen Verpackungsbestandteilen (packagings): Form und Material gehören
+ * hier zusammen. Eine Glasflasche mit Kunststoffdeckel ist also keine Plastikflasche.
+ * Ergebnis: Pfand-Art, KEIN, null (unklar → fragen) oder undefined (keine Bestandteile bekannt).
+ */
+function ausBestandteilen(packagings, bier) {
+  const teile = (Array.isArray(packagings) ? packagings : [])
+    .map((t) => ({ form: teilName(t?.shape), material: teilName(t?.material) }))
+    .filter((t) => t.form || t.material);
+  if (!teile.length) return undefined;
+  const dosen = teile.filter((t) => DOSE.test(t.form) && !KONSERVE.test(t.form));
+  const flaschen = teile.filter((t) => FLASCHE.test(t.form));
+  if (dosen.length) return "einweg";
+  if (flaschen.length) {
+    if (flaschen.every((t) => PLASTIK.test(t.material) && !GLAS.test(t.material))) return "einweg";
+    if (flaschen.every((t) => GLAS.test(t.material))) return bier ? "bier" : null;
+    return null;
+  }
+  if (teile.some((t) => KARTON.test(t.form) || KARTON.test(t.material))) return KEIN;
+  return null;
+}
+
+/**
+ * Schätzung aus den zusammengefassten Angaben (packaging_*_tags), wenn es keine Bestandteile gibt.
+ * Die Tags mischen alle Bestandteile: bei Glas und Kunststoff zugleich lieber fragen.
+ */
+function ausFacetten(formen, bier) {
   const hat = (re) => formen.some((t) => re.test(t));
-  if (hat(KARTON)) return { pfand: KEIN, pfandQuelle: "verpackung" };
-  if (hat(DOSE) && !hat(KONSERVE)) return { pfand: "einweg", pfandQuelle: "verpackung" };
-  if (hat(PLASTIKFLASCHE) || (hat(FLASCHE) && hat(PLASTIK))) return { pfand: "einweg", pfandQuelle: "verpackung" };
-  // Glasflaschen sind oft Mehrweg, Saft und Wein in Glas aber oft ohne Pfand: bei Bier schätzen, sonst fragen
-  if (bier && hat(GLAS)) return { pfand: "bier", pfandQuelle: "verpackung" };
-  return { pfand: null, pfandQuelle: null };
+  const dose = hat(DOSE) && !hat(KONSERVE);
+  const flasche = hat(FLASCHE) || hat(PLASTIKFLASCHE);
+  if (dose) return "einweg"; // auch Dosen im Karton (Multipack)
+  if (hat(KARTON) && !flasche) return KEIN;
+  if (hat(GLAS)) return bier && !hat(PLASTIKFLASCHE) ? "bier" : null; // Glasflasche, evtl. mit Kunststoffdeckel
+  if (hat(PLASTIKFLASCHE) || (hat(FLASCHE) && hat(PLASTIK))) return "einweg";
+  return null;
 }
 
 /**
  * Pfand eines Produkts, wie es in der Kasse steht.
- * pfand gesetzt (auch null) → so nehmen; ältere Scans ohne Feld: Getränke fragen, alles andere kein Pfand.
+ * pfand gesetzt (auch null) → so nehmen; ältere Scans ohne Feld: Getränke und Produkte ohne bekannte
+ * Kategorie fragen, alles andere kein Pfand.
  */
 export function pfandVon(product) {
   if (!product) return { pfand: null, pfandQuelle: null };
   if (product.pfand !== undefined) return { pfand: product.pfand, pfandQuelle: product.pfandQuelle ?? (product.source === "eigen" ? "eigen" : null) };
-  if (istGetraenk(product)) return { pfand: null, pfandQuelle: null };
+  if (istGetraenk(product) || !product.categoryId || product.categoryId === "gescannt") return { pfand: null, pfandQuelle: null };
   return { pfand: KEIN, pfandQuelle: "kategorie" };
 }
 

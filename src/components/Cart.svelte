@@ -181,7 +181,9 @@
   .big-btn.aus { background: var(--pfand); box-shadow: 0 0.25rem 0 var(--pfand-dark); }
 
   /* Pfand: eigener Block unter den Waren */
-  .pfand { margin-top: 0.5rem; border: 2px dashed var(--pfand); border-radius: 0.9rem; background: var(--pfand-bg); padding: 0.4rem 0.45rem; display: flex; flex-direction: column; gap: 0.25rem; }
+  /* Teilt sich die Höhe mit den Waren und scrollt bei vielen Zeilen: Summe und Auszahlen bleiben im Bild */
+  .pfand { margin-top: 0.5rem; border: 2px dashed var(--pfand); border-radius: 0.9rem; background: var(--pfand-bg); padding: 0.4rem 0.45rem; display: flex; flex-direction: column; gap: 0.25rem; flex: 0 1 auto; min-height: 2.2rem; overflow-y: auto; }
+  .pfand > * { flex-shrink: 0; }
   .pfand.bump { animation: bump 0.35s ease-out; }
   .pf-head { display: flex; align-items: center; gap: 0.4rem; padding: 0 0.2rem; color: var(--pfand-dark); }
   .pf-head b { font-size: 1rem; }

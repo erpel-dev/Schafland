@@ -70,7 +70,6 @@ test("Open Food Facts: ausdrücklich ohne Pfand", () => {
 
 test("kein Getränk und keine Pfand-Angabe: kein Pfand", () => {
   assert.deepEqual(off({ categories_tags: ["en:chocolates"], packaging_tags: ["en:plastic-bottle"] }), { pfand: "kein", pfandQuelle: "kategorie" });
-  assert.equal(off({}).pfand, "kein");
   assert.equal(off({ packaging_tags: ["en:food-can"], categories_tags: ["en:canned-vegetables"] }).pfand, "kein");
 });
 
@@ -109,4 +108,39 @@ test("Pfand eines Produkts: gespeicherte Angabe, ältere Scans, eigenes Sortimen
   assert.deepEqual(pfandVon({ categoryId: "getraenke" }), { pfand: null, pfandQuelle: null });
   assert.deepEqual(pfandVon({ categoryId: "suesses" }), { pfand: "kein", pfandQuelle: "kategorie" });
   assert.deepEqual(pfandVon(null), { pfand: null, pfandQuelle: null });
+});
+
+test("ohne Kategorien bei Open Food Facts: fragen statt ablehnen", () => {
+  assert.deepEqual(off({}), { pfand: null, pfandQuelle: null });
+  assert.deepEqual(off({ packaging_tags: ["en:bottle"] }), { pfand: null, pfandQuelle: null });
+  assert.equal(pfandAusOpenFacts({}, { categoryId: "gescannt" }).pfand, null);
+  // Siegel gilt trotzdem
+  assert.equal(off({ labels_tags: ["de:einwegpfand"] }).pfand, "einweg");
+  // ältere Scans ohne Kategorie
+  assert.equal(pfandVon({ categoryId: "gescannt" }).pfand, null);
+  assert.equal(pfandVon({}).pfand, null);
+});
+
+test("Bestandteile (packagings): Form und Material derselben Verpackung", () => {
+  const drink = (packagings, cats = []) => off({ categories_tags: ["en:beverages", ...cats], packagings });
+  // Glasflasche mit Kunststoffdeckel ist keine Plastikflasche
+  assert.deepEqual(drink([{ shape: "en:bottle", material: "en:glass" }, { shape: "en:cap", material: "en:plastic" }]), { pfand: null, pfandQuelle: null });
+  assert.equal(drink([{ shape: "en:bottle", material: "en:glass" }, { shape: "en:cap", material: "en:metal" }], ["en:beers"]).pfand, "bier");
+  assert.deepEqual(drink([{ shape: "en:bottle", material: "en:pet-1-polyethylene-terephthalate" }, { shape: "en:cap", material: "en:hdpe-2-high-density-polyethylene" }]), { pfand: "einweg", pfandQuelle: "verpackung" });
+  // API v3: Objekte mit id
+  assert.equal(drink([{ shape: { id: "en:bottle" }, material: { id: "en:plastic" } }]).pfand, "einweg");
+  assert.equal(drink([{ shape: "en:drink-can", material: "en:aluminium" }]).pfand, "einweg");
+  assert.equal(drink([{ shape: "en:brick", material: "en:multilayer-composite" }, { shape: "en:cap", material: "en:plastic" }]).pfand, "kein");
+  // Flasche ohne Material, oder gemischte Flaschen: fragen
+  assert.equal(drink([{ shape: "en:bottle" }]).pfand, null);
+  assert.equal(drink([{ shape: "en:bottle", material: "en:glass" }, { shape: "en:bottle", material: "en:plastic" }]).pfand, null);
+  // Bestandteile gehen den zusammengefassten Tags vor
+  assert.equal(off({ categories_tags: ["en:beverages"], packaging_tags: ["en:bottle", "en:plastic"], packagings: [{ shape: "en:bottle", material: "en:glass" }, { shape: "en:cap", material: "en:plastic" }] }).pfand, null);
+});
+
+test("zusammengefasste Tags: bei Glas und Kunststoff zugleich fragen; Dosen im Karton sind Einweg", () => {
+  const drink = (packaging_tags, cats = []) => off({ categories_tags: ["en:beverages", ...cats], packaging_tags });
+  assert.equal(drink(["en:bottle", "en:glass", "en:plastic"]).pfand, null);
+  assert.equal(drink(["en:bottle", "en:glass", "en:metal"], ["en:beers"]).pfand, "bier");
+  assert.equal(drink(["en:can", "en:cardboard-box", "de:karton"]).pfand, "einweg");
 });

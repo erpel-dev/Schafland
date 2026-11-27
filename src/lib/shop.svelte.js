@@ -222,13 +222,17 @@ class Cart {
     return !this.lines.length && !this.pfand.length;
   }
 
-  /** Eine Flasche oder Dose zurück. Gleiche Art und gleicher Betrag werden zusammengezählt. */
+  /**
+   * Eine Flasche oder Dose zurück. Gleiche Art und gleicher Betrag werden zusammengezählt.
+   * Gibt true zurück, wenn etwas gutgeschrieben wurde (nicht bei „kein“ oder 0 Cent).
+   */
   addPfand(art, cents) {
-    if (!art || art === "kein" || !(cents > 0)) return;
+    if (!art || art === "kein" || !(cents > 0)) return false;
     const line = this.pfand.find((p) => p.art === art && p.cents === cents);
     if (line) line.qty++;
     else this.pfand = [...this.pfand, { art, cents, qty: 1 }];
     this.pfandTick++;
+    return true;
   }
 
   changePfand(art, cents, delta) {

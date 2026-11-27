@@ -9,7 +9,7 @@ const HOSTS = [
   "https://world.openbeautyfacts.org",
   "https://world.openproductsfacts.org",
 ];
-const FIELDS = "product_name,product_name_de,brands,quantity,image_front_small_url,categories_tags,allergens_tags,traces_tags,labels_tags,ingredients_tags,ingredients_text_de,ingredients_text,ingredients_n,unknown_ingredients_n,packaging_tags,packaging_shapes_tags,packaging_materials_tags";
+const FIELDS = "product_name,product_name_de,brands,quantity,image_front_small_url,categories_tags,allergens_tags,traces_tags,labels_tags,ingredients_tags,ingredients_text_de,ingredients_text,ingredients_n,unknown_ingredients_n,packaging_tags,packaging_shapes_tags,packaging_materials_tags,packagings";
 
 // Reihenfolge zählt: die erste passende Kategorie gewinnt.
 const CATEGORY_TAGS = [

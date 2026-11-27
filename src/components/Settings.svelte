@@ -2,7 +2,7 @@
   import { settings } from "../lib/settings.svelte.js";
   import { music, mmss, canPickFolder } from "../lib/music.svelte.js";
   import { scanned, pfandWahl } from "../lib/shop.svelte.js";
-  import { PFAND_ARTEN, PFAND_QUELLE, pfandCents, pfandVon } from "../lib/pfand.js";
+  import { PFAND_ARTEN, PFAND_QUELLE, pfandCents, pfandVon, istGetraenk } from "../lib/pfand.js";
   import { productByEan } from "../lib/catalog.js";
   import { scanLog } from "../lib/scanlog.svelte.js";
   import { aktionen } from "../lib/aktionen.js";
@@ -221,7 +221,7 @@
     glutenStatus = fehler ? `${ok} aktualisiert, ${fehler} nicht erreichbar (später nochmal versuchen).` : `${ok} aktualisiert.`;
   }
 
-  const PAY = { "spiel-qr": "Schaf-Code", paypal: "PayPal", girocode: "Überweisung (GiroCode)", karte: "Karte (NFC)", pfand: "Pfand ausgezahlt" };
+  const PAY = { "spiel-qr": "Schaf-Code", paypal: "PayPal", girocode: "Überweisung (GiroCode)", karte: "Karte (NFC)", pfand: "Pfand ausgezahlt", "pfand-verrechnet": "Pfand verrechnet" };
 
   // --- Pfand
   $effect(() => {
@@ -233,13 +233,14 @@
     if (Number.isInteger(cents) && cents >= 0 && cents <= 500) settings.set({ [key]: cents });
     input.value = priceText(settings.value[key]);
   }
-  // Gemerkte Flaschen: Wahl von Kind oder Eltern, dazu gescannte Getränke und Produkte mit Pfand
+  // Gemerkte Flaschen: Wahl von Kind oder Eltern, dazu gescannte Getränke (auch abgelehnte, zum
+  // Korrigieren), Produkte mit Pfand und solche, bei denen das Kind gefragt wird
   let pfandListe = $derived.by(() => {
     const rows = new Map();
     for (const p of scanned.list) {
       const { pfand, pfandQuelle } = pfandVon(p);
-      if (pfand && pfand !== "kein") rows.set(p.ean, { ean: p.ean, name: p.name, product: p, art: pfand, quelle: pfandQuelle });
-      else if (pfand === null) rows.set(p.ean, { ean: p.ean, name: p.name, product: p, art: "", quelle: null });
+      if (pfand === "kein" && !istGetraenk(p) && pfandQuelle !== "siegel") continue;
+      rows.set(p.ean, { ean: p.ean, name: p.name, product: p, art: pfand ?? "", quelle: pfandQuelle });
     }
     for (const [ean, w] of Object.entries(pfandWahl.map)) {
       const product = rows.get(ean)?.product ?? scanned.list.find((p) => p.ean === ean) ?? productByEan.get(ean) ?? null;

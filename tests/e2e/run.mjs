@@ -271,6 +271,12 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       check("Bezahlen schließt den Pfandautomaten", (await page.locator("video").count()) === 0);
       const shown = (await page.textContent(".modal h2 span")).replace(/\s/g, " ");
       check("Bezahlfenster zeigt den Korbstand (0,50 € − 0,25 €)", shown === "0,25 €" && shown === (await total(page)).replace(/\s/g, " "), shown);
+      const imFenster = () => page.evaluate(() => !!document.activeElement?.closest(".modal"));
+      let fokus = await imFenster();
+      for (let i = 0; i < 4; i++) { await page.keyboard.press("Shift+Tab"); fokus &&= await imFenster(); }
+      for (let i = 0; i < 6; i++) { await page.keyboard.press("Tab"); fokus &&= await imFenster(); }
+      check("Bezahlfenster: Tastaturfokus bleibt im Fenster", fokus);
+      check("Bezahlfenster: Betrag unverändert nach Tab-Tasten", (await page.textContent(".modal h2 span")).replace(/\s/g, " ") === "0,25 €");
       await page.click("text=Bezahlt! Neuer Einkauf");
       await page.locator(".party").waitFor();
       await page.locator(".party").click();
@@ -303,6 +309,69 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       await page.tap("text=✓ Fertig mit Pfand");
       check("Handy quer: Pfandfrage lässt sich ohne Antwort beenden", (await page.locator(".scan").count()) === 0);
       check("Keine Konsolenfehler (Pfand Handy quer)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+
+    if (section("pfand")) {
+      // Pfand genau so hoch wie der Einkauf: „Passt genau!“, Bon „Pfand verrechnet“
+      const { browser, page, errors } = await launch("wasser");
+      await openShop(page);
+      await page.click('.tile:has-text("Apfel")');
+      await page.click("text=Pfand abgeben");
+      await page.waitForSelector(".found .plus", { timeout: 15000 });
+      await page.click("text=✓ Fertig mit Pfand");
+      await page.click(".pfand button[aria-label='Eine Flasche mehr']");
+      await page.click(".pay");
+      check("Pfand = Einkauf: „Passt genau!“", (await page.textContent(".modal h2")).includes("Passt genau!"));
+      await page.click("text=Fertig! Neuer Einkauf");
+      await page.locator(".party").waitFor();
+      await page.locator(".party").click();
+      await openSettings(page);
+      await page.click("nav >> text=Kassenbons");
+      check("Pfand = Einkauf: Bon „Pfand verrechnet“", (await page.locator(".bon").first().textContent()).includes("Pfand verrechnet"), await page.locator(".bon").first().textContent());
+      check("Keine Konsolenfehler (Pfand verrechnet)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+    if (section("pfand")) {
+      // Vier Pfandzeilen (Mehrweg-Betrag zwischendurch geändert) auf 839 × 360: „Pfand auszahlen“ bleibt im Bild
+      const { browser, page, errors } = await launch("unknown", { viewport: { width: 839, height: 360 } });
+      await openShop(page);
+      const abgeben = async () => {
+        await page.click(".pfandbar");
+        await page.locator(".found .plus, .wahl").first().waitFor({ timeout: 15000 });
+        if (await page.locator(".wahl").count()) await page.click(".wahl:has-text('Glasflasche')");
+        await page.locator(".found .plus").waitFor();
+        await page.click(".done");
+      };
+      const betrag = async (v) => {
+        await openSettings(page);
+        await page.click("nav >> text=Pfand");
+        await page.fill("#pfand-mehrweg", v); await page.press("#pfand-mehrweg", "Tab");
+        await page.click("text=Zurück zum Laden");
+      };
+      await abgeben();
+      for (const v of ["0,20", "0,30", "0,40"]) { await betrag(v); await abgeben(); }
+      check("Vier Pfandzeilen im Korb", (await page.locator(".pf-ln").count()) === 4, String(await page.locator(".pf-ln").count()));
+      const pay = await page.locator(".pay").boundingBox();
+      check("839 × 360, vier Pfandzeilen: „Pfand auszahlen“ im Bild", pay && pay.y + pay.height <= 361 && (await page.textContent(".pay")).includes("Pfand auszahlen"), JSON.stringify(pay));
+      await page.screenshot({ path: `${SHOTS}/pfand-viele-zeilen-niedrig.png` });
+      check("Keine Konsolenfehler (viele Pfandzeilen)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+    for (const [w, h] of section("pfand") ? [[761, 768], [320, 640]] : []) {
+      // Drei Karten unten (Scannen, Pfand, Frag das Schaf): Beschriftungen bleiben in ihrer Karte
+      const { browser, page } = await launch("empty", { viewport: { width: w, height: h } });
+      await openShop(page);
+      await openSettings(page);
+      await page.click("nav >> text=Frag das Schaf");
+      await page.click("#schaf-on");
+      await page.click("text=Zurück zum Laden");
+      const over = await page.evaluate(() => [...document.querySelectorAll(".bottom > button")].flatMap((card) => {
+        const c = card.getBoundingClientRect();
+        return [...card.querySelectorAll("b, small")].filter((e) => { const r = e.getBoundingClientRect(); return r.width && (r.right > c.right + 1 || r.left < c.left - 1); }).map((e) => e.textContent.trim());
+      }));
+      check(`${w} × ${h}, drei Karten: Beschriftungen laufen nicht über`, (await page.locator(".bottom > button").count()) === 3 && !over.length, over.join(", "));
+      await page.screenshot({ path: `${SHOTS}/karten-${w}x${h}.png` });
       await browser.close();
     }
 

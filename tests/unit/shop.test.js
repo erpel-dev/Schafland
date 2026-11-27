@@ -207,8 +207,8 @@ test("Pfand: eigene Liste, gleiche Art und Betrag zusammengezählt, Waren bleibe
 
 test("Pfand: „kein“, 0 Cent und unbekannte Art werden ignoriert", () => {
   const tick = cart.pfandTick;
-  cart.addPfand("kein", 25);
-  cart.addPfand("einweg", 0);
+  assert.equal(cart.addPfand("kein", 25), false);
+  assert.equal(cart.addPfand("einweg", 0), false, "Mehrweg im Eltern-Bereich auf 0,00 €: nichts gutschreiben");
   cart.addPfand(null, 25);
   cart.addPfand("einweg", undefined);
   assert.equal(cart.pfand.length, 0);
@@ -217,7 +217,7 @@ test("Pfand: „kein“, 0 Cent und unbekannte Art werden ignoriert", () => {
 });
 
 test("Pfand: mehr Pfand als Einkauf ergibt negative Summe; nur Pfand ist nicht leer", () => {
-  cart.addPfand("einweg", 25);
+  assert.equal(cart.addPfand("einweg", 25), true);
   assert.equal(cart.isEmpty, false);
   assert.equal(cart.lines.length, 0);
   assert.equal(cart.totalCents, -25);

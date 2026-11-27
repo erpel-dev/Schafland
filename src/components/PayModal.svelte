@@ -7,9 +7,13 @@
   import { giroPayload, formatIban } from "../lib/girocode.js";
   import { nfcInfo, watchCards, openNfcSettings } from "../lib/nfc.js";
   import { beep, unlockAudio } from "../lib/sounds.js";
-  import { onDestroy } from "svelte";
+  import { onDestroy, onMount } from "svelte";
 
   let { onClose, onPaid } = $props();
+
+  // Tastatur: Fokus ins Fenster (der Hintergrund ist währenddessen gesperrt, siehe App.svelte)
+  let dialog = $state();
+  onMount(() => dialog?.focus());
 
   let method = $state("spiel-qr");
   // Immer der aktuelle Korb: Was hier steht (Betrag, QR-Code), kommt genau so auf den Kassenbon
@@ -112,7 +116,7 @@
 <svelte:document onvisibilitychange={onVisible} />
 
 <div class="dim" role="presentation">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pay-title">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pay-title" tabindex="-1" bind:this={dialog}>
     {#if auszahlung}
     <h2 id="pay-title">{total < 0 ? "Du bekommst Geld zurück!" : "Passt genau!"} <span class="aus">{euro(Math.abs(total))}</span></h2>
     <p class="split">Einkauf {euro(warenCents)} · <b>Pfand −{euro(pfandCents)}</b></p>
@@ -140,7 +144,7 @@
     </div>
     <div class="row">
       <button class="big-btn light" onclick={onClose}>Zurück</button>
-      <button class="big-btn aus" onclick={() => onPaid("pfand")}>{total < 0 ? "Ausgezahlt! Neuer Einkauf" : "Fertig! Neuer Einkauf"}</button>
+      <button class="big-btn aus" onclick={() => onPaid(total < 0 ? "pfand" : "pfand-verrechnet")}>{total < 0 ? "Ausgezahlt! Neuer Einkauf" : "Fertig! Neuer Einkauf"}</button>
     </div>
     {:else}
     <h2 id="pay-title">Wie möchtest du bezahlen? <span>{euro(total)}</span></h2>
@@ -242,6 +246,7 @@
 
 <style>
   .dim { position: fixed; inset: 0; background: rgba(40, 50, 35, 0.5); display: grid; place-items: center; z-index: 20; animation: fade 0.15s; }
+  .modal:focus { outline: none; }
   .modal { background: var(--wool); border-radius: 2rem; padding: 1.4rem 1.6rem; width: min(52rem, 94vw); display: flex; flex-direction: column; gap: 1rem; box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.3); animation: up 0.2s ease-out; }
   h2 { margin: 0; font-family: var(--f-display); font-size: 1.9rem; display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
   h2 span { font-size: 2.5rem; color: var(--grass-dark); font-variant-numeric: tabular-nums; }

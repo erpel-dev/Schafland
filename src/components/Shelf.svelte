@@ -120,8 +120,10 @@
   @keyframes hop { 40% { transform: translateY(-0.4rem); } }
   @keyframes rise { from { transform: translateY(0.6rem); opacity: 0; } }
 
-  .bottom { display: flex; gap: 0.6rem; }
-  .bottom > * { flex: 1; min-width: 0; }
+  /* Bei wenig Breite (drei Karten) brechen die Karten in eine zweite Zeile um, statt überzulaufen */
+  .bottom { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+  .bottom > * { flex: 1 1 13rem; min-width: 0; }
+  .bottom b { overflow-wrap: anywhere; }
   .askbar {
     display: flex; align-items: center; gap: 0.8rem; text-align: left;
     background: var(--sky); color: var(--sky-ink); border-radius: 1.2rem; padding: 0.55rem 0.8rem;
@@ -172,6 +174,7 @@
     .bottom:has(.pfandbar) b { font-size: 1.1rem; }
     .bottom:has(.pfandbar) .cam, .bottom:has(.pfandbar) .pf-icon { width: 3rem; }
     .bottom { gap: 0.45rem; }
+    .bottom > * { flex-basis: 8.5rem; }
     .askbar { padding: 0.45rem 0.6rem; gap: 0.5rem; }
     .mic { width: 2.6rem; height: 2.6rem; font-size: 1.4rem; }
     .bottom:has(.askbar) small { display: none; }
