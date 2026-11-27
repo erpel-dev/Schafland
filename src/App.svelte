@@ -71,12 +71,16 @@
     if (checkingOut || cart.isEmpty) return;
     checkingOut = true;
     const total = cart.totalCents;
+    // Fenster zuerst schließen: Es zeigt immer den aktuellen Korb, der gleich geleert wird
+    paying = false;
     try {
       await cart.checkout(method);
+    } catch (err) {
+      paying = true;
+      throw err;
     } finally {
       checkingOut = false;
     }
-    paying = false;
     view = "shop";
     celebrate = total;
     kaching();
