@@ -31,7 +31,7 @@
     if (id) document.documentElement.dataset.aktion = id;
     else delete document.documentElement.dataset.aktion;
   });
-  let view = $state("shop"); // shop | scan
+  let view = $state("shop"); // shop | scan | pfand
   let paying = $state(false);
   let celebrate = $state(null); // Betrag in Cent
   let showSettings = $state(false);
@@ -63,7 +63,7 @@
   // Schnelles Mehrfach-Tippen auf "Bezahlt!" darf nur einen Kassenbon ergeben
   let checkingOut = false;
   async function paid(method) {
-    if (checkingOut || !cart.lines.length) return;
+    if (checkingOut || cart.isEmpty) return;
     checkingOut = true;
     const total = cart.totalCents;
     try {
@@ -90,7 +90,7 @@
           else if (celebrate !== null) celebrate = null;
           else if (paying) paying = false;
           else if (showSettings) showSettings = false;
-          else if (view === "scan") view = "shop";
+          else if (view !== "shop") view = "shop";
         }),
       )
       .then((l) => (listener = l))
@@ -131,10 +131,12 @@
   <div class="app">
     <TopBar onOpenSettings={openSettings} />
     <main class:narrow={layout.narrow}>
-      {#if view === "scan"}
-        <ScanView onClose={() => (view = "shop")} />
+      {#if view === "scan" || view === "pfand"}
+        {#key view}
+          <ScanView mode={view === "pfand" ? "pfand" : "kauf"} onClose={() => (view = "shop")} />
+        {/key}
       {:else}
-        <Shelf onScan={() => (view = "scan")} />
+        <Shelf onScan={() => (view = "scan")} onPfand={() => (view = "pfand")} />
       {/if}
       <Cart onPay={() => { schaf.close(); paying = true; }} compact={layout.narrow} />
     </main>

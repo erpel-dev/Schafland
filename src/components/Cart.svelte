@@ -5,6 +5,7 @@
   import ProductImage from "./ProductImage.svelte";
   import GlutenBadge from "./GlutenBadge.svelte";
   import Sheep from "./Sheep.svelte";
+  import { PFAND_ARTEN } from "../lib/pfand.js";
 
   // compact: Handy hochkant (Leiste unten statt Spalte rechts)
   let { onPay, compact = false } = $props();
@@ -33,6 +34,15 @@
     pop();
     cart.change(id, d);
   }
+
+  function changePfand(p, d) {
+    pop();
+    cart.changePfand(p.art, p.cents, d);
+  }
+
+  const flaschen = (n) => (n === 1 ? "1 Flasche" : `${n} Flaschen`);
+  // Mehr Pfand als Einkauf: Die Kasse zahlt aus
+  let auszahlen = $derived(cart.totalCents < 0);
 </script>
 
 {#snippet content()}
@@ -53,25 +63,51 @@
         </span>
         <span class="sum">{amount(l.qty * l.product.priceCents)}</span>
       </div>
-    {:else}
+    {/each}
+    {#if cart.isEmpty}
       <div class="empty">
         <Sheep size="6rem" />
         <p>Der Korb ist leer.<br />Tippe auf etwas Leckeres!</p>
       </div>
-    {/each}
+    {/if}
   </div>
 
-  {#if cart.lines.length}
+  {#if cart.pfand.length}
+    {#key cart.pfandTick}
+      <div class="pfand" class:bump={cart.pfandTick > 0}>
+        <div class="pf-head"><span class="emoji" aria-hidden="true">♻️</span><b>Pfand zurück</b><small>{flaschen(cart.pfandCount)}</small></div>
+        {#each cart.pfand as p (`${p.art}-${p.cents}`)}
+          <div class="pf-ln">
+            <span class="pf-nm">{PFAND_ARTEN[p.art]?.name ?? p.art}<small>{euro(p.cents)}</small></span>
+            <span class="qty">
+              <button onclick={() => changePfand(p, -1)} aria-label="Eine Flasche weniger">−</button>
+              <b>{p.qty}</b>
+              <button onclick={() => changePfand(p, 1)} aria-label="Eine Flasche mehr">+</button>
+            </span>
+            <span class="sum">−{amount(p.qty * p.cents)}</span>
+          </div>
+        {/each}
+      </div>
+    {/key}
+  {/if}
+
+  {#if !cart.isEmpty}
     <button class="clear" class:confirm={confirmClear} onclick={clearTap}>
       {confirmClear ? "Wirklich alles raus? Nochmal tippen" : "Korb leeren"}
     </button>
   {/if}
 
   <div class="total">
-    <span>Zusammen</span>
-    <b>{euro(cart.totalCents)}</b>
+    {#if cart.pfand.length}
+      <div class="sub"><span>Einkauf</span><span>{euro(cart.warenCents)}</span></div>
+      <div class="sub pf"><span>Pfand</span><span>−{euro(cart.pfandCents)}</span></div>
+    {/if}
+    <div class="main" class:aus={auszahlen}>
+      <span>{auszahlen ? "Du bekommst" : "Zusammen"}</span>
+      <b>{euro(Math.abs(cart.totalCents))}</b>
+    </div>
   </div>
-  <button class="big-btn pay" disabled={!cart.lines.length} onclick={pay}>Bezahlen</button>
+  <button class="big-btn pay" class:aus={auszahlen} disabled={cart.isEmpty} onclick={pay}>{auszahlen ? "Pfand auszahlen" : "Bezahlen"}</button>
 {/snippet}
 
 {#if compact}
@@ -81,9 +117,9 @@
       <button class="bar-info" onclick={() => (open = true)} aria-label="Einkaufskorb öffnen">
         <span class="emoji">🧺</span>
         <span class="bar-text"><b>{cart.count === 1 ? "1 Sache" : `${cart.count} Sachen`}</b><small>Korb ansehen</small></span>
-        <b class="bar-total">{euro(cart.totalCents)}</b>
+        <b class="bar-total" class:aus={auszahlen}>{auszahlen ? `+${euro(-cart.totalCents)}` : euro(cart.totalCents)}</b>
       </button>
-      <button class="big-btn bar-pay" disabled={!cart.lines.length} onclick={onPay}>Bezahlen</button>
+      <button class="big-btn bar-pay" class:aus={auszahlen} disabled={cart.isEmpty} onclick={onPay}>{auszahlen ? "Auszahlen" : "Bezahlen"}</button>
     </div>
   {/key}
   {#if open}
@@ -132,13 +168,29 @@
   .empty p { margin: 0; font-size: 1.05rem; }
   .clear { align-self: flex-end; margin: 0.4rem 0.2rem 0; color: var(--ink-soft); font-size: 0.9rem; padding: 0.3rem 0.6rem; border-radius: 0.6rem; }
   .clear.confirm { background: var(--danger); color: #fff; }
-  .total {
-    margin-top: 0.5rem; padding: 0.6rem 0.9rem; border-radius: 1rem; background: var(--wool-2);
-    display: flex; justify-content: space-between; align-items: baseline;
-  }
-  .total span { font-weight: 800; color: var(--ink-soft); }
-  .total b { font-family: var(--f-display); font-size: 2.5rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .total { margin-top: 0.5rem; padding: 0.6rem 0.9rem; border-radius: 1rem; background: var(--wool-2); display: flex; flex-direction: column; }
+  .total .sub { display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .total .sub.pf { color: var(--pfand); font-weight: 800; }
+  .total .sub + .main { border-top: 2px solid var(--wool-line); margin-top: 0.25rem; padding-top: 0.1rem; }
+  .main { display: flex; justify-content: space-between; align-items: baseline; }
+  .main span { font-weight: 800; color: var(--ink-soft); }
+  .main b { font-family: var(--f-display); font-size: 2.5rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .main.aus span { color: var(--pfand-dark); }
+  .main.aus b { color: var(--pfand); }
   .pay { margin-top: 0.7rem; font-size: 1.7rem; padding: 0.7rem; }
+  .big-btn.aus { background: var(--pfand); box-shadow: 0 0.25rem 0 var(--pfand-dark); }
+
+  /* Pfand: eigener Block unter den Waren */
+  .pfand { margin-top: 0.5rem; border: 2px dashed var(--pfand); border-radius: 0.9rem; background: var(--pfand-bg); padding: 0.4rem 0.45rem; display: flex; flex-direction: column; gap: 0.25rem; }
+  .pfand.bump { animation: bump 0.35s ease-out; }
+  .pf-head { display: flex; align-items: center; gap: 0.4rem; padding: 0 0.2rem; color: var(--pfand-dark); }
+  .pf-head b { font-size: 1rem; }
+  .pf-head small { margin-left: auto; font-size: 0.85rem; }
+  .pf-ln { display: grid; grid-template-columns: 1fr auto 3.4rem; gap: 0.5rem; align-items: center; padding: 0.1rem 0.2rem 0.1rem 0.4rem; }
+  .pf-nm { font-weight: 800; display: flex; flex-direction: column; line-height: 1.15; }
+  .pf-nm small { font-weight: 600; font-size: 0.85rem; color: var(--pfand-dark); }
+  .pf-ln .sum { color: var(--pfand); }
+  .pf-ln .qty button { width: 1.9rem; height: 1.9rem; font-size: 1.05rem; }
 
   /* Handy quer: niedriger Bildschirm */
   @media (max-height: 500px) {
@@ -148,7 +200,8 @@
     .qty button { width: 1.85rem; height: 1.85rem; font-size: 1.05rem; }
     .sum { font-size: 1rem; }
     h2 { font-size: 1.3rem; margin-bottom: 0.3rem; }
-    .total b { font-size: 1.8rem; }
+    .main b { font-size: 1.8rem; }
+    .pf-ln { grid-template-columns: 1fr auto 2.9rem; }
     .pay { font-size: 1.35rem; padding: 0.5rem; margin-top: 0.5rem; }
   }
 
@@ -168,6 +221,7 @@
   .bar-text small { color: var(--ink-soft); font-size: 0.85rem; }
   .bar-total { margin-left: auto; font-family: var(--f-display); font-size: 1.7rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .bar-pay { font-size: 1.3rem; padding: 0.7rem 1rem; flex: none; }
+  .bar-total.aus { color: var(--pfand); }
   .sheet-dim { position: fixed; inset: 0; z-index: 18; background: rgba(40, 50, 35, 0.45); display: flex; align-items: flex-end; animation: fade 0.15s; }
   .cart.sheet {
     width: 100%; max-height: 85%; border-left: 0; border-radius: 1.6rem 1.6rem 0 0; position: relative;

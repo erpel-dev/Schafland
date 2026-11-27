@@ -64,6 +64,13 @@ test("Summe: leer, eine Sache, mehrere", () => {
   assert.equal(answer(R("total"), { cartCount: 2, cartTotal: 300 }).say, "Im Korb sind 2 Sachen. Das macht zusammen 3 Euro.");
 });
 
+test("Summe mit Pfand: abgezogen, genau aufgehend, Auszahlung, nur Pfand", () => {
+  assert.equal(answer(R("total"), { cartCount: 2, cartTotal: 250, cartPfand: 50 }).say, "Im Korb sind 2 Sachen. Mit dem Pfand macht das zusammen 2 Euro 50.");
+  assert.equal(answer(R("total"), { cartCount: 1, cartTotal: 0, cartPfand: 50 }).say, "Im Korb ist eine Sache. Das Pfand reicht genau, du musst nichts bezahlen.");
+  assert.equal(answer(R("total"), { cartCount: 1, cartTotal: -60, cartPfand: 90 }).say, "Im Korb ist eine Sache. Mit dem Pfand bekommst du 60 Cent zurück.");
+  assert.equal(answer(R("total"), { cartCount: 0, cartTotal: -75, cartPfand: 75 }).say, "Du hast Pfand für 75 Cent abgegeben. Das bekommst du zurück.");
+});
+
 test("Kategorie: leer, bis vier Namen, „und noch … andere“, höchstens sechs zum Antippen", () => {
   const cat = { name: "Obst" };
   assert.deepEqual(answer(R("category", { category: cat })), { say: "Bei Obst ist gerade nichts im Regal." });

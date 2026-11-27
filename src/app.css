@@ -17,6 +17,10 @@
   --sky-ink-soft: var(--ink-soft);
   --meadow: var(--grass);
   --ok-bg: #f0f8ea; /* "gewählt" / "im Korb" */
+  /* Pfand-Modus (Pfandautomat): Türkis, bleibt in allen Aktionen gleich */
+  --pfand: #0b6b79;
+  --pfand-dark: #084c56;
+  --pfand-bg: #e2f4f6;
 
   --f-display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
   --f-body: "Nunito", "Segoe UI", system-ui, sans-serif;

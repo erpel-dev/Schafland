@@ -16,7 +16,7 @@
 <button class="party" onclick={onDone} aria-label="Weiter">
   <div class="msg">
     <b>Danke für deinen Einkauf!</b>
-    <span>{euro(total)} · {aktionById(settings.value.aktion)?.thanksText ?? "Bis bald in Schafland"}</span>
+    <span>{total < 0 ? `${euro(-total)} Pfand zurück` : euro(total)} · {aktionById(settings.value.aktion)?.thanksText ?? "Bis bald in Schafland"}</span>
   </div>
   <div class="runner"><Sheep size="9rem" class="run" /></div>
   <div class="grass"></div>

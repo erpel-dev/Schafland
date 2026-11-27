@@ -1,7 +1,8 @@
 <script>
   import { cart } from "../lib/shop.svelte.js";
   import { settings } from "../lib/settings.svelte.js";
-  import { euro, euroText, plain } from "../lib/money.js";
+  import { euro, euroText, plain, muenzen, stueckName } from "../lib/money.js";
+  import Sheep from "./Sheep.svelte";
   import QrCode from "./QrCode.svelte";
   import { giroPayload, formatIban } from "../lib/girocode.js";
   import { nfcInfo, watchCards, openNfcSettings } from "../lib/nfc.js";
@@ -12,6 +13,13 @@
 
   let method = $state("spiel-qr");
   let total = cart.totalCents;
+  const warenCents = cart.warenCents;
+  const pfandCents = cart.pfandCents;
+  // Pfand so hoch wie der Einkauf oder höher: nichts zu bezahlen, die Kasse zahlt aus (kein echtes Geld)
+  const auszahlung = total <= 0 && pfandCents > 0;
+  const geld = auszahlung ? muenzen(-total) : [];
+  const geldText = geld.map((m) => `${m.anzahl} × ${stueckName(m.cents)}`).join(" und ");
+  const stueckLabel = (c) => (c >= 100 ? `${c / 100} €` : `${c} ct`);
 
   // --- Kartenzahlung spielen (NFC): jede Karte wird angenommen
   let nfc = $state(null); // { available, enabled, needsTap }
@@ -20,7 +28,7 @@
   let stopReader = null;
   let closed = false;
 
-  if (settings.value.nfcKarte) {
+  if (settings.value.nfcKarte && !auszahlung) {
     nfcInfo().then((info) => {
       if (closed || !info.available) return;
       nfc = info;
@@ -95,7 +103,7 @@
       ? `https://paypal.me/${settings.value.paypalName}/${plain(total)}EUR`
       : method === "girocode"
         ? giroPayload({ name: settings.value.giroName, iban: settings.value.giroIban, cents: total, text: settings.value.giroText })
-        : `Danke für Ihren Einkauf bei Schafland im Wert von ${euroText(total)}`,
+        : `Danke für Ihren Einkauf bei Schafland im Wert von ${euroText(total)}${pfandCents ? ` (Pfand ${euroText(pfandCents)} abgezogen)` : ""}`,
   );
 </script>
 
@@ -104,7 +112,40 @@
 
 <div class="dim" role="presentation">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pay-title">
+    {#if auszahlung}
+    <h2 id="pay-title">{total < 0 ? "Du bekommst Geld zurück!" : "Passt genau!"} <span class="aus">{euro(Math.abs(total))}</span></h2>
+    <p class="split">Einkauf {euro(warenCents)} · <b>Pfand −{euro(pfandCents)}</b></p>
+    <div class="qrrow">
+      {#if total < 0}
+        <div class="coins" aria-hidden="true">
+          {#each geld as m (m.cents)}
+            {#each Array(m.anzahl).fill(m.cents) as c, i (i)}
+              <span class="coin" class:schein={m.schein} class:gross={c >= 50 && !m.schein} class:klein={c < 10}>{stueckLabel(c)}</span>
+            {/each}
+          {/each}
+        </div>
+        <div class="txt">
+          <b>Das gibt die Kasse heraus</b>
+          <p>{geldText}.</p>
+          <p>Bei einer Auszahlung gibt es kein PayPal, keine Überweisung und keine Karte.</p>
+        </div>
+      {:else}
+        <Sheep size="6rem" />
+        <div class="txt">
+          <b>Pfand und Einkauf sind gleich viel.</b>
+          <p>Es muss niemand etwas bezahlen.</p>
+        </div>
+      {/if}
+    </div>
+    <div class="row">
+      <button class="big-btn light" onclick={onClose}>Zurück</button>
+      <button class="big-btn aus" onclick={() => onPaid("pfand")}>{total < 0 ? "Ausgezahlt! Neuer Einkauf" : "Fertig! Neuer Einkauf"}</button>
+    </div>
+    {:else}
     <h2 id="pay-title">Wie möchtest du bezahlen? <span>{euro(total)}</span></h2>
+    {#if pfandCents}
+      <p class="split">Einkauf {euro(warenCents)} · <b>Pfand −{euro(pfandCents)}</b></p>
+    {/if}
 
     <div class="opts">
       {#if nfc}
@@ -194,6 +235,7 @@
       <button class="big-btn light" onclick={onClose}>Zurück</button>
       <button class="big-btn" onclick={() => onPaid(method)}>Bezahlt! Neuer Einkauf</button>
     </div>
+    {/if}
   </div>
 </div>
 
@@ -202,6 +244,19 @@
   .modal { background: var(--wool); border-radius: 2rem; padding: 1.4rem 1.6rem; width: min(52rem, 94vw); display: flex; flex-direction: column; gap: 1rem; box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.3); animation: up 0.2s ease-out; }
   h2 { margin: 0; font-family: var(--f-display); font-size: 1.9rem; display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
   h2 span { font-size: 2.5rem; color: var(--grass-dark); font-variant-numeric: tabular-nums; }
+  h2 span.aus { color: var(--pfand); }
+  .split { margin: -0.6rem 0 0; text-align: right; color: var(--ink-soft); font-size: 0.95rem; }
+  .split b { color: var(--pfand); }
+  .big-btn.aus { background: var(--pfand); box-shadow: 0 0.25rem 0 var(--pfand-dark); }
+  .coins { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; max-width: 22rem; flex: none; }
+  .coin {
+    width: 4.2rem; height: 4.2rem; border-radius: 50%; display: grid; place-items: center;
+    background: radial-gradient(circle at 35% 30%, #f6d77a, #d9a33a); border: 0.25rem solid #b8862a;
+    font-family: var(--f-display); font-weight: 800; font-size: 1.2rem; color: #5a3f06;
+  }
+  .coin.gross { width: 5.4rem; height: 5.4rem; font-size: 1.45rem; }
+  .coin.klein { width: 3.4rem; height: 3.4rem; font-size: 1rem; background: radial-gradient(circle at 35% 30%, #e9a77a, #b8673a); border-color: #8f4a22; color: #3d1d06; }
+  .coin.schein { width: 7rem; height: 4rem; border-radius: 0.5rem; background: linear-gradient(135deg, #cfe3c4, #9cc39a); border-color: #6f9a6c; color: #23401f; }
   .opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0.8rem; }
   .opt { background: #fff; border: 3px solid var(--wool-line); border-radius: 1.3rem; padding: 0.7rem; display: flex; flex-direction: column; align-items: center; gap: 0.1rem; }
   .opt .emoji { font-size: 2.3rem; }
@@ -235,6 +290,8 @@
     .modal { padding: 1rem; gap: 0.7rem; border-radius: 1.4rem; max-height: 96%; overflow-y: auto; }
     h2 { font-size: 1.3rem; flex-wrap: wrap; }
     h2 span { font-size: 1.8rem; }
+    .split { text-align: left; margin-top: -0.4rem; }
+    .coin.gross { width: 4.4rem; height: 4.4rem; }
     .opts { grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); gap: 0.5rem; }
     .opt { padding: 0.5rem 0.3rem; }
     .opt .emoji { font-size: 1.6rem; }

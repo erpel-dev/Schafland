@@ -1,0 +1,58 @@
+# Unit-Tests und Build für jeden Pull Request (die anderen Läufe starten erst nach dem Merge in main).
+name: Tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Abhängigkeiten und Unit-Tests
+        run: |
+          ok=; for i in 1 2 3; do npm ci && ok=1 && break; echo "npm ci fehlgeschlagen, neuer Versuch"; sleep 15; done; [ -n "$ok" ]
+          npm test
+
+      - name: App bauen
+        run: npx vite build
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Abhängigkeiten
+        run: |
+          ok=; for i in 1 2 3; do npm ci && ok=1 && break; echo "npm ci fehlgeschlagen, neuer Versuch"; sleep 15; done; [ -n "$ok" ]
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-color-emoji >/dev/null
+          npx playwright install --with-deps chromium
+
+      - name: Browser-Tests (Warenkorb, Pfand, Bezahlen, Bildschirmgrößen, Handy)
+        run: |
+          npx vite build
+          node tests/e2e/run.mjs --only=cart,pfand,pay,layout,handy
+
+      - name: Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: tests/e2e/.output/

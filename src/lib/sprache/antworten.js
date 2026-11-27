@@ -57,7 +57,7 @@ const list = (names) => (names.length <= 1 ? names.join("") : `${names.slice(0, 
  * Antwort auf ein Ergebnis von understand().
  * Ergebnis: { say, offerAdd?: product, choices?: products, added?: product, retry? }
  */
-export function answer(result, { cartCount = 0, cartTotal = 0, categoryProducts = [] } = {}) {
+export function answer(result, { cartCount = 0, cartTotal = 0, cartPfand = 0, categoryProducts = [] } = {}) {
   const p = result.product;
   switch (result.intent) {
     case "add": {
@@ -69,9 +69,16 @@ export function answer(result, { cartCount = 0, cartTotal = 0, categoryProducts 
       const { plural } = genus(p);
       return { say: `${subject(p)} ${plural ? "kosten" : "kostet"} ${sayPrice(p.priceCents)}. Soll ich ${plural ? "sie" : genus(p).article === "der" ? "ihn" : genus(p).article === "das" ? "es" : "sie"} in den Korb legen?`, offerAdd: p };
     }
-    case "total":
-      if (!cartCount) return { say: "Dein Korb ist noch leer. Was möchtest du kaufen?" };
-      return { say: `Im Korb ${cartCount === 1 ? "ist eine Sache" : `sind ${cartCount} Sachen`}. Das macht zusammen ${sayPrice(cartTotal)}.` };
+    case "total": {
+      // cartTotal ist schon abzüglich Pfand (cartPfand); negativ heißt: Die Kasse zahlt aus
+      if (!cartCount && !cartPfand) return { say: "Dein Korb ist noch leer. Was möchtest du kaufen?" };
+      if (!cartCount) return { say: `Du hast Pfand für ${sayPrice(cartPfand)} abgegeben. Das bekommst du zurück.` };
+      const korb = `Im Korb ${cartCount === 1 ? "ist eine Sache" : `sind ${cartCount} Sachen`}.`;
+      if (!cartPfand) return { say: `${korb} Das macht zusammen ${sayPrice(cartTotal)}.` };
+      if (cartTotal > 0) return { say: `${korb} Mit dem Pfand macht das zusammen ${sayPrice(cartTotal)}.` };
+      if (cartTotal === 0) return { say: `${korb} Das Pfand reicht genau, du musst nichts bezahlen.` };
+      return { say: `${korb} Mit dem Pfand bekommst du ${sayPrice(-cartTotal)} zurück.` };
+    }
     case "category": {
       const names = categoryProducts.map((x) => clean(x.name));
       if (!names.length) return { say: `Bei ${result.category.name} ist gerade nichts im Regal.` };

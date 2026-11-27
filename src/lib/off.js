@@ -1,6 +1,7 @@
 import { categories, SCANNED } from "./catalog.js";
 import { getJson, fetchImage, ServiceError } from "./net.js";
 import { glutenAusOpenFacts, GLUTEN_REGEL } from "./gluten.js";
+import { pfandAusOpenFacts } from "./pfand.js";
 
 // Open Food Facts und die Schwesterprojekte haben dieselbe Schnittstelle.
 const HOSTS = [
@@ -8,7 +9,7 @@ const HOSTS = [
   "https://world.openbeautyfacts.org",
   "https://world.openproductsfacts.org",
 ];
-const FIELDS = "product_name,product_name_de,brands,quantity,image_front_small_url,categories_tags,allergens_tags,traces_tags,labels_tags,ingredients_tags,ingredients_text_de,ingredients_text,ingredients_n,unknown_ingredients_n";
+const FIELDS = "product_name,product_name_de,brands,quantity,image_front_small_url,categories_tags,allergens_tags,traces_tags,labels_tags,ingredients_tags,ingredients_text_de,ingredients_text,ingredients_n,unknown_ingredients_n,packaging_tags,packaging_shapes_tags,packaging_materials_tags";
 
 // Reihenfolge zählt: die erste passende Kategorie gewinnt.
 const CATEGORY_TAGS = [
@@ -57,6 +58,7 @@ export async function lookupOpenFacts(ean, { timeoutMs = 8000, trace = [] } = {}
     const cat = categories.find((c) => c.id === categoryId) ?? SCANNED;
     const imageUrl = p.image_front_small_url || null;
     const gluten = glutenAusOpenFacts(p);
+    const { pfand, pfandQuelle } = pfandAusOpenFacts(p, { categoryId });
 
     return {
       id: `off-${ean}`,
@@ -67,6 +69,8 @@ export async function lookupOpenFacts(ean, { timeoutMs = 8000, trace = [] } = {}
       gluten: gluten.gluten,
       glutenGrund: gluten.grund,
       glutenRegel: GLUTEN_REGEL,
+      pfand,
+      pfandQuelle,
       emoji: cat.emoji,
       categoryId,
       priceCents: cat.defaultPrice,

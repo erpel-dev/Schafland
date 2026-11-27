@@ -170,7 +170,7 @@ test("Name, Marke, Menge: Ersatzwerte und Aufräumen", async () => {
   assert.equal(p.name, "Saft");
   assert.equal(p.brand, "");
   assert.equal(p.quantity, "1 l");
-  assert.match(calls[0], /fields=product_name,product_name_de,brands,quantity,image_front_small_url,categories_tags,allergens_tags,traces_tags,labels_tags,ingredients_tags,ingredients_text_de,ingredients_text,ingredients_n,unknown_ingredients_n&lc=de/);
+  assert.match(calls[0], /fields=product_name,product_name_de,brands,quantity,image_front_small_url,categories_tags,allergens_tags,traces_tags,labels_tags,ingredients_tags,ingredients_text_de,ingredients_text,ingredients_n,unknown_ingredients_n,packaging_tags,packaging_shapes_tags,packaging_materials_tags&lc=de/);
 });
 
 test("Gefunden nur beim zweiten Server; leerer Name zählt als nicht gefunden", async () => {
@@ -184,4 +184,25 @@ test("Gefunden nur beim zweiten Server; leerer Name zählt als nicht gefunden", 
   assert.equal(await lookupOpenFacts("4"), null, "status 1 ohne Produkt");
   mockFetch(() => json({ status: 0, product: { product_name: "Geist" } }));
   assert.equal(await lookupOpenFacts("4"), null, "status 0 trotz Produkt");
+});
+
+test("Pfand: aus Siegel, aus der Verpackung geschätzt, unbekannt, kein Getränk", async () => {
+  mockFetch(() => product({ product_name: "Wasser", categories_tags: ["en:beverages", "en:waters"], labels_tags: ["de:einwegpfand"] }));
+  let p = await lookupOpenFacts("1");
+  assert.equal(p.categoryId, "getraenke");
+  assert.equal(p.pfand, "einweg");
+  assert.equal(p.pfandQuelle, "siegel");
+
+  mockFetch(() => product({ product_name: "Limo", categories_tags: ["en:beverages", "en:sodas"], packaging_tags: ["en:can"] }));
+  p = await lookupOpenFacts("1");
+  assert.equal(p.pfand, "einweg");
+  assert.equal(p.pfandQuelle, "verpackung");
+
+  mockFetch(() => product({ product_name: "Apfelschorle", categories_tags: ["en:beverages", "en:juices"], packaging_tags: ["de:glasflasche"] }));
+  p = await lookupOpenFacts("1");
+  assert.equal(p.pfand, null, "Glas ohne Angabe: das Kind wird gefragt");
+
+  mockFetch(() => product({ product_name: "Schoko", categories_tags: ["en:chocolates"] }));
+  p = await lookupOpenFacts("1");
+  assert.equal(p.pfand, "kein");
 });

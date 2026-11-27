@@ -259,7 +259,7 @@ class FragDasSchaf {
         ? aktion.products
         : products.filter((p) => p.categoryId === result.category.id)
       : [];
-    return { result, reply: answer(result, { cartCount: cart.count, cartTotal: cart.totalCents, categoryProducts }) };
+    return { result, reply: answer(result, { cartCount: cart.count, cartTotal: cart.totalCents, cartPfand: cart.pfandCents, categoryProducts }) };
   }
 
   /** Versteht einen Satz und antwortet (auch für Tests: ohne Mikrofon). */
