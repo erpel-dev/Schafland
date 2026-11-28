@@ -162,7 +162,7 @@ async function monkey(ms, cam = "press") {
     ],
     pay: [
       [3, "Bezahlt", async () => { const b = page.locator(".modal .row .big-btn:not(.light)"); if (await b.count()) await b.tap(); }],
-      [2, "Zurück", async () => page.locator(".modal >> text=Zurück").tap()],
+      [2, "Zurück", async () => page.locator(".modal").getByRole("button", { name: "Zurück", exact: true }).tap()],
       [1, "Escape", async () => page.keyboard.press("Escape")],
       [1, "Daneben tippen", async () => { await page.mouse.click(20, 400); if (!(await page.locator(".modal").count())) finding("Tippen neben das Bezahlfenster schließt es", ""); }],
       [2, "PayPal/Schaf wechseln", async () => { const o = page.locator(".opt"); await o.nth(Math.floor(rnd() * (await o.count()))).tap(); }],

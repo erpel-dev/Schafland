@@ -4,6 +4,7 @@ import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { cart, scanned, findByEan, findPfand, pfandWahl } from "../../src/lib/shop.svelte.js";
 import { kvGet } from "../../src/lib/db.js";
+import { PFAND_REGELN } from "../../src/lib/pfand.js";
 import { products } from "../../src/lib/catalog.js";
 import { db } from "../../src/lib/db.js";
 
@@ -388,4 +389,27 @@ test("findPfand: altes Produkt aus Pressecode oder eigenem Katalog wird nicht na
   mockFetch(() => assert.fail("kein Netz nötig"));
   await scanned.save({ id: "presse-1", ean: "4194567802505", name: "Heft", categoryId: "zeitschrift", priceCents: 350, source: "Pressecode" });
   assert.equal((await findPfand("4194567802505")).pfand, "kein");
+});
+
+test("findPfand: Pfand nach älteren Regeln wird neu nachgeschlagen, aktueller Stand nicht", async () => {
+  // auf main als Einweg gespeichert (Flaschendeckel galt als Flasche)
+  await scanned.save({ id: "off-4001234567891", ean: "4001234567891", name: "Saft im Karton", categoryId: "getraenke", priceCents: 99, source: "openfoodfacts.org", pfand: "einweg", pfandQuelle: "verpackung", pfandRegeln: 1 });
+  mockFetch((url) => (url.includes("openfoodfacts.org/api") ? json({ status: 1, product: { product_name: "Saft", categories_tags: ["en:beverages", "en:juices"], packaging_tags: ["en:tetra-pak", "en:bottle-cap", "en:plastic"] } }) : nirgends(url)));
+  let r = await findPfand("4001234567891");
+  assert.equal(r.pfand, "kein");
+  const saved = await db.products.get("off-4001234567891");
+  assert.equal(saved.pfand, "kein");
+  assert.equal(saved.pfandRegeln, PFAND_REGELN);
+  assert.equal(saved.name, "Saft im Karton");
+  mockFetch(() => assert.fail("kein Netz nötig"));
+  r = await findPfand("4001234567891");
+  assert.equal(r.pfand, "kein");
+});
+
+test("findPfand: veralteter Stand ohne Verbindung → alter Wert bleibt", async () => {
+  await scanned.save({ id: "off-4001234567891", ean: "4001234567891", name: "Limo", categoryId: "getraenke", priceCents: 120, source: "openfoodfacts.org", pfand: "einweg", pfandQuelle: "verpackung" });
+  mockFetch(() => {
+    throw new TypeError("Failed to fetch");
+  });
+  assert.equal((await findPfand("4001234567891")).pfand, "einweg");
 });

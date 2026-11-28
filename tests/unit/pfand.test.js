@@ -184,3 +184,9 @@ test("Teile-Erkennung greift nicht bei Behältern mit ähnlichen Namen", () => {
   assert.equal(drink(["en:ring-pull-can"]).pfand, "einweg");
   assert.equal(drink(["en:sealed-bottle", "en:pet"]).pfand, "einweg");
 });
+
+test("Regal-Kategorie „getraenke“ überstimmt die genauen Kategorien nicht", () => {
+  assert.equal(istGetraenk({ categoryId: "getraenke", categoriesTags: ["en:beverages", "en:coffees"] }), false);
+  assert.equal(istGetraenk({ categoryId: "getraenke" }), true, "ohne Kategorien zählt die Regal-Kategorie");
+  assert.equal(pfandAusOpenFacts({ categories_tags: ["en:beverages", "en:coffees"], packaging_tags: ["en:can"] }, { categoryId: "getraenke" }).pfand, "kein");
+});

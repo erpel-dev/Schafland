@@ -5,7 +5,7 @@ import { lookupWikidata, issnFromEan } from "./wikidata.js";
 import { isBookEan, lookupGoogleBooks, lookupOpenLibrary } from "./books.js";
 import { isPressCode, pressProduct } from "./presse.js";
 import { NetworkError, ServiceError } from "./net.js";
-import { pfandVon } from "./pfand.js";
+import { pfandVon, PFAND_REGELN } from "./pfand.js";
 
 /** Gescannte Produkte aus IndexedDB, für den Reiter "Gescannt". */
 class Scanned {
@@ -168,16 +168,17 @@ export async function findPfand(ean) {
 }
 
 /**
- * Vor Version 1.20 gespeicherte Produkte von Open Food Facts kennen ihr Pfand noch nicht:
- * einmal nachfragen und nur pfand/pfandQuelle ergänzen (Name und Preis aus dem Eltern-Bereich bleiben).
+ * Gespeicherte Produkte von Open Food Facts ohne Pfand (vor 1.20) oder mit Pfand nach älteren Regeln
+ * (PFAND_REGELN): einmal neu nachschlagen und nur pfand/pfandQuelle ergänzen (Name und Preis aus dem Eltern-Bereich bleiben).
  * Ohne Verbindung bleibt alles, wie es ist; dann wird das Kind gefragt.
  */
 async function pfandNachladen(product, trace) {
-  if (product.pfand !== undefined || !/facts\.org$/.test(product.source ?? "")) return product;
+  // aktuell, oder nicht von Open Food Facts (eigene Produkte, Pressecodes …): nichts zu tun
+  if (product.pfandRegeln === PFAND_REGELN || !/facts\.org$/.test(product.source ?? "")) return product;
   try {
     const found = await lookupOpenFacts(product.ean, { trace });
     if (!found) return product;
-    const patch = { pfand: found.pfand, pfandQuelle: found.pfandQuelle };
+    const patch = { pfand: found.pfand, pfandQuelle: found.pfandQuelle, pfandRegeln: PFAND_REGELN };
     await scanned.update(product.id, patch);
     return { ...product, ...patch };
   } catch {

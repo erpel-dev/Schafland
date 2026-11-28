@@ -18,6 +18,12 @@ export const PFAND_ARTEN = {
 export const KEIN = "kein";
 
 /** Herkunft der Pfand-Angabe (für Kasse und Eltern-Bereich). */
+/**
+ * Stand der automatischen Regeln. Erhöhen, wenn sich die Erkennung ändert: Gespeicherte Produkte mit
+ * älterem Stand werden beim nächsten Pfand-Abgeben neu bei Open Food Facts nachgeschlagen.
+ */
+export const PFAND_REGELN = 2;
+
 export const PFAND_QUELLE = {
   siegel: "Open Food Facts",
   verpackung: "geschätzt aus der Verpackung",
@@ -52,7 +58,9 @@ const EINWEG = /(einweg-?pfand|pfandpflichtig|one-way-deposit|single-use-deposit
 const MEHRWEG = /(mehrweg|returnable|refillable|reusable-bottle)/;
 // „non-returnable“, „nicht-mehrweg“: nur kein Mehrweg, sagt nichts über Einwegpfand
 const NICHT_MEHRWEG = /(non|not|no|nicht|kein|ohne)-?(mehrweg|returnable|refillable|reusable)/;
-const KEIN_PFAND = /((kein|ohne)-?(einweg-?|mehrweg-?)?pfand|pfandfrei|no-deposit|deposit-free)/;
+// Pauschal ohne Pfand; „kein Einwegpfand“ schließt nur Einweg aus (Mehrweg siehe NICHT_MEHRWEG)
+const KEIN_PFAND = /((kein|ohne)-?pfand|pfandfrei|no-deposit|deposit-free)/;
+const NICHT_EINWEG = /(non|not|no|nicht|kein|ohne)-?(einweg-?pfand|one-way-deposit|single-use-deposit)/;
 // Teile einer Verpackung, die selbst kein Behälter sind (Flaschendeckel, Etikett …)
 const TEIL = /(^|:|-)(cap|caps|lid|lids|closure|deckel|schraubdeckel|verschluss|kronkorken|stopper|cork|korken|label|etikett|sleeve|film|wrap)(-|$)|flaschendeckel|flaschenverschluss/;
 const DOSE = /(^|:|-)(can|cans|drink-can|beverage-can|aluminium-can|aluminum-can|steel-can|dose|dosen|dose-n|getrankedose|getraenkedose|canette)(-|$)/;
@@ -65,9 +73,11 @@ const KARTON = /(brick|tetra|carton|karton|pure-pak|^[a-z]{2}:sig$|combibloc|get
 
 /** Ist das ein Getränk? (Kategorien von Open Food Facts oder eigene Kategorie) */
 export function istGetraenk({ categoryId, categoriesTags = [] } = {}) {
-  if (categoryId === "getraenke" || categoriesTags.some((t) => FLUESSIG.test(t))) return true;
+  // Die genauen Kategorien von Open Food Facts gehen der Regal-Kategorie vor: Die ist für Kaffee
+  // mit „en:beverages“ auch „getraenke“
+  if (categoriesTags.some((t) => FLUESSIG.test(t))) return true;
   if (categoriesTags.some((t) => KEIN_GETRAENK.test(t))) return false;
-  return categoriesTags.some((t) => GENERISCH.test(t));
+  return categoryId === "getraenke" || categoriesTags.some((t) => GENERISCH.test(t));
 }
 
 /**
@@ -83,8 +93,11 @@ export function pfandAusOpenFacts(p = {}, { categoryId } = {}) {
   const bier = kategorien.some((t) => BIER.test(t));
 
   if (siegel.some((t) => KEIN_PFAND.test(t))) return { pfand: KEIN, pfandQuelle: "siegel" };
-  if (siegel.some((t) => EINWEG.test(t))) return { pfand: "einweg", pfandQuelle: "siegel" };
+  // Ausdrückliche Angabe gewinnt; eine Verneinung schließt nur die genannte Art aus
+  if (siegel.some((t) => EINWEG.test(t) && !NICHT_EINWEG.test(t))) return { pfand: "einweg", pfandQuelle: "siegel" };
   if (siegel.some((t) => MEHRWEG.test(t) && !NICHT_MEHRWEG.test(t))) return { pfand: bier ? "bier" : "mehrweg", pfandQuelle: "siegel" };
+  // nur Verneinungen wie „kein Einwegpfand“ und nichts Ausdrückliches: kein Pfand
+  if (siegel.some((t) => NICHT_EINWEG.test(t) || (NICHT_MEHRWEG.test(t) && /pfand/.test(t)))) return { pfand: KEIN, pfandQuelle: "siegel" };
 
   // Keine Kategorien bei Open Food Facts: Ob es ein Getränk ist, weiß niemand → fragen statt ablehnen
   if (!kategorien.length && (!categoryId || categoryId === "gescannt")) return { pfand: null, pfandQuelle: null };
