@@ -423,6 +423,7 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       check("Handy: Leiste zeigt +0,25 € und „Auszahlen“", (await page.textContent(".bar-total")).replace(/\s/g, " ") === "+0,25 €" && (await page.textContent(".bar-pay")).includes("Auszahlen"), `${await page.textContent(".bar-total")} / ${await page.textContent(".bar-pay")}`);
       await page.tap(".bar-info");
       await page.locator(".sheet .pfand").waitFor();
+      await wait(400); // Blatt fährt hoch (Animation)
       const sp = await page.locator(".sheet .pay").boundingBox();
       check("Handy: Korb-Blatt mit Pfandblock, „Pfand auszahlen“ im Bild", sp && sp.y + sp.height <= vh + 1 && (await page.textContent(".sheet .pay")).includes("Pfand auszahlen"), JSON.stringify(sp));
       await page.tap(".sheet .pay");
