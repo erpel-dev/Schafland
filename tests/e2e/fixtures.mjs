@@ -20,9 +20,10 @@ export const CODES = {
   book: "9783161484100", // Beispiel-ISBN 978-3-16-148410-0
   press: "4199148407003", // deutscher Pressecode (c't): Titel 91484, 7,00 €, Zusatzcode 23 = Ausgabe
   wasser: "2106002000005", // eigenes Etikett: Wasser (Spielflasche mit Einwegpfand)
+  mehrweg: "4006381333931", // Saft in der Mehrwegflasche (Open Food Facts, in run.mjs mit verzögerter Antwort)
 };
 // Bei Änderungen an den Fixtures erhöhen, dann werden sie neu erzeugt
-const VERSION = "6";
+const VERSION = "7";
 
 export async function makeFixtures({ force = false } = {}) {
   if (!force && existsSync(path.join(FIX, "done")) && readFileSync(path.join(FIX, "done"), "utf8").startsWith(`${VERSION} `)) return FIX;
@@ -53,6 +54,7 @@ export async function makeFixtures({ force = false } = {}) {
   await cam("own", CODES.own, { label: "Apfel", rot: 3 });
   await cam("unknown", CODES.unknown);
   await cam("wasser", CODES.wasser, { label: "Wasser", rot: -4 });
+  await cam("mehrweg", CODES.mehrweg, { label: "Saft (Mehrweg)", rot: 4 });
   await cam("magazine", CODES.magazine, { label: "c't 23/2026", rot: -3 });
   await cam("book", CODES.book, { label: "ISBN 978-3-16-148410-0", rot: 4 });
   await cam("press", CODES.press, { label: "c't 23/2026", rot: -3, barWidth: 2, addOn: "23" });
@@ -69,6 +71,14 @@ export async function makeFixtures({ force = false } = {}) {
 
   const y4m = (src, out, vf) => ffmpeg("-loop", "1", "-t", "3", "-r", "15", "-i", path.join(FIX, src), ...(vf ? ["-vf", vf] : []), "-pix_fmt", "yuv420p", path.join(FIX, out));
   for (const n of ["off", "own", "unknown", "wasser", "magazine", "book", "press", "book-rotated", "small", "empty"]) y4m(`${n}.png`, `${n}.y4m`);
+  // Flaschen nacheinander vor die Kamera: Mehrweg → Wasser → wieder dieselbe Mehrwegflasche → 2,5 s nichts
+  ffmpeg(
+    "-loop", "1", "-t", "0.8", "-i", path.join(FIX, "mehrweg.png"),
+    "-loop", "1", "-t", "0.8", "-i", path.join(FIX, "wasser.png"),
+    "-loop", "1", "-t", "0.8", "-i", path.join(FIX, "mehrweg.png"),
+    "-loop", "1", "-t", "2.5", "-i", path.join(FIX, "empty.png"),
+    "-filter_complex", "[0][1][2][3]concat=n=4:v=1:a=0,fps=15,format=yuv420p", path.join(FIX, "wechsel.y4m"),
+  );
   // Wie eine alte Fixfokus-Webcam: unscharf und verrauscht
   y4m("off.png", "blur.y4m", "gblur=sigma=2.5,noise=alls=18:allf=t");
   // Absichtlich zu schwer: klein, unscharf und kontrastarm zugleich

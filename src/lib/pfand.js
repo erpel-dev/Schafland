@@ -18,6 +18,12 @@ export const PFAND_ARTEN = {
 export const KEIN = "kein";
 
 /** Herkunft der Pfand-Angabe (für Kasse und Eltern-Bereich). */
+/**
+ * Stand der automatischen Regeln. Erhöhen, wenn sich die Erkennung ändert: Gespeicherte Produkte mit
+ * älterem Stand werden beim nächsten Pfand-Abgeben neu bei Open Food Facts nachgeschlagen.
+ */
+export const PFAND_REGELN = 2;
+
 export const PFAND_QUELLE = {
   siegel: "Open Food Facts",
   verpackung: "geschätzt aus der Verpackung",
@@ -40,13 +46,23 @@ export function pfandCents(art, einstellungen = {}) {
 
 const gueltig = (c) => (Number.isInteger(c) && c >= 0 && c <= 500 ? c : null);
 
-const GETRAENK = /^en:(beverages|waters|mineral-waters|spring-waters|juices|fruit-juices|nectars|sodas|carbonated-drinks|soft-drinks|iced-teas|energy-drinks|beers|alcoholic-beverages|wines|plant-based-milks|milk-drinks|dairy-drinks|flavoured-milks|milks|sports-drinks|lemonades|colas|smoothies)$/;
+// Getränke: eindeutige Kategorien, allgemeine Kategorien und solche, die trotz „Getränk“ keine
+// Getränke in Flaschen oder Dosen sind (Kaffeebohnen, Tee, Pulver, Sirup, Kondensmilch …)
+const FLUESSIG = /^en:(waters|mineral-waters|spring-waters|flavoured-waters|juices|fruit-juices|nectars|sodas|carbonated-drinks|soft-drinks|iced-teas|tea-based-beverages|energy-drinks|beers|wines|ciders|spirits|plant-based-milks|milk-drinks|flavoured-milks|sports-drinks|lemonades|colas|smoothies)$/;
+const GENERISCH = /^en:(beverages|non-alcoholic-beverages|alcoholic-beverages|milks|dairy-drinks)$/;
+const KEIN_GETRAENK = /^en:(coffees|coffee-beans|ground-coffees|instant-coffees|coffee-capsules|coffee-pods|teas|tea-bags|green-teas|black-teas|herbal-teas|cocoa-and-chocolate-powders|cocoa-powders|chocolate-powders|instant-beverages|beverage-preparations|dehydrated-beverages|powdered-beverages|syrups|simple-syrups|condensed-milks|sweetened-condensed-milks|evaporated-milks|milk-powders|powdered-milks|infant-formulas|baby-milks)$/;
 const BIER = /^en:(beers|beer)$/;
 
 // Siegel und Verpackungsangaben, wie sie bei Open Food Facts stehen (deutsch und englisch)
 const EINWEG = /(einweg-?pfand|pfandpflichtig|one-way-deposit|single-use-deposit|^[a-z]{2}:dpg$|deutsches-pfandsystem)/;
 const MEHRWEG = /(mehrweg|returnable|refillable|reusable-bottle)/;
-const KEIN_PFAND = /(kein-?pfand|pfandfrei|no-deposit)/;
+// „non-returnable“, „nicht-mehrweg“: nur kein Mehrweg, sagt nichts über Einwegpfand
+const NICHT_MEHRWEG = /(non|not|no|nicht|kein|ohne)-?(mehrweg|returnable|refillable|reusable)/;
+// Pauschal ohne Pfand; „kein Einwegpfand“ schließt nur Einweg aus (Mehrweg siehe NICHT_MEHRWEG)
+const KEIN_PFAND = /((kein|ohne)-?pfand|pfandfrei|no-deposit|deposit-free)/;
+const NICHT_EINWEG = /(non|not|no|nicht|kein|ohne)-?(einweg-?pfand|one-way-deposit|single-use-deposit)/;
+// Teile einer Verpackung, die selbst kein Behälter sind (Flaschendeckel, Etikett …)
+const TEIL = /(^|:|-)(cap|caps|lid|lids|closure|deckel|schraubdeckel|verschluss|kronkorken|stopper|cork|korken|label|etikett|sleeve|film|wrap)(-|$)|flaschendeckel|flaschenverschluss/;
 const DOSE = /(^|:|-)(can|cans|drink-can|beverage-can|aluminium-can|aluminum-can|steel-can|dose|dosen|dose-n|getrankedose|getraenkedose|canette)(-|$)/;
 const KONSERVE = /food-can|konserve/;
 const PLASTIKFLASCHE = /(pet-?flasche|pet-bottle|plastic-bottle|plastikflasche|kunststoffflasche|bouteille-(en-)?plastique)/;
@@ -57,7 +73,11 @@ const KARTON = /(brick|tetra|carton|karton|pure-pak|^[a-z]{2}:sig$|combibloc|get
 
 /** Ist das ein Getränk? (Kategorien von Open Food Facts oder eigene Kategorie) */
 export function istGetraenk({ categoryId, categoriesTags = [] } = {}) {
-  return categoryId === "getraenke" || categoriesTags.some((t) => GETRAENK.test(t));
+  // Die genauen Kategorien von Open Food Facts gehen der Regal-Kategorie vor: Die ist für Kaffee
+  // mit „en:beverages“ auch „getraenke“
+  if (categoriesTags.some((t) => FLUESSIG.test(t))) return true;
+  if (categoriesTags.some((t) => KEIN_GETRAENK.test(t))) return false;
+  return categoryId === "getraenke" || categoriesTags.some((t) => GENERISCH.test(t));
 }
 
 /**
@@ -73,8 +93,11 @@ export function pfandAusOpenFacts(p = {}, { categoryId } = {}) {
   const bier = kategorien.some((t) => BIER.test(t));
 
   if (siegel.some((t) => KEIN_PFAND.test(t))) return { pfand: KEIN, pfandQuelle: "siegel" };
-  if (siegel.some((t) => EINWEG.test(t))) return { pfand: "einweg", pfandQuelle: "siegel" };
-  if (siegel.some((t) => MEHRWEG.test(t))) return { pfand: bier ? "bier" : "mehrweg", pfandQuelle: "siegel" };
+  // Ausdrückliche Angabe gewinnt; eine Verneinung schließt nur die genannte Art aus
+  if (siegel.some((t) => EINWEG.test(t) && !NICHT_EINWEG.test(t))) return { pfand: "einweg", pfandQuelle: "siegel" };
+  if (siegel.some((t) => MEHRWEG.test(t) && !NICHT_MEHRWEG.test(t))) return { pfand: bier ? "bier" : "mehrweg", pfandQuelle: "siegel" };
+  // nur Verneinungen wie „kein Einwegpfand“ und nichts Ausdrückliches: kein Pfand
+  if (siegel.some((t) => NICHT_EINWEG.test(t) || (NICHT_MEHRWEG.test(t) && /pfand/.test(t)))) return { pfand: KEIN, pfandQuelle: "siegel" };
 
   // Keine Kategorien bei Open Food Facts: Ob es ein Getränk ist, weiß niemand → fragen statt ablehnen
   if (!kategorien.length && (!categoryId || categoryId === "gescannt")) return { pfand: null, pfandQuelle: null };
@@ -98,8 +121,8 @@ function ausBestandteilen(packagings, bier) {
     .map((t) => ({ form: teilName(t?.shape), material: teilName(t?.material) }))
     .filter((t) => t.form || t.material);
   if (!teile.length) return undefined;
-  const dosen = teile.filter((t) => DOSE.test(t.form) && !KONSERVE.test(t.form));
-  const flaschen = teile.filter((t) => FLASCHE.test(t.form));
+  const dosen = teile.filter((t) => DOSE.test(t.form) && !KONSERVE.test(t.form) && !TEIL.test(t.form));
+  const flaschen = teile.filter((t) => FLASCHE.test(t.form) && !TEIL.test(t.form));
   if (dosen.length) return "einweg";
   if (flaschen.length) {
     if (flaschen.every((t) => PLASTIK.test(t.material) && !GLAS.test(t.material))) return "einweg";
@@ -115,7 +138,7 @@ function ausBestandteilen(packagings, bier) {
  * Die Tags mischen alle Bestandteile: bei Glas und Kunststoff zugleich lieber fragen.
  */
 function ausFacetten(formen, bier) {
-  const hat = (re) => formen.some((t) => re.test(t));
+  const hat = (re) => formen.some((t) => re.test(t) && !TEIL.test(t)); // Flaschendeckel ist keine Flasche
   const dose = hat(DOSE) && !hat(KONSERVE);
   const flasche = hat(FLASCHE) || hat(PLASTIKFLASCHE);
   if (dose) return "einweg"; // auch Dosen im Karton (Multipack)

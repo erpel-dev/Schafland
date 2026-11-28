@@ -144,3 +144,49 @@ test("zusammengefasste Tags: bei Glas und Kunststoff zugleich fragen; Dosen im K
   assert.equal(drink(["en:bottle", "en:glass", "en:metal"], ["en:beers"]).pfand, "bier");
   assert.equal(drink(["en:can", "en:cardboard-box", "de:karton"]).pfand, "einweg");
 });
+
+test("Verneinte Angaben: „non-returnable“ ist kein Mehrweg, „kein Einwegpfand“ ist kein Pfand", () => {
+  const drink = (labels_tags, packaging_tags = []) => off({ categories_tags: ["en:beverages", "en:juices"], labels_tags, packaging_tags });
+  assert.equal(drink(["en:non-returnable"]).pfand, null, "Glas o. Ä. unbekannt: fragen");
+  assert.equal(drink(["en:non-returnable"], ["en:can"]).pfand, "einweg", "Dose bleibt Einweg");
+  assert.equal(drink(["de:nicht-mehrweg"]).pfand, null);
+  assert.equal(drink(["de:kein-einwegpfand"], ["en:can"]).pfand, "kein");
+  assert.equal(drink(["de:ohne-pfand"]).pfand, "kein");
+  assert.equal(drink(["en:returnable"]).pfand, "mehrweg", "ohne Verneinung weiter Mehrweg");
+});
+
+test("Flaschendeckel und Etiketten sind keine Behälter", () => {
+  const drink = (extra) => off({ categories_tags: ["en:beverages"], ...extra });
+  // Tetrapak mit „bottle-cap“: kein Pfand, nicht Plastikflasche
+  assert.equal(drink({ packaging_tags: ["en:tetra-pak", "en:bottle-cap", "en:plastic"] }).pfand, "kein");
+  assert.equal(drink({ packagings: [{ shape: "en:brick", material: "en:multilayer-composite" }, { shape: "en:bottle-cap", material: "en:plastic" }] }).pfand, "kein");
+  assert.equal(drink({ packagings: [{ shape: "en:jar", material: "en:glass" }, { shape: "en:can-lid", material: "en:metal" }] }).pfand, null);
+  assert.equal(drink({ packaging_tags: ["de:flaschendeckel", "en:plastic"] }).pfand, null);
+});
+
+test("Getränke-Pulver, Kaffee, Tee, Sirup und Kondensmilch: kein Pfand, auch in Dose", () => {
+  const p = (cats, packaging_tags = ["en:can"]) => off({ categories_tags: cats, packaging_tags });
+  assert.equal(p(["en:beverages", "en:coffees", "en:ground-coffees"]).pfand, "kein", "Kaffee in der Dose");
+  assert.equal(p(["en:beverages", "en:cocoa-and-chocolate-powders"]).pfand, "kein");
+  assert.equal(p(["en:beverages", "en:teas", "en:green-teas"]).pfand, "kein");
+  assert.equal(p(["en:beverages", "en:syrups"], ["en:bottle", "en:plastic"]).pfand, "kein");
+  assert.equal(p(["en:dairies", "en:milks", "en:condensed-milks"]).pfand, "kein");
+  // eindeutiges Getränk gewinnt (Eistee ist auch „Tee“)
+  assert.equal(p(["en:beverages", "en:teas", "en:iced-teas"]).pfand, "einweg");
+  assert.equal(p(["en:dairies", "en:milks"], ["en:bottle", "en:plastic"]).pfand, "einweg", "Milch in Plastikflasche: Einwegpfand seit 2024");
+  assert.equal(istGetraenk({ categoriesTags: ["en:beverages", "en:coffees"] }), false);
+  assert.equal(istGetraenk({ categoriesTags: ["en:alcoholic-beverages", "en:spirits"] }), true);
+});
+
+test("Teile-Erkennung greift nicht bei Behältern mit ähnlichen Namen", () => {
+  const drink = (packaging_tags) => off({ categories_tags: ["en:beverages"], packaging_tags });
+  assert.equal(drink(["en:tetra-top"]).pfand, "kein", "Tetra Top ist ein Karton");
+  assert.equal(drink(["en:ring-pull-can"]).pfand, "einweg");
+  assert.equal(drink(["en:sealed-bottle", "en:pet"]).pfand, "einweg");
+});
+
+test("Regal-Kategorie „getraenke“ überstimmt die genauen Kategorien nicht", () => {
+  assert.equal(istGetraenk({ categoryId: "getraenke", categoriesTags: ["en:beverages", "en:coffees"] }), false);
+  assert.equal(istGetraenk({ categoryId: "getraenke" }), true, "ohne Kategorien zählt die Regal-Kategorie");
+  assert.equal(pfandAusOpenFacts({ categories_tags: ["en:beverages", "en:coffees"], packaging_tags: ["en:can"] }, { categoryId: "getraenke" }).pfand, "kein");
+});

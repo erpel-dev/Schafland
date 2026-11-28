@@ -41,7 +41,7 @@ const PRODUCT = { status: 1, product: { product_name_de: "Vollmilch-Schokolade",
   image_front_small_url: "https://images.openfoodfacts.org/x/front.jpg", categories_tags: ["en:sweet-snacks", "en:chocolates"],
   allergens_tags: ["en:milk", "en:soybeans"], traces_tags: ["en:gluten", "en:nuts"] } };
 
-async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, touch = false, camera = true, fakeDir = true, noPicker = false, offFail = false, offMode = null, googleDown = false, cams = 1, rear = false, device = null, audio = null } = {}) {
+async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, touch = false, camera = true, fakeDir = true, noPicker = false, offFail = false, offMode = null, googleDown = false, cams = 1, rear = false, device = null, audio = null, offExtra = null } = {}) {
   // Mit Video-Datei kennt Chromium nur eine Kamera; mehrere Kameras zeigen ein Testbild
   const args = cams > 1
     ? [`--use-fake-device-for-media-stream=device-count=${cams}`, "--autoplay-policy=no-user-gesture-required"]
@@ -60,6 +60,12 @@ async function launch(cam = "empty", { viewport = { width: 1366, height: 768 }, 
     offRequests.push(url);
     if (offFail) return route.abort("internetdisconnected");
     if (offMode?.() === "503") return route.fulfill({ status: 503, headers: { "access-control-allow-origin": "*" }, body: "Service Unavailable" });
+    // Zusätzliche Produkte für einzelne Tests: { code: { product, delay } }
+    const extra = url.includes("openfoodfacts") && Object.entries(offExtra ?? {}).find(([c]) => url.includes(c));
+    if (extra) {
+      const send = () => route.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ status: 1, product: extra[1].product }) }).catch(() => {});
+      return extra[1].delay ? setTimeout(send, extra[1].delay) : send();
+    }
     const hit = url.includes("openfoodfacts") && url.includes("4001234567891");
     route.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(hit ? PRODUCT : { status: 0, status_verbose: "product not found" }) });
   });
@@ -374,6 +380,152 @@ async function openSettings(page) { await page.keyboard.press("Control+,"); awai
       }));
       check(`${w} × ${h}, drei Karten: Beschriftungen laufen nicht über`, (await page.locator(".bottom > button").count()) === 3 && !over.length, over.join(", "));
       await page.screenshot({ path: `${SHOTS}/karten-${w}x${h}.png` });
+      await browser.close();
+    }
+
+    // Pfandzeilen im Korb: { Einweg: 2, Mehrweg: 1 }
+    const pfandZeilen = (page) => page.evaluate(() => {
+      const z = {};
+      for (const l of document.querySelectorAll(".cart:not(.sheet) .pf-ln, .sheet .pf-ln")) {
+        const art = l.querySelector(".pf-nm").firstChild.textContent.trim();
+        z[art] = (z[art] ?? 0) + Number(l.querySelector(".qty b").textContent);
+      }
+      return z;
+    });
+    if (section("pfand")) {
+      // Flaschen wechseln vor der Kamera: Mehrweg (Antwort kommt verzögert) → Wasser → dieselbe Mehrwegflasche → Pause.
+      // Die verzögerte Antwort zählt, und die Sperre gilt pro Code (Wasser setzt sie für Mehrweg nicht zurück).
+      const SAFT = { product_name_de: "Saft in der Mehrwegflasche", categories_tags: ["en:beverages", "en:juices"], labels_tags: ["de:mehrwegpfand"] };
+      const { browser, page, errors } = await launch("wechsel", { offExtra: { "4006381333931": { product: SAFT, delay: 1200 } } });
+      await openShop(page);
+      await page.click("text=Pfand abgeben");
+      await page.waitForFunction(() => [...document.querySelectorAll(".pf-ln")].some((l) => l.textContent.includes("Einweg") && l.querySelector(".qty b").textContent === "2"), null, { timeout: 40000 }).catch(() => {});
+      await wait(2000);
+      const z = await pfandZeilen(page);
+      check("Wechselnde Flaschen: jede Runde 1× Wasser und 1× Mehrweg", z.Einweg === 2 && z.Mehrweg >= 2 && z.Mehrweg <= 3, JSON.stringify(z));
+      await page.screenshot({ path: `${SHOTS}/pfand-wechsel.png` });
+      await page.click("text=✓ Fertig mit Pfand");
+      check("Keine Konsolenfehler (wechselnde Flaschen)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+    if (section("pfand")) {
+      // Handy hochkant: Pfand abgeben, Korb als Blatt, auszahlen
+      const { browser, page, errors } = await launch("wasser", { device: devices["Pixel 7"] });
+      await page.goto(APP_URL);
+      await page.tap("text=Laden öffnen");
+      await page.tap(".pfandbar");
+      await page.locator(".found .plus").waitFor({ timeout: 15000 });
+      const vh = page.viewportSize().height;
+      const done = await page.locator(".done").boundingBox();
+      check("Handy hochkant, Pfand: „Fertig mit Pfand“ im Bild", done && done.y + done.height <= vh + 1, JSON.stringify(done));
+      await page.screenshot({ path: `${SHOTS}/pfand-handy.png` });
+      await page.tap(".done");
+      check("Handy: Leiste zeigt +0,25 € und „Auszahlen“", (await page.textContent(".bar-total")).replace(/\s/g, " ") === "+0,25 €" && (await page.textContent(".bar-pay")).includes("Auszahlen"), `${await page.textContent(".bar-total")} / ${await page.textContent(".bar-pay")}`);
+      await page.tap(".bar-info");
+      await page.locator(".sheet .pfand").waitFor();
+      await wait(400); // Blatt fährt hoch (Animation)
+      const sp = await page.locator(".sheet .pay").boundingBox();
+      check("Handy: Korb-Blatt mit Pfandblock, „Pfand auszahlen“ im Bild", sp && sp.y + sp.height <= vh + 1 && (await page.textContent(".sheet .pay")).includes("Pfand auszahlen"), JSON.stringify(sp));
+      await page.tap(".sheet .pay");
+      await page.locator("text=Du bekommst Geld zurück!").waitFor();
+      const aus = page.locator("text=Ausgezahlt! Neuer Einkauf");
+      await aus.scrollIntoViewIfNeeded();
+      const ab = await aus.boundingBox();
+      check("Handy: „Ausgezahlt!“ erreichbar", ab && ab.y >= 0 && ab.y + ab.height <= vh + 1, JSON.stringify(ab));
+      await page.screenshot({ path: `${SHOTS}/pfand-handy-auszahlung.png` });
+      await aus.tap();
+      await page.locator(".party").waitFor();
+      check("Keine Konsolenfehler (Pfand Handy)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+    if (section("pfand")) {
+      // Kartenzahlung (simulierter Leser): Betrag abzüglich Pfand; bei Auszahlung kein Leser
+      const { browser, ctx, page, errors } = await launch("wasser");
+      await ctx.addInitScript(() => {
+        window.__nfc = { starts: 0, stops: 0, listener: null, tap() { this.listener?.(); } };
+        window.__schafFakeNfc = { available: true, enabled: true, granted: true, watch(onCard) { window.__nfc.starts++; window.__nfc.listener = onCard; return () => { window.__nfc.stops++; window.__nfc.listener = null; }; } };
+      });
+      await openShop(page);
+      await page.click('.tile:has-text("Apfel")');
+      await page.click("text=Pfand abgeben");
+      await page.waitForSelector(".found .plus", { timeout: 15000 });
+      await page.click("text=✓ Fertig mit Pfand");
+      await page.click(".pay");
+      await page.waitForSelector(".terminal");
+      check("Karte mit Pfand: Terminal zeigt 0,25 €", (await page.textContent(".terminal")).replace(/\s+/g, " ").includes("0,25 €"), (await page.textContent(".terminal")).replace(/\s+/g, " "));
+      await page.keyboard.press("Escape");
+      await page.click(".ln:has-text('Apfel') button[aria-label='Eins weniger']");
+      const starts = await page.evaluate(() => window.__nfc.starts);
+      await page.click(".pay");
+      await page.waitForSelector("text=Du bekommst Geld zurück!");
+      await page.evaluate(() => window.__nfc.tap());
+      await wait(800);
+      check("Auszahlung: Kartenleser startet nicht", (await page.evaluate(() => window.__nfc.starts)) === starts && (await page.locator(".terminal").count()) === 0);
+      check("Auszahlung: Karte hinhalten zahlt nicht", (await page.locator(".modal").count()) === 1 && (await page.locator(".party").count()) === 0);
+      await page.keyboard.press("Escape");
+      check("Keine Konsolenfehler (Pfand und Karte)", !errors.length, errors.join(" | "));
+      await browser.close();
+    }
+    if (section("pfand")) {
+      // Ohne Internet: unbekannte Flasche → das Kind wählt
+      offRequests = [];
+      const { browser, page, errors } = await launch("unknown", { offFail: true });
+      await openShop(page);
+      await page.click("text=Pfand abgeben");
+      await page.waitForSelector("text=Wie viel Pfand hat das?", { timeout: 15000 });
+      await page.click(".wahl:has-text('Dose oder Plastik')");
+      await page.waitForSelector(".found .plus");
+      check("Offline: Wahl „Dose oder Plastikflasche“ → +0,25 €", (await page.textContent(".found .plus")).replace(/\s/g, " ").includes("+0,25 €"));
+      // Escape schließt den Pfandautomaten, „Korb leeren“ nimmt auch das Pfand heraus
+      await page.keyboard.press("Escape");
+      check("Escape schließt den Pfandautomaten", (await page.locator(".scan").count()) === 0);
+      await page.click(".clear");
+      await page.click(".clear");
+      check("„Korb leeren“ nimmt das Pfand heraus", (await page.locator(".cart .pfand").count()) === 0 && (await page.isDisabled(".pay")));
+      check("Keine Konsolenfehler (Pfand offline)", !errors.filter((e) => !/ERR_INTERNET_DISCONNECTED|Failed to load resource/.test(e)).length, errors.join(" | "));
+      await browser.close();
+    }
+    if (section("pfand")) {
+      // Eltern-Bereich: Beträge prüfen, Wahl überschreiben, „Kind fragen“ aus, Aktion an
+      const { browser, page, errors } = await launch("unknown");
+      await openShop(page);
+      await page.click("text=Pfand abgeben");
+      await page.waitForSelector("text=Wie viel Pfand hat das?", { timeout: 15000 });
+      await page.click(".wahl:has-text('Glasflasche')");
+      await page.waitForSelector(".found .plus");
+      await page.click("text=✓ Fertig mit Pfand");
+      await openSettings(page);
+      await page.click("nav >> text=Pfand");
+      for (const v of ["abc", "-1", "6", "1,234x", ""]) {
+        await page.fill("#pfand-mehrweg", v); await page.press("#pfand-mehrweg", "Tab");
+        check(`Mehrweg-Betrag „${v}“ wird abgelehnt`, (await page.inputValue("#pfand-mehrweg")) === "0,15", await page.inputValue("#pfand-mehrweg"));
+      }
+      await page.fill("#pfand-bier", "0,1"); await page.press("#pfand-bier", "Tab");
+      check("Bier-Betrag „0,1“ wird zu 0,10", (await page.inputValue("#pfand-bier")) === "0,10");
+      const row = page.locator(".prod.pf", { hasText: "4009998887774" });
+      await row.locator("select").selectOption("einweg");
+      await wait(300);
+      check("Eltern: Wahl überschrieben", (await row.textContent()).includes("von den Eltern eingetragen"), await row.textContent());
+      await page.click("nav >> text=Aktionen");
+      await page.click("#aktion-halloween");
+      await page.click("text=Zurück zum Laden");
+      await page.click("text=Pfand abgeben");
+      await page.waitForSelector(".found .plus", { timeout: 15000 });
+      check("Eltern-Wahl gilt beim nächsten Scan: +0,25 €", (await page.textContent(".found .plus")).replace(/\s/g, " ").includes("+0,25 €") && (await page.textContent(".found .src")).includes("von den Eltern"), await page.textContent(".found"));
+      await page.screenshot({ path: `${SHOTS}/pfand-halloween.png` });
+      await page.click("text=✓ Fertig mit Pfand");
+      check("Halloween: Pfandkarte sichtbar", await page.isVisible(".pfandbar"));
+      // „Kind fragen“ aus: unbekannt zählt ohne Pfand (gemerkte Wahl erst entfernen)
+      await openSettings(page);
+      await page.click("nav >> text=Pfand");
+      await row.locator("select").selectOption("");
+      await page.click("#pfand-fragen");
+      await page.click("text=Zurück zum Laden");
+      await page.click("text=Pfand abgeben");
+      await page.waitForSelector("text=Da ist kein Pfand drauf.", { timeout: 15000 });
+      check("„Kind fragen“ aus: unbekannte Flasche ohne Pfand, keine Frage", (await page.locator(".wahl").count()) === 0);
+      await page.click("text=✓ Fertig mit Pfand");
+      check("Keine Konsolenfehler (Eltern-Bereich Pfand)", !errors.length, errors.join(" | "));
       await browser.close();
     }
 

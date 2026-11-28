@@ -56,3 +56,34 @@ jobs:
         with:
           name: e2e-screenshots
           path: tests/e2e/.output/
+
+  explore:
+    # Zufälliges Bedienen (Affentest, auch mit „Pfand abgeben“) plus Dauer- und Randfalltests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Abhängigkeiten
+        run: |
+          ok=; for i in 1 2 3; do npm ci && ok=1 && break; echo "npm ci fehlgeschlagen, neuer Versuch"; sleep 15; done; [ -n "$ok" ]
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-color-emoji >/dev/null
+          npx playwright install --with-deps chromium
+
+      - name: Erkundungstest (8 Minuten)
+        run: |
+          npx vite build
+          node tests/e2e/explore.mjs --minutes=8
+
+      - name: Funde und Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: explore
+          path: tests/e2e/.output/explore/

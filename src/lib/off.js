@@ -1,7 +1,7 @@
 import { categories, SCANNED } from "./catalog.js";
 import { getJson, fetchImage, ServiceError } from "./net.js";
 import { glutenAusOpenFacts, GLUTEN_REGEL } from "./gluten.js";
-import { pfandAusOpenFacts } from "./pfand.js";
+import { pfandAusOpenFacts, PFAND_REGELN } from "./pfand.js";
 
 // Open Food Facts und die Schwesterprojekte haben dieselbe Schnittstelle.
 const HOSTS = [
@@ -71,6 +71,7 @@ export async function lookupOpenFacts(ean, { timeoutMs = 8000, trace = [] } = {}
       glutenRegel: GLUTEN_REGEL,
       pfand,
       pfandQuelle,
+      pfandRegeln: PFAND_REGELN,
       emoji: cat.emoji,
       categoryId,
       priceCents: cat.defaultPrice,

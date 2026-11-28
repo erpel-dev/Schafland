@@ -128,7 +128,9 @@
       openSettings();
     }
     if (e.key === "Escape") {
-      paying = false;
+      // eine Ebene zurück: erst das Bezahlfenster, sonst Scanner bzw. Pfandautomat
+      if (paying) paying = false;
+      else if (view !== "shop" && celebrate === null) view = "shop";
       schaf.close();
     }
   }

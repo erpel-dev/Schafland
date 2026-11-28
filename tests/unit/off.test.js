@@ -1,5 +1,6 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { PFAND_REGELN } from "../../src/lib/pfand.js";
 import { lookupOpenFacts } from "../../src/lib/off.js";
 import { NetworkError, ServiceError } from "../../src/lib/net.js";
 
@@ -205,4 +206,33 @@ test("Pfand: aus Siegel, aus der Verpackung geschätzt, unbekannt, kein Getränk
   mockFetch(() => product({ product_name: "Schoko", categories_tags: ["en:chocolates"] }));
   p = await lookupOpenFacts("1");
   assert.equal(p.pfand, "kein");
+});
+
+test("Pfand über den echten Scan-Pfad: Kaffee und Sirup bleiben ohne Pfand, auch im Getränke-Regal", async () => {
+  mockFetch(() => product({ product_name: "Kaffee", categories_tags: ["en:beverages", "en:coffees", "en:ground-coffees"], packaging_tags: ["en:can"] }));
+  let p = await lookupOpenFacts("1");
+  assert.equal(p.categoryId, "getraenke", "Regal-Kategorie aus en:beverages");
+  assert.equal(p.pfand, "kein");
+  mockFetch(() => product({ product_name: "Sirup", categories_tags: ["en:beverages", "en:syrups"], packaging_tags: ["en:bottle", "en:plastic"] }));
+  p = await lookupOpenFacts("1");
+  assert.equal(p.pfand, "kein");
+  mockFetch(() => product({ product_name: "Eistee", categories_tags: ["en:beverages", "en:teas", "en:iced-teas"], packaging_tags: ["en:can"] }));
+  assert.equal((await lookupOpenFacts("1")).pfand, "einweg");
+});
+
+test("Pfand: Verneinung schließt nur die genannte Art aus (über den Scan-Pfad)", async () => {
+  const mit = async (labels_tags) => {
+    mockFetch(() => product({ product_name: "X", categories_tags: ["en:beverages", "en:juices"], labels_tags }));
+    return (await lookupOpenFacts("1")).pfand;
+  };
+  assert.equal(await mit(["de:kein-mehrwegpfand", "de:einwegpfand"]), "einweg");
+  assert.equal(await mit(["de:kein-einwegpfand", "de:mehrwegpfand"]), "mehrweg");
+  assert.equal(await mit(["de:kein-einwegpfand"]), "kein");
+  assert.equal(await mit(["de:kein-mehrwegpfand"]), "kein");
+  assert.equal(await mit(["de:pfandfrei", "de:einwegpfand"]), "kein", "pauschal ohne Pfand bleibt");
+});
+
+test("Pfand: Ergebnis trägt den Regelstand", async () => {
+  mockFetch(() => product({ product_name: "Wasser", categories_tags: ["en:waters"], labels_tags: ["de:einwegpfand"] }));
+  assert.equal((await lookupOpenFacts("1")).pfandRegeln, PFAND_REGELN);
 });
