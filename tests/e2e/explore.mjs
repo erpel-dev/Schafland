@@ -33,6 +33,7 @@ function finding(title, detail) {
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
 const PRODUCT = { status: 1, product: { product_name_de: "Vollmilch-Schokolade mit extra langem Namen für den Test", brands: "Beispielmarke", quantity: "100 g", categories_tags: ["en:chocolates"] } };
+const SAFT = { status: 1, product: { product_name_de: "Saft in der Mehrwegflasche", categories_tags: ["en:beverages", "en:juices"], labels_tags: ["de:mehrwegpfand"] } };
 
 async function launch(cam = "own") {
   const browser = await chromium.launch({
@@ -40,7 +41,7 @@ async function launch(cam = "own") {
   });
   const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 }, hasTouch: true, permissions: ["camera"] });
   await ctx.route(/open(food|beauty|products)facts\.org\/api/, (r) =>
-    r.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(r.request().url().includes("4001234567891") ? PRODUCT : { status: 0 }) }));
+    r.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(r.request().url().includes("4001234567891") ? PRODUCT : r.request().url().includes("4006381333931") ? SAFT : { status: 0 }) }));
   // Bücher und Wikidata: nichts gefunden (die Inhalte prüft run.mjs)
   await ctx.route(/googleapis\.com\/books|openlibrary\.org\/api|wikidata\.org\/w\/api/, (r) =>
     r.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ totalItems: 0, query: { search: [] } }) }));
@@ -87,8 +88,23 @@ async function invariants(page) {
       const nm = ln.querySelector(".nm");
       if (ln.scrollWidth > ln.clientWidth + 1) return `Korbzeile läuft über: ${nm.textContent.trim().slice(0, 30)}`;
     }
-    const total = num(document.querySelector(".total b").textContent);
-    if (Math.abs(total - sum) > 0.001) return `Gesamtsumme ${total} ≠ Summe der Zeilen ${sum.toFixed(2)}`;
+    // Pfand: eigene Zeilen mit Minusbetrag, Summe = Waren − Pfand
+    let pfand = 0;
+    for (const pl of document.querySelectorAll(".pf-ln")) {
+      const qty = Number(pl.querySelector(".qty b").textContent);
+      const cents = num(pl.querySelector(".pf-nm small").textContent);
+      const lineSum = num(pl.querySelector(".sum").textContent);
+      if (!(qty >= 1)) return `Pfandzeile mit Menge ${qty}`;
+      if (Math.abs(qty * cents - lineSum) > 0.001) return `Pfandzeile falsch: ${qty} × ${cents} ≠ ${lineSum}`;
+      if (pl.scrollWidth > pl.clientWidth + 1) return "Pfandzeile läuft über";
+      pfand += lineSum;
+    }
+    const main = document.querySelector(".total .main");
+    const total = num(document.querySelector(".total b").textContent) * (main?.classList.contains("aus") ? -1 : 1);
+    if (Math.abs(total - (sum - pfand)) > 0.001) return `Gesamtsumme ${total} ≠ Waren ${sum.toFixed(2)} − Pfand ${pfand.toFixed(2)}`;
+    const payText = document.querySelector(".pay").textContent;
+    if ((total < 0) !== payText.includes("Pfand auszahlen")) return `Knopf „${payText.trim()}“ passt nicht zur Summe ${total}`;
+    if (document.querySelector(".pay").disabled !== (!lines.length && !pfand)) return "Bezahlen-Knopf frei/gesperrt passt nicht zum Korb";
     const head = document.querySelector(".cart h2 span").textContent;
     if (Number(head.match(/\d+/)?.[0] ?? 0) !== count) return `Anzahl oben "${head}" ≠ ${count}`;
     const totalBox = document.querySelector(".total");
@@ -113,10 +129,11 @@ const where = (page) =>
     document.querySelector(".start") ? "start" : document.querySelector(".settings") ? "settings" : document.querySelector(".party") ? "party" : document.querySelector(".modal") ? "pay" : document.querySelector(".scan") ? "scan" : "shop");
 
 // ---------------------------------------------------------------- Affentest
-async function monkey(ms) {
-  log(`Affentest ${Math.round(ms / 60000)} min, Seed ${SEED}`);
-  // Zeitschrift mit Pressecode und Zusatzcode: legt gescannte Produkte an, die umbenannt werden können
-  const { browser, page, errors, cdp } = await launch("press");
+async function monkey(ms, cam = "press") {
+  log(`Affentest ${Math.round(ms / 60000)} min, Kamera ${cam}, Seed ${SEED}`);
+  // press: Zeitschrift mit Pressecode und Zusatzcode, legt gescannte Produkte an, die umbenannt werden können
+  // wechsel: Mehrwegflasche, Wasser, Mehrwegflasche, Pause (für „Pfand abgeben“)
+  const { browser, page, errors, cdp } = await launch(cam);
   await page.goto(APP_URL);
   await page.click("text=Laden öffnen");
   const start = Date.now();
@@ -134,6 +151,9 @@ async function monkey(ms) {
       [1, "Korb leeren 2×", async () => { if (await page.locator(".clear").count()) { await page.locator(".clear").tap(); await page.locator(".clear").tap(); } }],
       [3, "Bezahlen", async () => { if (await page.isEnabled(".pay")) await page.locator(".pay").tap(); }],
       [2, "Scannen", async () => page.locator(".scanbar").tap()],
+      [2, "Pfand abgeben", async () => { if (await page.locator(".pfandbar").count()) await page.locator(".pfandbar").tap(); }],
+      [2, "Pfand plus", async () => { const b = page.locator("button[aria-label='Eine Flasche mehr']"); const n = await b.count(); if (n) await b.nth(Math.floor(rnd() * n)).tap(); }],
+      [2, "Pfand minus", async () => { const b = page.locator("button[aria-label='Eine Flasche weniger']"); const n = await b.count(); if (n) await b.nth(Math.floor(rnd() * n)).tap(); }],
       [1, "Eltern-Bereich", async () => page.keyboard.press("Control+,")],
       [1, "Musik-Knopf", async () => { const b = page.locator("header .music button"); if (await b.count()) await b.first().tap(); }],
       [1, "Doppeltipp Kachel", async () => { const t = page.locator(".tile").first(); await t.dblclick(); }],
@@ -141,7 +161,7 @@ async function monkey(ms) {
       [0.3, "Neu laden", async () => { await page.reload(); await page.click("text=Laden öffnen"); }],
     ],
     pay: [
-      [3, "Bezahlt", async () => page.locator("text=Bezahlt! Neuer Einkauf").tap()],
+      [3, "Bezahlt", async () => { const b = page.locator(".modal .row .big-btn:not(.light)"); if (await b.count()) await b.tap(); }],
       [2, "Zurück", async () => page.locator(".modal >> text=Zurück").tap()],
       [1, "Escape", async () => page.keyboard.press("Escape")],
       [1, "Daneben tippen", async () => { await page.mouse.click(20, 400); if (!(await page.locator(".modal").count())) finding("Tippen neben das Bezahlfenster schließt es", ""); }],
@@ -150,7 +170,8 @@ async function monkey(ms) {
     ],
     scan: [
       [3, "Warten", async () => wait(800 + rnd() * 1500)],
-      [2, "Fertig", async () => page.locator("text=✓ Fertig gescannt").tap()],
+      [2, "Fertig", async () => page.locator(".done").tap()],
+      [2, "Pfand wählen", async () => { const b = page.locator(".wahl"); const n = await b.count(); if (n) await b.nth(Math.floor(rnd() * n)).tap(); }],
       [1, "In den Korb", async () => { const b = page.locator(".found .big-btn"); if (await b.count()) await b.tap(); }],
       [1, "Korb-Plus beim Scannen", async () => { const b = page.locator("button[aria-label='Eins mehr']"); if (await b.count()) await b.first().tap(); }],
     ],
@@ -165,6 +186,10 @@ async function monkey(ms) {
       [1, "Name ändern", async () => { const i = page.locator(".prod input.name"); if (await i.count()) { await i.first().fill(pick(["c't", "Mein Heft", "", "  ", "X".repeat(80), "Zeitschrift"])); await i.first().press("Enter"); } }],
       [1, "Protokoll leeren", async () => { const b = page.locator("text=Protokoll leeren"); if (await b.count()) await b.tap(); }],
       [1, "Preis ändern", async () => { const i = page.locator(".prod .price input"); if (await i.count()) { await i.first().fill(pick(["0,5", "12", "abc", "-1", "999,99", "1000", ""])); await i.first().press("Tab"); } }],
+      [1, "Pfand an/aus", async () => { if (await page.locator("#pfand-on").count()) await page.locator("#pfand-on").tap(); }],
+      [1, "Kind fragen an/aus", async () => { if (await page.locator("#pfand-fragen").count()) await page.locator("#pfand-fragen").tap(); }],
+      [1, "Mehrweg-Betrag", async () => { const i = page.locator("#pfand-mehrweg"); if (await i.count()) { await i.fill(pick(["0,15", "0,2", "0", "abc", "5", "5,01", ""])); await i.press("Tab"); } }],
+      [1, "Gemerkte Flasche ändern", async () => { const sel = page.locator(".prod.pf select"); const n = await sel.count(); if (n) await sel.nth(Math.floor(rnd() * n)).selectOption(pick(["", "einweg", "mehrweg", "bier", "kein"])); }],
       [3, "Zurück", async () => page.locator("text=Zurück zum Laden").tap()],
     ],
     start: [[1, "Öffnen", async () => page.click("text=Laden öffnen")]],
@@ -200,7 +225,7 @@ async function monkey(ms) {
   for (let i = 0; i < 5 && (await where(page)) !== "shop"; i++) {
     const s = await where(page);
     if (s === "settings") await page.click("text=Zurück zum Laden");
-    else if (s === "scan") await page.click("text=✓ Fertig gescannt");
+    else if (s === "scan") await page.click(".done");
     else if (s === "pay") await page.keyboard.press("Escape");
     else await wait(1500);
   }
@@ -330,7 +355,7 @@ async function edgeCases() {
   await wait(800);
   const after = await page.evaluate(() => new Promise((res) => { const q = indexedDB.open("schafland"); q.onsuccess = () => { const t = q.result.transaction("receipts").objectStore("receipts").count(); t.onsuccess = () => res(t.result); }; }));
   if (after - before !== 1) finding("Mehrfach-Tipp auf „Bezahlt!“ speichert mehrere Kassenbons", `${after - before} Kassenbons für einen Einkauf`);
-  const emptyReceipt = await page.evaluate(() => new Promise((res) => { const q = indexedDB.open("schafland"); q.onsuccess = () => { const t = q.result.transaction("receipts").objectStore("receipts").getAll(); t.onsuccess = () => res(t.result.filter((r) => !r.lines.length).length); }; }));
+  const emptyReceipt = await page.evaluate(() => new Promise((res) => { const q = indexedDB.open("schafland"); q.onsuccess = () => { const t = q.result.transaction("receipts").objectStore("receipts").getAll(); t.onsuccess = () => res(t.result.filter((r) => !r.lines.length && !r.pfand?.length).length); }; }));
   if (emptyReceipt) finding("Leerer Kassenbon gespeichert", `${emptyReceipt} Bons ohne Positionen`);
   await wait(3500);
 
@@ -396,7 +421,9 @@ try {
   await edgeCases();
   await musicSoak(total * 0.13);
   await cameraSoak(total * 0.2);
-  await monkey(Math.max(60000, total - (Date.now() - t0)));
+  const rest = Math.max(120000, total - (Date.now() - t0));
+  await monkey(rest * 0.5, "press");
+  await monkey(rest * 0.5, "wechsel");
 } finally {
   server.kill();
 }

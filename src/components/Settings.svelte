@@ -229,7 +229,9 @@
   });
   // Mehrweg-Beträge: „0,15“ ↔ 15 Cent (Einweg ist gesetzlich 25 Cent und nicht änderbar)
   function setPfandBetrag(key, input) {
-    const cents = Math.round(parseFloat(input.value.trim().replace(",", ".")) * 100);
+    const text = input.value.trim().replace(/\s*€$/, "");
+    // nur Zahlen wie „0,15“, „0.2“ oder „1“; höchstens 5 €
+    const cents = /^\d{1,3}([.,]\d{1,2})?$/.test(text) ? Math.round(parseFloat(text.replace(",", ".")) * 100) : NaN;
     if (Number.isInteger(cents) && cents >= 0 && cents <= 500) settings.set({ [key]: cents });
     input.value = priceText(settings.value[key]);
   }
