@@ -230,8 +230,9 @@ async function monkey(ms, cam = "press") {
     else await wait(1500);
   }
   const m1 = await metrics(page, cdp);
-  const receipts = await page.evaluate(() => new Promise((res) => { const q = indexedDB.open("schafland"); q.onsuccess = () => { const t = q.result.transaction("receipts").objectStore("receipts").count(); t.onsuccess = () => res(t.result); }; }));
-  log(`Affentest fertig: ${steps} Schritte, ${receipts} Einkäufe bezahlt. Speicher ${m0.heapMB} → ${m1.heapMB} MB, DOM-Knoten ${m0.nodes} → ${m1.nodes}, Listener ${m0.listeners} → ${m1.listeners}`);
+  const [receipts, mitPfand] = await page.evaluate(() => new Promise((res) => { const q = indexedDB.open("schafland"); q.onsuccess = () => { const t = q.result.transaction("receipts").objectStore("receipts").getAll(); t.onsuccess = () => res([t.result.length, t.result.filter((r) => r.pfand?.length).length]); }; }));
+  if (cam === "wechsel" && !mitPfand) finding("Affentest mit Flaschen: kein Einkauf mit Pfand", `${receipts} Einkäufe, keiner mit Pfand (Pfand-Aktionen nicht erreicht?)`);
+  log(`Affentest fertig: ${steps} Schritte, ${receipts} Einkäufe bezahlt (${mitPfand} mit Pfand). Speicher ${m0.heapMB} → ${m1.heapMB} MB, DOM-Knoten ${m0.nodes} → ${m1.nodes}, Listener ${m0.listeners} → ${m1.listeners}`);
   if (m1.heapMB > m0.heapMB * 2 + 10) finding("Speicher wächst im Affentest", `${m0.heapMB} → ${m1.heapMB} MB`);
   await page.screenshot({ path: path.join(OUT, "affentest-ende.png") });
   await browser.close();
